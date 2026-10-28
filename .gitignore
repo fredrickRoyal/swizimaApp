@@ -1,15 +1,44 @@
+# JetBrains / Android Studio
+.idea/
 *.iml
-.gradle
+*.iws
+*.ipr
+.gradle/
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
 local.properties
+
+# Build outputs
+/build/
+/dist/
+/out/
+/target/
+
+# Mobile Subproject (swizima-mobile)
+/swizima-mobile/build/
+/swizima-mobile/.gradle/
+/swizima-mobile/.cxx/
+/swizima-mobile/.externalNativeBuild/
+/swizima-mobile/local.properties
+/swizima-mobile/captures/
+/swizima-mobile/.idea/
+
+# Web Subproject (swizima-web)
+/swizima-web/node_modules/
+/swizima-web/.next/
+/swizima-web/dist/
+/swizima-web/build/
+/swizima-web/.npm/
+/swizima-web/.idea/
+
+# API Subproject (swizima-api)
+/swizima-api/node_modules/
+/swizima-api/venv/
+/swizima-api/__pycache__/
+/swizima-api/dist/
+/swizima-api/build/
+/swizima-api/.idea/
+
+# OS / Misc
+.DS_Store
+Thumbs.db
+*.log
