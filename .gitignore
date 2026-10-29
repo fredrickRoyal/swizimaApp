@@ -38,6 +38,40 @@ local.properties
 /swizima-api/build/
 /swizima-api/.idea/
 
+# API - Java / Maven / Spring Boot services
+# (clientapi, configurationsapi, paymentsapi, serviceapi, usersapi)
+/swizima-api/*/target/
+/swizima-api/*/HELP.md
+/swizima-api/*/.mvn/wrapper/maven-wrapper.jar
+/swizima-api/*/logs/
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Local / environment-specific config (never commit secrets)
+.env
+.env.*
+!.env.example
+**/src/main/resources/application-local.properties
+**/src/main/resources/application-local.yml
+
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# VS Code
+.vscode/
+
 # OS / Misc
 .DS_Store
 Thumbs.db

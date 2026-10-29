@@ -30,7 +30,20 @@ Native Android automotive management application built with Jetpack Compose and 
 - **Tech Stack:** Kotlin, Jetpack Compose, Material 3, Navigation Compose, Coroutines.
 
 ### 2. Swizima API (`swizima-api`)
-- Backend services and database integration for syncing vehicle records, user authentication, and notifications.
+Backend services and database integration for syncing vehicle records, user authentication, and notifications.
+
+- **Tech Stack:** Java, Spring Boot 4.1.2 (Web MVC, Data JPA, Validation), PostgreSQL, Maven.
+- **Architecture:** Independent Spring Boot services, each with its own Maven build.
+
+| Service | Base package | Responsibility | Docs |
+|---|---|---|---|
+| `clientapi` | `com.swizima.clientapi` | Client (customer/organisation) management | [README](swizima-api/clientapi/README.md) |
+| `configurationsapi` | `com.swizima.configurationsapi` | System configurations and settings | [README](swizima-api/configurationsapi/README.md) |
+| `paymentsapi` | `com.swizima.paymentsapi` | Payments and transactions | [README](swizima-api/paymentsapi/README.md) |
+| `serviceapi` | `com.swizima.serviceapi` | Automotive services (car park, wash, repair) | [README](swizima-api/serviceapi/README.md) |
+| `usersapi` | `com.swizima.usersapi` | Users and authentication | [README](swizima-api/usersapi/README.md) |
+
+All services share the same package layout (`config`, `controller`, `dto`, `entity`, `exception`, `repository`, `service`), audit columns via `ParentEntity`, and soft deletes. See each service's README for its data model, endpoints and setup.
 
 ### 3. Swizima Web (`swizima-web`)
 - Administrative dashboard and web client for managing swizima automotive operations.
@@ -42,3 +55,11 @@ Native Android automotive management application built with Jetpack Compose and 
 1. Clone or open the workspace at `swizima-app`.
 2. Open `swizima-mobile` in Android Studio.
 3. Configure API endpoints and dependencies as needed.
+
+### Running an API service
+Each service runs independently. See the **Running locally** section in the service's README, e.g. [clientapi](swizima-api/clientapi/README.md#running-locally):
+
+```bash
+cd swizima-api/clientapi
+./mvnw spring-boot:run
+```
