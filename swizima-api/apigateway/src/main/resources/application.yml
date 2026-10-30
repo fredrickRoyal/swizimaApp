@@ -1,0 +1,143 @@
+# =====================================================================
+# Swizima API Gateway
+# Single entry point (port 8080) that routes requests to each service.
+# Downstream URLs are overridable via environment variables so the same
+# config works locally, in Docker and in production.
+# =====================================================================
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: apigateway
+
+  # Timeouts for calls from the gateway to downstream services
+  http:
+    clients:
+      connect-timeout: ${GATEWAY_CONNECT_TIMEOUT:5s}
+      read-timeout: ${GATEWAY_READ_TIMEOUT:30s}
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            # ---------------- Client API (8081) ----------------
+            - id: clientapi
+              uri: ${CLIENT_API_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/clients/**,/api/v1/service-catalogs/**
+
+            # ---------------- Configurations API (8082) ----------------
+            - id: configurationsapi
+              uri: ${CONFIGURATIONS_API_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/configurations/**
+
+            # ---------------- Payments API (8083) ----------------
+            - id: paymentsapi
+              uri: ${PAYMENTS_API_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/payments/**
+
+            # ---------------- Service API (8084) ----------------
+            - id: serviceapi
+              uri: ${SERVICE_API_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/services/**
+
+            # ---------------- Users API (8085) ----------------
+            - id: usersapi
+              uri: ${USERS_API_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/users/**,/api/v1/auth/**
+
+            # ---------------- OpenAPI docs (for aggregated Swagger UI) ----------------
+            # /docs/<service>/v3/api-docs  ->  <service>/v3/api-docs
+            - id: clientapi-docs
+              uri: ${CLIENT_API_URL:http://localhost:8081}
+              predicates:
+                - Path=/docs/clientapi/**
+              filters:
+                - StripPrefix=2
+
+            - id: configurationsapi-docs
+              uri: ${CONFIGURATIONS_API_URL:http://localhost:8082}
+              predicates:
+                - Path=/docs/configurationsapi/**
+              filters:
+                - StripPrefix=2
+
+            - id: paymentsapi-docs
+              uri: ${PAYMENTS_API_URL:http://localhost:8083}
+              predicates:
+                - Path=/docs/paymentsapi/**
+              filters:
+                - StripPrefix=2
+
+            - id: serviceapi-docs
+              uri: ${SERVICE_API_URL:http://localhost:8084}
+              predicates:
+                - Path=/docs/serviceapi/**
+              filters:
+                - StripPrefix=2
+
+            - id: usersapi-docs
+              uri: ${USERS_API_URL:http://localhost:8085}
+              predicates:
+                - Path=/docs/usersapi/**
+              filters:
+                - StripPrefix=2
+
+# =====================================================================
+# Aggregated Swagger UI  ->  http://localhost:8080/swagger-ui.html
+# =====================================================================
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: ${SWAGGER_UI_ENABLED:true}   # set false in production if docs must not be public
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    filter: true
+    try-it-out-enabled: true
+    persist-authorization: true
+    urls-primary-name: Users API
+    urls:
+      - name: Users API
+        url: /docs/usersapi/v3/api-docs
+      - name: Client API
+        url: /docs/clientapi/v3/api-docs
+      - name: Configurations API
+        url: /docs/configurationsapi/v3/api-docs
+      - name: Payments API
+        url: /docs/paymentsapi/v3/api-docs
+      - name: Service API
+        url: /docs/serviceapi/v3/api-docs
+
+# =====================================================================
+# CORS - origins allowed to call the gateway (web app, mobile dev tools)
+# Comma-separated list; use specific origins in production.
+# =====================================================================
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    exposed-headers: Location,Content-Disposition
+    allow-credentials: true
+    max-age: 3600
+
+# =====================================================================
+# Actuator - /actuator/health and /actuator/gateway (route listing)
+# =====================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized

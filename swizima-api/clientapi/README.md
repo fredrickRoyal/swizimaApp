@@ -3,7 +3,8 @@
 Spring Boot service for managing Swizima clients (customers and organisations).
 
 - **Base package:** `com.swizima.clientapi`
-- **Tech stack:** Java, Spring Boot 4.1.2 (Web MVC, Data JPA, Validation), PostgreSQL, Maven
+- **Tech stack:** Java 21, Spring Boot 4.1.2 (Web MVC, Data JPA, Validation), PostgreSQL, Lombok, springdoc-openapi (Swagger), Maven
+- **Port:** `8081` · **Swagger UI:** http://localhost:8081/swagger-ui.html
 
 ## Package structure
 
@@ -23,9 +24,10 @@ com.swizima.clientapi/
 
 ## Data model
 
-### `ParentEntity` (shared audit columns)
+### `ParentEntity` (shared primary key and audit columns)
 | Column | Description |
 |---|---|
+| `id` | UUID primary key (generated) — inherited by every entity |
 | `created_by` | User who created the record (auto) |
 | `created_at` | Creation timestamp (auto) |
 | `updated_by` | User who last updated the record (auto) |
@@ -37,7 +39,7 @@ com.swizima.clientapi/
 ### `Client` (table `clients`)
 | Column | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
+| `id` | UUID | Primary key (from `ParentEntity`) |
 | `client_code` | varchar(50) | Required, unique |
 | `client_name` | varchar(255) | Required |
 | `trading_name` | varchar(255) | |

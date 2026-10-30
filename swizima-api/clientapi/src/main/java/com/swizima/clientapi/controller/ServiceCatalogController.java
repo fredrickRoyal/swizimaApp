@@ -7,6 +7,7 @@ import com.swizima.clientapi.dto.ServiceCatalogStatusRequest;
 import com.swizima.clientapi.entity.enums.ServiceCatalogStatus;
 import com.swizima.clientapi.entity.enums.ServiceCategory;
 import com.swizima.clientapi.service.ServiceCatalogService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/service-catalogs")
 @RequiredArgsConstructor
+@Tag(name = "Service Catalog", description = "Services offered by clients")
 public class ServiceCatalogController {
 
     private final ServiceCatalogService serviceCatalogService;

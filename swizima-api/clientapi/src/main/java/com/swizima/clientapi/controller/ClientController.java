@@ -6,6 +6,7 @@ import com.swizima.clientapi.dto.ClientStatusRequest;
 import com.swizima.clientapi.dto.PageResponse;
 import com.swizima.clientapi.entity.enums.ClientStatus;
 import com.swizima.clientapi.service.ClientService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/clients")
 @RequiredArgsConstructor
+@Tag(name = "Clients", description = "Client management")
 public class ClientController {
 
     private final ClientService clientService;

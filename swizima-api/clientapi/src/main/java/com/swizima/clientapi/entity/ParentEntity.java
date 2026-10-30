@@ -5,6 +5,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import lombok.Builder;
@@ -19,9 +22,11 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
- * Base class for all entities, holding common audit and record-status columns.
+ * Base class for all entities, holding the UUID primary key ({@code id}) and common
+ * audit and record-status columns.
  * Audit fields are populated automatically via Spring Data JPA auditing.
  */
 @MappedSuperclass
@@ -31,6 +36,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @SuperBuilder
 public abstract class ParentEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @CreatedBy
     @Column(name = "created_by", updatable = false, length = 100)
