@@ -1,0 +1,271 @@
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a routerLink="/clients" id="client-form-back"><app-icon name="arrowLeft" /> Clients</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">Register client</span>
+</nav>
+
+<app-page-header heading="Register client" subtitle="Add a business that offers services on Swizima. Only the name and code are required." />
+
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate class="client-form page-enter" id="client-form">
+  @if (error()) {
+    <div class="alert alert-error" role="alert" id="client-form-error">
+      <app-icon name="alert" />
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- ===== Business details ===== -->
+  <section class="card section" aria-labelledby="cf-sec-business">
+    <header class="section-intro">
+      <span class="step">1</span>
+      <h2 id="cf-sec-business">Business details</h2>
+      <p>The registered name and a unique code used to reference this client across Swizima.</p>
+    </header>
+    <div class="grid">
+      <div class="field span-2">
+        <label for="cf-name">Client name <em aria-hidden="true">*</em></label>
+        <input id="cf-name" class="input" formControlName="clientName" autocomplete="organization"
+               placeholder="e.g. Kampala Auto Spa" autofocus required (input)="onNameInput()"
+               [attr.aria-invalid]="invalid('clientName')" aria-describedby="cf-name-err" />
+        @if (invalid('clientName')) { <p class="field-error" id="cf-name-err">{{ errorFor('clientName') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-code">Client code <em aria-hidden="true">*</em></label>
+        <div class="with-action">
+          <input id="cf-code" class="input mono" formControlName="clientCode" autocomplete="off"
+                 spellcheck="false" placeholder="KAS-1234" required (input)="onCodeInput()"
+                 [attr.aria-invalid]="invalid('clientCode')" aria-describedby="cf-code-hint cf-code-err" />
+          <button type="button" class="btn btn-icon" id="cf-code-generate" (click)="regenerateCode()"
+                  aria-label="Generate a new code" title="Generate a new code">
+            <app-icon name="refresh" />
+          </button>
+        </div>
+        @if (invalid('clientCode')) {
+          <p class="field-error" id="cf-code-err">{{ errorFor('clientCode') }}</p>
+        } @else {
+          <p class="field-hint" id="cf-code-hint">Suggested from the name — you can edit it.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="cf-trading">Trading name</label>
+        <input id="cf-trading" class="input" formControlName="tradingName" placeholder="Optional"
+               [attr.aria-invalid]="invalid('tradingName')" />
+        @if (invalid('tradingName')) { <p class="field-error">{{ errorFor('tradingName') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-type">Client type</label>
+        <select id="cf-type" class="select" formControlName="clientType">
+          @for (t of types; track t) { <option [value]="t">{{ humanize(t) }}</option> }
+        </select>
+      </div>
+
+      <fieldset class="field span-2 sector-field" aria-describedby="cf-sector-hint">
+        <legend class="label">Industry / sector</legend>
+        <div class="chips" [class.invalid]="invalid('industrySectors')">
+          @for (s of sectors; track s; let i = $index) {
+            <label class="chip" [class.selected]="isSectorSelected(s)">
+              <input type="checkbox" [id]="'cf-sector-' + i" [checked]="isSectorSelected(s)" (change)="toggleSector(s)" />
+              <span class="tick" aria-hidden="true"></span>
+              {{ s }}
+            </label>
+          }
+          <label class="chip chip-other" [class.selected]="otherSectorOn()">
+            <input type="checkbox" id="cf-sector-other-toggle" [checked]="otherSectorOn()" (change)="toggleOther()" />
+            <span class="tick" aria-hidden="true"></span>
+            Other…
+          </label>
+        </div>
+        @if (invalid('industrySectors')) {
+          <p class="field-error">{{ errorFor('industrySectors') }}</p>
+        } @else {
+          <p class="field-hint" id="cf-sector-hint">
+            Select all that apply@if (sectorCount()) { · <strong>{{ sectorCount() }} selected</strong> }
+          </p>
+        }
+        @if (otherSectorOn()) {
+          <input id="cf-sector-other" class="input" formControlName="industrySectorOther"
+                 placeholder="Other sectors, comma separated (e.g. Car tracking, Panel beating)"
+                 aria-label="Other industry / sectors, comma separated"
+                 [attr.aria-invalid]="invalid('industrySectorOther')" />
+          @if (invalid('industrySectorOther')) {
+            <p class="field-error">{{ errorFor('industrySectorOther') }}</p>
+          }
+        }
+      </fieldset>
+
+      <div class="field span-2">
+        <span class="label" id="cf-status-label">Initial status</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="cf-status-label">
+          @for (s of statuses; track s) {
+            <label [class.selected]="form.controls.status.value === s">
+              <input type="radio" formControlName="status" [value]="s" [id]="'cf-status-' + s.toLowerCase()" />
+              {{ s === 'PENDING' ? 'Pending review' : 'Active now' }}
+            </label>
+          }
+        </div>
+      </div>
+
+      <div class="field span-2">
+        <label for="cf-description">Description</label>
+        <textarea id="cf-description" class="input" rows="3" formControlName="description"
+                  placeholder="What does this business do? (optional)"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Contact & location ===== -->
+  <section class="card section" aria-labelledby="cf-sec-contact">
+    <header class="section-intro">
+      <span class="step">2</span>
+      <h2 id="cf-sec-contact">Contact &amp; location</h2>
+      <p>How customers and the Swizima team can reach the business, and where it operates.</p>
+    </header>
+    <div class="grid">
+      <div class="field">
+        <label for="cf-email">Email <span class="optional">optional</span></label>
+        <input id="cf-email" class="input" type="email" formControlName="email" autocomplete="email"
+               placeholder="info@business.com" [attr.aria-invalid]="invalid('email')" />
+        @if (invalid('email')) { <p class="field-error">{{ errorFor('email') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-phone">Phone number</label>
+        <input id="cf-phone" class="input" type="tel" formControlName="phoneNumber" autocomplete="tel"
+               placeholder="+256 700 123456" [attr.aria-invalid]="invalid('phoneNumber')" />
+        @if (invalid('phoneNumber')) { <p class="field-error">{{ errorFor('phoneNumber') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-alt-phone">Alternative phone</label>
+        <input id="cf-alt-phone" class="input" type="tel" formControlName="alternativePhone"
+               placeholder="Optional" [attr.aria-invalid]="invalid('alternativePhone')" />
+        @if (invalid('alternativePhone')) { <p class="field-error">{{ errorFor('alternativePhone') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-address">Address</label>
+        <input id="cf-address" class="input" formControlName="address" autocomplete="street-address"
+               placeholder="Plot 12, Jinja Road" [attr.aria-invalid]="invalid('address')" />
+        @if (invalid('address')) { <p class="field-error">{{ errorFor('address') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-district">District</label>
+        @if (isUganda()) {
+          <select id="cf-district" class="select" formControlName="district" (change)="onDistrictChange()"
+                  [attr.aria-invalid]="invalid('district')">
+            <option value="">Select district…</option>
+            @for (g of districtGroups; track g.region) {
+              <optgroup [label]="g.region + ' region'">
+                @for (d of g.districts; track d) { <option [value]="d">{{ d }}</option> }
+              </optgroup>
+            }
+            <option [value]="other">Other…</option>
+          </select>
+          @if (form.controls.district.value === other) {
+            <input id="cf-district-other" class="input" formControlName="districtOther"
+                   placeholder="Type the district" aria-label="Other district"
+                   [attr.aria-invalid]="invalid('districtOther')" />
+            @if (invalid('districtOther')) { <p class="field-error">{{ errorFor('districtOther') }}</p> }
+          }
+        } @else {
+          <input id="cf-district" class="input" formControlName="district" autocomplete="address-level1"
+                 placeholder="District / state / province" [attr.aria-invalid]="invalid('district')" />
+        }
+        @if (invalid('district')) { <p class="field-error">{{ errorFor('district') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-city">City / town</label>
+        @if (isUganda()) {
+          <select id="cf-city" class="select" formControlName="city" (change)="onCityChange()"
+                  [attr.aria-invalid]="invalid('city')">
+            <option value="">Select city / town…</option>
+            @for (o of cityOptions(); track o.town + o.district) {
+              <option [value]="o.town">
+                {{ o.town }}@if (!form.controls.district.value || form.controls.district.value === other) { — {{ o.district }} }
+              </option>
+            }
+            <option [value]="other">Other…</option>
+          </select>
+          @if (form.controls.city.value === other) {
+            <input id="cf-city-other" class="input" formControlName="cityOther"
+                   placeholder="Type the city / town" aria-label="Other city or town"
+                   [attr.aria-invalid]="invalid('cityOther')" />
+            @if (invalid('cityOther')) { <p class="field-error">{{ errorFor('cityOther') }}</p> }
+          } @else if (!form.controls.district.value) {
+            <p class="field-hint">Choosing a town fills in its district.</p>
+          }
+        } @else {
+          <input id="cf-city" class="input" formControlName="city" autocomplete="address-level2"
+                 placeholder="City / town" [attr.aria-invalid]="invalid('city')" />
+        }
+        @if (invalid('city')) { <p class="field-error">{{ errorFor('city') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-country">Country</label>
+        <input id="cf-country" class="input" formControlName="country" autocomplete="country-name"
+               (input)="onCountryInput()" [attr.aria-invalid]="invalid('country')" />
+        @if (invalid('country')) { <p class="field-error">{{ errorFor('country') }}</p> }
+        @if (!isUganda()) { <p class="field-hint">District and city lists are available for Uganda.</p> }
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Contact person ===== -->
+  <section class="card section" aria-labelledby="cf-sec-person">
+    <header class="section-intro">
+      <span class="step">3</span>
+      <h2 id="cf-sec-person">Primary contact person</h2>
+      <p>The person we talk to about this client's account, services and payments.</p>
+    </header>
+    <div class="grid">
+      <div class="field">
+        <label for="cf-cp-name">Full name</label>
+        <input id="cf-cp-name" class="input" formControlName="contactPerson" autocomplete="off"
+               placeholder="Jane Nakato" [attr.aria-invalid]="invalid('contactPerson')" />
+        @if (invalid('contactPerson')) { <p class="field-error">{{ errorFor('contactPerson') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-cp-title">Title / role</label>
+        <input id="cf-cp-title" class="input" formControlName="contactPersonTitle" autocomplete="off"
+               placeholder="Operations manager" [attr.aria-invalid]="invalid('contactPersonTitle')" />
+        @if (invalid('contactPersonTitle')) { <p class="field-error">{{ errorFor('contactPersonTitle') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-cp-email">Email</label>
+        <input id="cf-cp-email" class="input" type="email" formControlName="contactPersonEmail" autocomplete="off"
+               placeholder="jane@business.com" [attr.aria-invalid]="invalid('contactPersonEmail')" />
+        @if (invalid('contactPersonEmail')) { <p class="field-error">{{ errorFor('contactPersonEmail') }}</p> }
+      </div>
+
+      <div class="field">
+        <label for="cf-cp-phone">Phone</label>
+        <input id="cf-cp-phone" class="input" type="tel" formControlName="contactPersonPhone" autocomplete="off"
+               placeholder="+256 772 000000" [attr.aria-invalid]="invalid('contactPersonPhone')" />
+        @if (invalid('contactPersonPhone')) { <p class="field-error">{{ errorFor('contactPersonPhone') }}</p> }
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Sticky actions ===== -->
+  <div class="action-bar">
+    <p class="action-hint"><em>*</em> Required fields</p>
+    <div class="actions">
+      <a routerLink="/clients" class="btn" id="client-form-cancel">Cancel</a>
+      <button type="submit" class="btn btn-primary" id="client-form-submit" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="spinner" aria-hidden="true"></span> Registering…
+        } @else {
+          <app-icon name="check" /> Register client
+        }
+      </button>
+    </div>
+  </div>
+</form>

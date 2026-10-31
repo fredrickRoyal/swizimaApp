@@ -6,6 +6,7 @@ import com.swizima.clientapi.entity.enums.ClientType;
 import com.swizima.clientapi.entity.enums.RecordStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -17,7 +18,7 @@ public record ClientResponse(
         String clientName,
         String tradingName,
         ClientType clientType,
-        String industrySector,
+        List<String> industrySectors,
         String description,
         String email,
         String phoneNumber,
@@ -45,7 +46,7 @@ public record ClientResponse(
                 c.getClientName(),
                 c.getTradingName(),
                 c.getClientType(),
-                c.getIndustrySector(),
+                c.getIndustrySectors() == null ? List.of() : List.copyOf(c.getIndustrySectors()),
                 c.getDescription(),
                 c.getEmail(),
                 c.getPhoneNumber(),

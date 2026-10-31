@@ -17,6 +17,10 @@ public record OtpChallengeResponse(
         String maskedDestination,
         LocalDateTime expiresAt,
         LocalDateTime resendAvailableAt,
+        @Schema(description = "Seconds until the code expires (timezone-independent, use for countdowns)", example = "300")
+        long expiresInSeconds,
+        @Schema(description = "Seconds until a new code can be requested", example = "60")
+        long resendAvailableInSeconds,
         String message
 ) {
 }

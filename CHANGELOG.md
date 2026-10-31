@@ -14,7 +14,28 @@ Entries are grouped by version, then by type of change, and prefixed with the af
 
 ## [Unreleased]
 
+### Fixed
+- **[apigateway]** Web portal login returned `403 Invalid CORS request`: the Angular dev server origin `http://localhost:4200` is now in the default `CORS_ALLOWED_ORIGINS`.
+- **[web]** OTP countdown showed `NaN:NaN` when usersapi did not return `expiresInSeconds` / `resendAvailableInSeconds` (older build); it now falls back to `expiresAt` / `resendAvailableAt`, then to 5 min / 60 s.
+
+### Changed
+- **[web]** OTP page uses six segmented code boxes (active-box caret, fill animation, error shake). A single hidden `one-time-code` input still drives them, so paste, SMS/password-manager autofill and screen readers keep working.
+- **[web]** Register client: *Industry / sector* is now a multi-select of automotive sector chips (`INDUSTRY_SECTORS` in `client-form.ts`). An *Other…* chip lets users type extra sectors (comma separated). Picks are de-duplicated and sent as `industrySectors: string[]`.
+- **[web]** Register client, *Contact & location*:
+  - *Email* is labelled as optional (the form and API never required it).
+  - *District* is a dropdown of Uganda districts grouped by region, and *City / town* is a dropdown filtered by the chosen district. Choosing a town first fills in its district.
+  - Both dropdowns have an *Other…* option for free text, and both become plain text inputs when *Country* is not Uganda.
+  - The data lives in `src/app/core/data/uganda-locations.ts`. The API is unchanged and still stores plain strings.
+- **[clientapi]** **Breaking:** `industrySector` (string) is replaced by `industrySectors` (array) in `ClientRequest`/`ClientResponse` (max 20 entries, each ≤150 chars). Values are trimmed and de-duplicated, then stored as a JSON array string in a new `clients.industry_sectors` text column via `StringListJsonConverter`, e.g. `["Car wash & detailing","Car park & parking"]`. `ddl-auto=update` adds the new column. The old `industry_sector` column is no longer used; to carry its data over, run `UPDATE clients SET industry_sectors = json_build_array(industry_sector)::text WHERE industry_sector <> '' AND industry_sectors IS NULL;` and then optionally `ALTER TABLE clients DROP COLUMN industry_sector;`.
+
 ### Added
+- **[web]** **Register client** page at `/clients/new` (button on `/clients`), posting to `POST /api/v1/clients` via the gateway. Sections for business details, contact & location and primary contact person (side-by-side intro + fields on wide screens); client code auto-suggested from the name (editable, regenerate button); client-side validation mirroring `ClientRequest`; server `400` field errors and `409` duplicate code mapped onto the fields; sticky action bar; unsaved-changes protection (`unsavedChangesGuard` canDeactivate + `beforeunload`); returns to the list with a success notice and the new row highlighted.
+- **[web]** Angular 22 admin portal in `swizima-web/` (standalone, signals, zoneless, vanilla CSS design system with light/dark support, Inter font).
+- **[web]** Responsive app shell: fixed left sidebar (≥1024px), sticky glass top bar with page title, and a swipeable mobile navigation drawer (popover + scroll-snap, Escape / backdrop / link close, focus and `inert` handling).
+- **[web]** Two-step sign-in: `/auth/login` (email or phone + password, OTP channel picker, show-password) and `/auth/verify-otp` (single `one-time-code` input, auto-submit on 6 digits, expiry and resend countdowns, resend / switch channel, WebOTP auto-fill). Route guards for authenticated, guest and pending-OTP states; `returnUrl` restricted to in-app paths.
+- **[web]** Pages: Dashboard (KPI counts, services by category, quick actions), Clients, Services offered and Users (search, filters, server-side pagination, responsive tables that become cards on mobile, skeleton/empty/error states), and Payments / Configurations previews until their APIs exist.
+- **[web]** HTTP interceptor adding `X-Request-Id`; RFC 9457 ProblemDetail errors shown as friendly messages; dev proxy `/api` → gateway (`API_GATEWAY_URL`, default `http://localhost:8080`).
+- **[usersapi]** `OtpChallengeResponse` now includes `expiresInSeconds` and `resendAvailableInSeconds` so clients can run countdowns without depending on clock/timezone.
 - **[infra]** `swizima-api/docker-compose.yml` with **PostgreSQL 18.6** (pinned; latest stable), health check, persistent volume `swizima-postgres-data` bound to host folder `/home/kasoma/swizima/Projects/Swizima/dbdata` (override `POSTGRES_DATA_DIR`), network `swizima-network`; init script `docker/postgres/init/01-create-databases.sh` creates `swizima_users`, `swizima_client`, `swizima_configurations`, `swizima_payments`, `swizima_service`; `.env.example` for overrides.
 - **[usersapi]** `SuperAdminSeeder`: creates the initial super admin on start-up (`kfredrick35@gmail.com`, `+256700408387`, `ACTIVE`, OTP via email); idempotent; configurable via `app.seed.super-admin.*` / `SUPER_ADMIN_*` env vars; password change prompted on first login by default.
 - **[usersapi]** `UserRole` (`SUPER_ADMIN`, `ADMIN`, `USER`) and `role` column on `system_users` (DB default `USER`); returned in user responses.

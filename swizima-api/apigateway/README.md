@@ -27,7 +27,7 @@ Paths are forwarded unchanged (e.g. `GET :8080/api/v1/clients` → `GET :8081/ap
 - **Aggregated Swagger UI** – `http://localhost:8080/swagger-ui.html` (also `/`, `/docs`, `/swagger` redirect there).
   Pick a service from the **"Select a definition"** dropdown. Each service publishes a relative server URL (`/`),
   so **"Try it out" calls go through the gateway** (port 8080). Set `SWAGGER_UI_ENABLED=false` to hide it in production.
-- **CORS** handled centrally – `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:3000,http://localhost:5173`).
+- **CORS** handled centrally – `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:4200,http://localhost:3000,http://localhost:5173`; `4200` is the Angular web portal). Requests from an unlisted origin get `403 Invalid CORS request`.
 - **Request correlation** – every request gets an `X-Request-Id` (kept if supplied by the client),
   forwarded downstream, returned in the response and written to the access log.
 - **Timeouts** – `GATEWAY_CONNECT_TIMEOUT` (default `5s`), `GATEWAY_READ_TIMEOUT` (default `30s`).

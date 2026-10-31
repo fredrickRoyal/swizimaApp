@@ -126,6 +126,10 @@ sequenceDiagram
 **Rules:** 6-digit code · expires in 5 min · max 5 wrong attempts · resend after 60 s · single use ·
 only the newest code is valid · all configurable under `app.otp.*`.
 
+**Timers in the challenge response:** besides the absolute `expiresAt` / `resendAvailableAt`, the login and
+resend responses include `expiresInSeconds` and `resendAvailableInSeconds`. Clients should drive countdowns
+from these relative values so they are not affected by clock or timezone differences (the web portal does this).
+
 > [!NOTE]
 > **SMS and WhatsApp** senders are placeholders and return `503` until a provider is integrated
 > (e.g. Africa's Talking/Twilio for SMS, Meta WhatsApp Cloud API for WhatsApp).

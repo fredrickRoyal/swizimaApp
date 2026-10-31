@@ -142,12 +142,15 @@ public class OtpServiceImpl implements OtpService {
         sender.send(destination, code, props.expiryMinutes());
 
         String masked = OtpMasking.mask(destination);
+        LocalDateTime now = LocalDateTime.now();
         return new OtpChallengeResponse(
                 challenge.getId(),
                 channel,
                 masked,
                 expiresAt,
-                LocalDateTime.now().plusSeconds(props.resendCooldownSeconds()),
+                now.plusSeconds(props.resendCooldownSeconds()),
+                Math.max(0, java.time.Duration.between(now, expiresAt).getSeconds()),
+                props.resendCooldownSeconds(),
                 "A verification code has been sent via " + channel.name().toLowerCase() + " to " + masked
         );
     }

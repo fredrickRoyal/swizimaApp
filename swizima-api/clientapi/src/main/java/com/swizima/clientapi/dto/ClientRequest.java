@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /**
  * Payload for creating or updating a client.
  */
@@ -23,8 +25,9 @@ public record ClientRequest(
 
         ClientType clientType,
 
-        @Size(max = 150)
-        String industrySector,
+        /** One or more sectors, e.g. ["Car wash & detailing", "Car park & parking"]. Stored as a JSON array. */
+        @Size(max = 20, message = "At most 20 industry sectors")
+        List<@NotBlank @Size(max = 150) String> industrySectors,
 
         String description,
 

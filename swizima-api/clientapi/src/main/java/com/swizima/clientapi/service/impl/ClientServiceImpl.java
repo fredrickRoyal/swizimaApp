@@ -16,6 +16,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -112,7 +117,7 @@ public class ClientServiceImpl implements ClientService {
         client.setClientName(r.clientName());
         client.setTradingName(r.tradingName());
         client.setClientType(r.clientType());
-        client.setIndustrySector(r.industrySector());
+        client.setIndustrySectors(normaliseSectors(r.industrySectors()));
         client.setDescription(r.description());
         client.setEmail(r.email());
         client.setPhoneNumber(r.phoneNumber());
@@ -128,5 +133,22 @@ public class ClientServiceImpl implements ClientService {
         if (r.status() != null) {
             client.setStatus(r.status());
         }
+    }
+
+    /** Trim, drop blanks and de-duplicate case-insensitively, keeping the submitted order. */
+    private static List<String> normaliseSectors(List<String> sectors) {
+        List<String> result = new ArrayList<>();
+        if (sectors == null) {
+            return result;
+        }
+        Set<String> seen = new HashSet<>();
+        for (String sector : sectors) {
+            if (sector == null || sector.isBlank()) continue;
+            String value = sector.trim();
+            if (seen.add(value.toLowerCase(Locale.ROOT))) {
+                result.add(value);
+            }
+        }
+        return result;
     }
 }

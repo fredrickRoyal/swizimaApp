@@ -1,0 +1,103 @@
+<app-page-header heading="Clients" subtitle="Businesses registered on Swizima and their current status.">
+  <button type="button" class="btn" id="clients-refresh" (click)="clients.reload()">
+    <app-icon name="refresh" /> Refresh
+  </button>
+  <a class="btn btn-primary" id="clients-register" routerLink="/clients/new">
+    <app-icon name="clients" /> Register client
+  </a>
+</app-page-header>
+
+@if (justCreated(); as c) {
+  <div class="alert alert-success created-notice page-enter" role="status" id="clients-created-notice">
+    <app-icon name="check" />
+    <span><strong>{{ c.createdClientName }}</strong> was registered with code <code>{{ c.createdClientCode }}</code>.</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="clients-created-dismiss"
+            (click)="justCreated.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search clients</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="clients-search" placeholder="Search by name, code, email or phone"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="clients-status">Filter by status</label>
+    <select class="select" id="clients-status" [value]="status()" (change)="onStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ humanize(s) }}</option>
+      }
+    </select>
+  </div>
+
+  @let state = clients.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load clients" [message]="state.error">
+      <button type="button" class="btn" id="clients-retry" (click)="clients.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading clients">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+        </div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="inbox" heading="No clients found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'Register your first client to get started.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="clients-clear-filters" (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <a class="btn btn-primary" id="clients-empty-register" routerLink="/clients/new">
+          <app-icon name="clients" /> Register client
+        </a>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Client</th>
+            <th scope="col">Type</th>
+            <th scope="col">Contact</th>
+            <th scope="col">Location</th>
+            <th scope="col">Status</th>
+            <th scope="col">Registered</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (client of state.data.content; track client.id) {
+            <tr [class.row-new]="client.id === justCreated()?.createdClientId">
+              <td data-label="Client">
+                <div class="cell-stack">
+                  <span class="cell-primary">{{ client.clientName }}</span>
+                  <span class="cell-secondary cell-mono">{{ client.clientCode }}</span>
+                </div>
+              </td>
+              <td data-label="Type">{{ humanize(client.clientType) || '—' }}</td>
+              <td data-label="Contact">
+                <div class="cell-stack">
+                  <span>{{ client.contactPerson || client.email || '—' }}</span>
+                  @if (client.phoneNumber) {
+                    <span class="cell-secondary">{{ client.phoneNumber }}</span>
+                  }
+                </div>
+              </td>
+              <td data-label="Location">{{ location(client.city, client.country) }}</td>
+              <td data-label="Status"><app-status-badge [status]="client.status" /></td>
+              <td data-label="Registered" class="cell-secondary">{{ client.createdAt | date: 'mediumDate' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>

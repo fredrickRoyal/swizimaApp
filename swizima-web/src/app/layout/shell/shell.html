@@ -1,0 +1,46 @@
+<!-- Desktop sidebar (hidden below 1024px) -->
+<aside class="sidebar" aria-label="Sidebar">
+  <app-nav-menu (signOut)="signOut()" />
+</aside>
+
+<!-- Mobile drawer: popover="manual" is required by the swipe pattern -->
+<div class="drawer" id="nav-drawer" popover="manual" #drawer (click)="onDrawerClick($event)">
+  <div class="drawer-scroller" #scroller>
+    <div class="drawer-sheet" tabindex="-1" #sheet aria-label="Navigation menu">
+      <button type="button" class="drawer-close btn-icon" id="drawer-close-btn" (click)="closeDrawer()" aria-label="Close menu">
+        <app-icon name="close" />
+      </button>
+      <app-nav-menu (navigate)="closeDrawer()" (signOut)="signOut()" />
+    </div>
+  </div>
+</div>
+
+<div class="content" #main>
+  <header class="topbar">
+    <button type="button" class="menu-btn btn btn-icon" id="drawer-open-btn" #menuButton
+            aria-label="Open menu" aria-controls="nav-drawer" [attr.aria-expanded]="drawerOpen()"
+            (click)="openDrawer()">
+      <app-icon name="menu" />
+    </button>
+
+    <div class="topbar-title">
+      <small>{{ greeting() }}</small>
+      <span>{{ pageTitle() || 'Swizima' }}</span>
+    </div>
+
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-icon" id="notifications-btn" aria-label="Notifications" title="Notifications">
+        <app-icon name="bell" />
+        <span class="dot" aria-hidden="true"></span>
+      </button>
+      <div class="me" [title]="username()">
+        <span class="me-avatar" aria-hidden="true">{{ (username() || 'S').charAt(0).toUpperCase() }}</span>
+        <span class="me-name">{{ username() }}</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main" id="main-content">
+    <router-outlet />
+  </main>
+</div>

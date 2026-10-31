@@ -1,0 +1,163 @@
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.alert app-icon { flex: none; }
+
+/* ---------- KPI cards ---------- */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 1rem;
+}
+
+.kpi {
+  --tone: var(--brand-500);
+  position: relative;
+  display: grid;
+  gap: 0.25rem;
+  padding: 1.2rem 1.25rem;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  transition: transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease), border-color var(--duration) var(--ease);
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto -30px -50px auto;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: var(--tone);
+    opacity: 0.09;
+    transition: transform 400ms var(--ease);
+  }
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: color-mix(in srgb, var(--tone) 40%, var(--border));
+    &::after { transform: scale(1.25); }
+    .kpi-arrow { opacity: 1; transform: translateX(0); }
+  }
+  &:focus-visible { outline: none; box-shadow: var(--ring); }
+}
+.tone-brand { --tone: #6366f1; }
+.tone-teal { --tone: #14b8a6; }
+.tone-violet { --tone: #8b5cf6; }
+.tone-amber { --tone: #f59e0b; }
+
+.kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.kpi-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.kpi-arrow {
+  color: var(--text-subtle);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: all var(--duration) var(--ease);
+}
+.kpi-label { color: var(--text-muted); font-size: 0.85rem; font-weight: 500; }
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-skeleton { display: block; height: 2.2rem; width: 60%; border-radius: 8px; }
+.kpi-hint { color: var(--text-subtle); font-size: 0.8rem; }
+
+/* ---------- Two column area ---------- */
+.grid-2 {
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 1100px) {
+  .grid-2 { grid-template-columns: 1.2fr 1fr; }
+}
+
+.card-header h2 { font-size: 1rem; font-weight: 650; }
+.card-header p { font-size: 0.85rem; }
+
+.categories {
+  display: grid;
+  gap: 1rem;
+  li { display: flex; align-items: center; gap: 0.85rem; }
+}
+.cat-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--brand-500);
+  background: color-mix(in srgb, var(--brand-500) 12%, transparent);
+}
+.cat-body { flex: 1; display: grid; gap: 0.4rem; min-width: 0; }
+.cat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  strong { font-variant-numeric: tabular-nums; }
+}
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+  span {
+    display: block;
+    height: 100%;
+    min-width: 4px;
+    border-radius: inherit;
+    background: var(--gradient-brand);
+    transition: width 600ms var(--ease);
+  }
+}
+
+.quick {
+  display: grid;
+  gap: 0.5rem;
+  a {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+    transition: background var(--duration) var(--ease);
+    &:hover { background: var(--bg-hover); .quick-arrow { transform: translateX(3px); color: var(--brand-500); } }
+    &:focus-visible { outline: none; box-shadow: var(--ring); }
+  }
+}
+.quick-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #fff;
+  background: var(--gradient-brand);
+  box-shadow: 0 8px 18px -10px rgb(99 102 241 / 0.9);
+}
+.quick-text {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+  strong { font-size: 0.92rem; font-weight: 600; }
+  small { color: var(--text-muted); font-size: 0.8rem; }
+}
+.quick-arrow { color: var(--text-subtle); transition: transform var(--duration) var(--ease), color var(--duration) var(--ease); }

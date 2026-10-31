@@ -62,7 +62,13 @@ All services share the same package layout (`config`, `controller`, `dto`, `enti
 > The service must be running for its link to work. `/swagger-ui.html` redirects to `/swagger-ui/index.html`.
 
 ### 3. Swizima Web (`swizima-web`)
-- Administrative dashboard and web client for managing swizima automotive operations.
+Admin portal built with **Angular 22** (standalone components, signals, zoneless) and vanilla CSS.
+- **Auth:** two-step sign-in — email/phone + password, then a 6-digit OTP (Email / SMS / WhatsApp).
+- **Layout:** fixed left sidebar on desktop; swipeable drawer on mobile.
+- **Menu:** Dashboard · Clients · Services offered · Payments · Users · Configurations.
+- **Run:** `cd swizima-web && npm install && npm start` → http://localhost:4200.
+  `/api` is proxied to the gateway on `http://localhost:8080` (override with `API_GATEWAY_URL`).
+- See [swizima-web/README.md](swizima-web/README.md) for details.
 
 ---
 

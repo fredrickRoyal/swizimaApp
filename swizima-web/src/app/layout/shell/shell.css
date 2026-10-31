@@ -1,0 +1,218 @@
+:host {
+  display: block;
+  min-height: 100svh;
+}
+
+/* ---------- Desktop sidebar ---------- */
+.sidebar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    display: block;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-width);
+    z-index: 20;
+    box-shadow: 1px 0 0 rgb(255 255 255 / 0.04), 8px 0 32px -16px rgb(15 23 42 / 0.4);
+  }
+  .content {
+    margin-left: var(--sidebar-width);
+  }
+  .menu-btn,
+  .drawer {
+    display: none !important;
+  }
+}
+
+/* ---------- Top bar ---------- */
+.content {
+  display: grid;
+  grid-template-rows: var(--topbar-height) 1fr;
+  min-height: 100svh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-title {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+  small {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+  span {
+    font-weight: 650;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  .btn-icon {
+    position: relative;
+  }
+}
+
+.dot {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-500);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  max-width: 240px;
+}
+.me-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: var(--gradient-brand);
+}
+.me-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .me-name { display: none; }
+  .me { padding: 0.2rem; }
+}
+
+/* ---------- Page area ---------- */
+.main {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  min-width: 0;
+}
+
+/* ---------- Mobile drawer (popover + scroll snap) ---------- */
+.drawer {
+  --drawer-width: min(20em, 84dvw);
+  --drawer-backdrop: 0;
+  width: auto;
+  height: auto;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  border: 0;
+  overflow: visible;
+}
+.drawer::backdrop {
+  background: rgb(8 11 28);
+  opacity: calc(var(--drawer-backdrop) * 0.55);
+}
+
+.drawer-scroller {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--drawer-width) 100%;
+  overflow-x: scroll;
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+}
+.drawer-scroller::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-scroller { scroll-behavior: smooth; }
+}
+
+.drawer-scroller::after {
+  content: '';
+  scroll-snap-align: end;
+  scroll-initial-target: nearest;
+}
+
+.drawer-sheet {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  scroll-snap-align: start;
+  outline: none;
+  box-shadow: 16px 0 40px -12px rgb(0 0 0 / 0.5);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+.drawer-close {
+  position: absolute;
+  top: 1.2rem;
+  right: 0.9rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--sidebar-text);
+  background: rgb(255 255 255 / 0.06);
+  cursor: pointer;
+  &:hover { background: rgb(255 255 255 / 0.12); color: #fff; }
+  &:focus-visible { outline: none; box-shadow: var(--ring); }
+}
+
+@supports (animation-timeline: scroll()) {
+  .drawer {
+    timeline-scope: --drawer-fade;
+    animation: fade-drawer-backdrop linear both;
+    animation-timeline: --drawer-fade;
+  }
+  .drawer-scroller {
+    scroll-timeline: --drawer-fade x;
+  }
+  @property --drawer-backdrop {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+  @keyframes fade-drawer-backdrop {
+    0% { --drawer-backdrop: 1; }
+    100% { --drawer-backdrop: 0; }
+  }
+}

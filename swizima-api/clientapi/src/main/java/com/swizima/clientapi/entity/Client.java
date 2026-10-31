@@ -2,7 +2,9 @@ package com.swizima.clientapi.entity;
 
 import com.swizima.clientapi.entity.enums.ClientStatus;
 import com.swizima.clientapi.entity.enums.ClientType;
+import com.swizima.clientapi.entity.converter.StringListJsonConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,6 +14,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Entity
@@ -35,8 +40,11 @@ public class Client extends ParentEntity {
     @Column(name = "client_type", length = 30)
     private ClientType clientType;
 
-    @Column(name = "industry_sector", length = 150)
-    private String industrySector;
+    /** One or more sectors, stored as a JSON array string, e.g. ["Car wash & detailing","Car park & parking"]. */
+    @Convert(converter = StringListJsonConverter.class)
+    @Column(name = "industry_sectors", columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> industrySectors = new ArrayList<>();
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

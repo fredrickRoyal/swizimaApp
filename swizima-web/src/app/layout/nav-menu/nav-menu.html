@@ -1,0 +1,45 @@
+<div class="brand">
+  <span class="logo" aria-hidden="true">
+    <svg viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="9" fill="url(#swz-logo)"/>
+      <path d="M21.5 11.2c-.9-1.6-2.9-2.6-5.4-2.6-3.1 0-5.4 1.6-5.4 4 0 2.3 1.8 3.2 5 3.9 2.4.5 3.2.9 3.2 1.8 0 1-1.1 1.6-2.8 1.6-1.9 0-3.3-.8-4-2.1l-2.3 1.5c1.1 2 3.4 3.2 6.3 3.2 3.4 0 5.8-1.7 5.8-4.3 0-2.4-1.8-3.4-5.3-4.1-2.2-.4-2.9-.8-2.9-1.6 0-.8.9-1.4 2.4-1.4 1.6 0 2.7.6 3.3 1.6l2.1-1.5Z" fill="#fff"/>
+      <defs>
+        <linearGradient id="swz-logo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#6366F1"/><stop offset=".55" stop-color="#8B5CF6"/><stop offset="1" stop-color="#14B8A6"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  </span>
+  <span class="brand-text">
+    <strong>Swizima</strong>
+    <small>Automotive services</small>
+  </span>
+</div>
+
+<nav class="nav" aria-label="Main">
+  @for (group of groups; track group.heading) {
+    <p class="group-heading">{{ group.heading }}</p>
+    <ul>
+      @for (item of group.items; track item.path) {
+        <li>
+          <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page"
+             class="nav-link" (click)="navigate.emit()">
+            <app-icon [name]="item.icon" />
+            <span>{{ item.label }}</span>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</nav>
+
+<div class="user">
+  <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+  <span class="user-text">
+    <strong>{{ username() || 'Signed in' }}</strong>
+    <small>Administrator</small>
+  </span>
+  <button type="button" class="signout" (click)="signOut.emit()" aria-label="Sign out" title="Sign out">
+    <app-icon name="logout" />
+  </button>
+</div>

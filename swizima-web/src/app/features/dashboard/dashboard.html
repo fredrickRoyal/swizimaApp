@@ -1,0 +1,98 @@
+<app-page-header [heading]="'Welcome back, ' + firstName()" subtitle="Here's what's happening across Swizima today.">
+  <button type="button" class="btn" id="dashboard-refresh" (click)="stats.reload()" [disabled]="stats.state().loading">
+    <app-icon name="refresh" [class.spin]="stats.state().loading" />
+    Refresh
+  </button>
+</app-page-header>
+
+<div class="stack page-enter">
+  @if (mustChangePassword()) {
+    <div class="alert alert-warning" role="status" id="dashboard-password-notice">
+      <app-icon name="shield" />
+      <span>You're using a system-generated password. Please change it soon to keep your account secure.</span>
+    </div>
+  }
+  @if (offline()) {
+    <div class="alert alert-error" role="alert" id="dashboard-offline">
+      <app-icon name="alert" />
+      <span>We couldn't reach the Swizima services. Make sure the API gateway is running on port 8080, then refresh.</span>
+    </div>
+  }
+
+  <!-- KPI cards -->
+  <section class="kpis" aria-label="Key figures">
+    @for (kpi of kpis(); track kpi.id) {
+      <a class="card kpi" [class]="'tone-' + kpi.tone" [routerLink]="kpi.link" [id]="kpi.id">
+        <div class="kpi-top">
+          <span class="kpi-icon"><app-icon [name]="kpi.icon" /></span>
+          <app-icon name="chevronRight" class="kpi-arrow" />
+        </div>
+        <p class="kpi-label">{{ kpi.label }}</p>
+        @if (stats.state().loading && !stats.state().data) {
+          <span class="skeleton kpi-skeleton"></span>
+        } @else {
+          <p class="kpi-value">{{ kpi.value === null ? '—' : (kpi.value | number) }}</p>
+        }
+        <p class="kpi-hint">{{ kpi.hint }}</p>
+      </a>
+    }
+  </section>
+
+  <div class="grid-2">
+    <!-- Services by category -->
+    <section class="card">
+      <header class="card-header">
+        <div>
+          <h2>Services by category</h2>
+          <p class="muted">What clients are offering on the platform</p>
+        </div>
+        <a routerLink="/services" class="btn btn-ghost" id="dashboard-view-services">View all</a>
+      </header>
+      <div class="card-body">
+        <ul class="categories">
+          @for (cat of categories(); track cat.value) {
+            <li>
+              <span class="cat-icon"><app-icon [name]="cat.icon" /></span>
+              <div class="cat-body">
+                <div class="cat-row">
+                  <span>{{ cat.label }}</span>
+                  <strong>{{ cat.count | number }}</strong>
+                </div>
+                <div class="bar" role="progressbar" [attr.aria-valuenow]="cat.percent" aria-valuemin="0" aria-valuemax="100"
+                     [attr.aria-label]="cat.label + ' share'">
+                  <span [style.width.%]="cat.percent"></span>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+
+    <!-- Quick actions -->
+    <section class="card">
+      <header class="card-header">
+        <div>
+          <h2>Quick actions</h2>
+          <p class="muted">Jump straight to common tasks</p>
+        </div>
+      </header>
+      <div class="card-body">
+        <ul class="quick">
+          @for (q of quickLinks; track q.id) {
+            <li>
+              <a [routerLink]="q.link" [id]="q.id">
+                <span class="quick-icon"><app-icon [name]="q.icon" /></span>
+                <span class="quick-text">
+                  <strong>{{ q.label }}</strong>
+                  <small>{{ q.description }}</small>
+                </span>
+                <app-icon name="chevronRight" class="quick-arrow" />
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>

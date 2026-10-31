@@ -44,7 +44,7 @@ com.swizima.clientapi/
 | `client_name` | varchar(255) | Required |
 | `trading_name` | varchar(255) | |
 | `client_type` | enum | `INDIVIDUAL`, `COMPANY`, `GOVERNMENT`, `NGO`, `OTHER` |
-| `industry_sector` | varchar(150) | |
+| `industry_sectors` | text | JSON array string, e.g. `["Car wash & detailing","Car park & parking"]` (API field `industrySectors: string[]`, max 20 × 150 chars) |
 | `description` | text | |
 | `email` | varchar(150) | Validated email |
 | `phone_number` | varchar(30) | |
@@ -84,7 +84,7 @@ curl -X POST http://localhost:8080/api/v1/clients \
         "clientName": "Acme Motors Ltd",
         "tradingName": "Acme Motors",
         "clientType": "COMPANY",
-        "industrySector": "Automotive",
+        "industrySectors": ["Car wash & detailing", "Car park & parking"],
         "email": "info@acmemotors.com",
         "phoneNumber": "+256700000000",
         "country": "Uganda",

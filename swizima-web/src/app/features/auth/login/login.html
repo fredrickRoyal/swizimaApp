@@ -1,0 +1,68 @@
+<header class="intro">
+  <h1>Welcome back</h1>
+  <p>Sign in to the Swizima admin portal. We'll send a one-time code to confirm it's you.</p>
+</header>
+
+@if (error()) {
+  <div class="alert alert-error" role="alert" id="login-error">
+    <app-icon name="alert" />
+    <span>{{ error() }}</span>
+  </div>
+}
+
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate class="auth-form" id="login-form">
+  <div class="field">
+    <label for="login-username">Email or phone number</label>
+    <input id="login-username" class="input" type="text" formControlName="username"
+           autocomplete="username" spellcheck="false" autocapitalize="none" enterkeyhint="next"
+           placeholder="you@company.com or +2567…" required
+           [attr.aria-invalid]="invalid('username')"
+           [attr.aria-describedby]="invalid('username') ? 'login-username-error' : null" />
+    @if (invalid('username')) {
+      <p class="field-error" id="login-username-error">Enter your email address or phone number.</p>
+    }
+  </div>
+
+  <div class="field">
+    <label for="login-password">Password</label>
+    <div class="password">
+      <input id="login-password" class="input" [type]="showPassword() ? 'text' : 'password'"
+             formControlName="password" autocomplete="current-password" enterkeyhint="go" required
+             [attr.aria-invalid]="invalid('password')"
+             [attr.aria-describedby]="invalid('password') ? 'login-password-error' : null" />
+      <button type="button" class="reveal" id="login-toggle-password"
+              (click)="showPassword.set(!showPassword())"
+              [attr.aria-pressed]="showPassword()"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+        <app-icon [name]="showPassword() ? 'eyeOff' : 'eye'" />
+      </button>
+    </div>
+    @if (invalid('password')) {
+      <p class="field-error" id="login-password-error">Enter your password.</p>
+    }
+  </div>
+
+  <fieldset class="channels">
+    <legend>Send my code via</legend>
+    <div class="channel-options">
+      @for (channel of channels; track channel.value) {
+        <label class="channel" [class.selected]="form.controls.otpChannel.value === channel.value">
+          <input type="radio" formControlName="otpChannel" [value]="channel.value"
+                 [id]="'login-channel-' + channel.value.toLowerCase()" />
+          <app-icon [name]="channel.icon" />
+          <span>{{ channel.label }}</span>
+        </label>
+      }
+    </div>
+  </fieldset>
+
+  <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-submit" [disabled]="submitting()">
+    @if (submitting()) {
+      <span class="spinner" aria-hidden="true"></span>
+      Signing in…
+    } @else {
+      Sign in
+      <app-icon name="chevronRight" />
+    }
+  </button>
+</form>

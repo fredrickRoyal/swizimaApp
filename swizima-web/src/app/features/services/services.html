@@ -1,0 +1,88 @@
+<app-page-header heading="Services offered" subtitle="Car parks, washes, repairs and other services published by clients.">
+  <button type="button" class="btn" id="services-refresh" (click)="services.reload()">
+    <app-icon name="refresh" /> Refresh
+  </button>
+</app-page-header>
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search services</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="services-search" placeholder="Search by service name or code"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="services-category">Filter by category</label>
+    <select class="select" id="services-category" [value]="category()" (change)="onCategory($any($event.target).value)">
+      <option value="">All categories</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ humanize(c) }}</option>
+      }
+    </select>
+    <label class="visually-hidden" for="services-status">Filter by status</label>
+    <select class="select" id="services-status" [value]="status()" (change)="onStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ humanize(s) }}</option>
+      }
+    </select>
+  </div>
+
+  @let state = services.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load services" [message]="state.error">
+      <button type="button" class="btn" id="services-retry" (click)="services.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading services">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+        </div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="car" heading="No services found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'Services appear here once clients publish them.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="services-clear-filters" (click)="clearFilters()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Service</th>
+            <th scope="col">Client</th>
+            <th scope="col">Category</th>
+            <th scope="col">Price</th>
+            <th scope="col">Duration</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of state.data.content; track item.id) {
+            <tr>
+              <td data-label="Service">
+                <div class="service">
+                  <span class="service-icon"><app-icon [name]="categoryIcon[item.category]" /></span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ item.serviceName }}</span>
+                    <span class="cell-secondary cell-mono">{{ item.serviceCode }}</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Client">{{ item.clientName }}</td>
+              <td data-label="Category">{{ humanize(item.category) }}</td>
+              <td data-label="Price" class="price">{{ item.price | currency: item.currency : 'code' : '1.0-2' }}</td>
+              <td data-label="Duration" class="cell-secondary">{{ duration(item.durationMinutes) }}</td>
+              <td data-label="Status"><app-status-badge [status]="item.status" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>

@@ -1,0 +1,262 @@
+/* Shared by the login and verify-OTP pages. */
+:host {
+  display: grid;
+  gap: 1.5rem;
+  animation: page-in 360ms var(--ease) both;
+}
+
+.intro {
+  display: grid;
+  gap: 0.5rem;
+  h1 {
+    font-size: clamp(1.6rem, 4vw, 2rem);
+    font-weight: 750;
+    letter-spacing: -0.025em;
+  }
+  p {
+    color: var(--text-muted);
+    text-wrap: pretty;
+  }
+  strong { color: var(--text); }
+}
+
+.alert app-icon { flex: none; }
+
+.auth-form {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.input {
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.btn-lg {
+  min-height: 50px;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+/* Password with reveal toggle */
+.password {
+  position: relative;
+  .input { padding-right: 3rem; }
+}
+.reveal {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  &:hover { color: var(--text); }
+  &:focus-visible { outline: none; box-shadow: var(--ring); }
+}
+
+/* OTP channel picker (segmented radio cards) */
+.channels {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  legend {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.45rem;
+  }
+}
+.channel-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.channel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease), color var(--duration) var(--ease);
+  app-icon { width: 18px; height: 18px; }
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  &:hover { border-color: var(--border-strong); color: var(--text); }
+  &.selected {
+    border-color: var(--brand-500);
+    background: color-mix(in srgb, var(--brand-500) 10%, var(--bg-elevated));
+    color: var(--brand-600);
+  }
+  &:has(input:focus-visible) { box-shadow: var(--ring); }
+  &:focus-visible { outline: none; box-shadow: var(--ring); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+@media (prefers-color-scheme: dark) {
+  .channel.selected { color: var(--brand-400); }
+}
+
+/* OTP code: six visual boxes with one transparent real input on top */
+.otp-boxes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: clamp(0.4rem, 2vw, 0.65rem);
+}
+.otp-real {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px; /* ≥16px: no iOS zoom on focus */
+  letter-spacing: 2em;
+  outline: none;
+  cursor: text;
+  &::selection { background: transparent; }
+}
+.otp-box {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 5 / 6;
+  max-height: 68px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-size: clamp(1.35rem, 5vw, 1.75rem);
+  font-weight: 650;
+  color: var(--text);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease), transform var(--duration) var(--ease);
+  &.filled {
+    border-color: color-mix(in srgb, var(--brand-500) 55%, var(--border-strong));
+    animation: otp-pop 160ms var(--ease);
+  }
+  &.active {
+    border-color: var(--brand-500);
+    box-shadow: var(--ring);
+  }
+  /* blinking caret in the active empty box */
+  &.active:not(.filled)::after {
+    content: '';
+    width: 2px;
+    height: 45%;
+    border-radius: 1px;
+    background: var(--brand-500);
+    animation: otp-caret 1s steps(1) infinite;
+  }
+}
+.otp-boxes.invalid .otp-box {
+  border-color: var(--danger);
+}
+.otp-boxes.invalid {
+  animation: otp-shake 360ms var(--ease);
+}
+
+@keyframes otp-pop {
+  50% { transform: scale(1.06); }
+}
+@keyframes otp-caret {
+  50% { opacity: 0; }
+}
+@keyframes otp-shake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .otp-box, .otp-boxes { animation: none !important; }
+}
+
+.destination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  .destination-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--gradient-brand);
+  }
+  div { display: grid; min-width: 0; line-height: 1.3; }
+  small { color: var(--text-muted); font-size: 0.78rem; }
+  strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.timer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  .expiry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-variant-numeric: tabular-nums;
+    app-icon { width: 16px; height: 16px; }
+    &.expired { color: var(--danger); }
+  }
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--brand-500);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  app-icon { width: 16px; height: 16px; }
+  &:hover:not(:disabled) { text-decoration: underline; }
+  &:disabled { color: var(--text-subtle); cursor: not-allowed; }
+  &:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 4px; }
+}
+
+.switch-channel {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+  p { font-size: 0.85rem; color: var(--text-muted); }
+}
+
+.back {
+  justify-self: start;
+  color: var(--text-muted);
+  font-weight: 500;
+}

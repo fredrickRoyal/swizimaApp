@@ -1,0 +1,88 @@
+<app-page-header heading="Users" subtitle="People who can sign in to the Swizima admin portal.">
+  <button type="button" class="btn" id="users-refresh" (click)="users.reload()">
+    <app-icon name="refresh" /> Refresh
+  </button>
+</app-page-header>
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search users</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="users-search" placeholder="Search by username, email or phone"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="users-status">Filter by activation status</label>
+    <select class="select" id="users-status" [value]="activationStatus()" (change)="onStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ humanize(s) }}</option>
+      }
+    </select>
+  </div>
+
+  @let state = users.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load users" [message]="state.error">
+      <button type="button" class="btn" id="users-retry" (click)="users.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading users">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row">
+          <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+        </div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="users" heading="No users found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'No users have been created yet.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="users-clear-filters" (click)="clearFilters()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">User</th>
+            <th scope="col">Role</th>
+            <th scope="col">OTP channel</th>
+            <th scope="col">Status</th>
+            <th scope="col">Access</th>
+            <th scope="col">Last sign-in</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of state.data.content; track user.id) {
+            <tr>
+              <td data-label="User">
+                <div class="user">
+                  <span class="avatar" aria-hidden="true">{{ initial(user.username) }}</span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ user.username }}</span>
+                    <span class="cell-secondary">{{ user.usernameType === 'EMAIL' ? (user.phoneNumber || 'Email login') : (user.email || 'Phone login') }}</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Role"><app-status-badge [status]="user.role" /></td>
+              <td data-label="OTP channel">
+                <span class="channel">
+                  <app-icon [name]="user.preferredOtpChannel === 'EMAIL' ? 'mail' : user.preferredOtpChannel === 'SMS' ? 'sms' : 'whatsapp'" />
+                  {{ humanize(user.preferredOtpChannel) }}
+                </span>
+              </td>
+              <td data-label="Status"><app-status-badge [status]="user.activationStatus" /></td>
+              <td data-label="Access"><app-status-badge [status]="user.enabled ? 'ENABLED' : 'DISABLED'" /></td>
+              <td data-label="Last sign-in" class="cell-secondary">
+                {{ user.lastLoginAt ? (user.lastLoginAt | date: 'medium') : 'Never' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>

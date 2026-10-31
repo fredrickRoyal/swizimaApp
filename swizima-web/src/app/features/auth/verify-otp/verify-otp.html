@@ -1,0 +1,100 @@
+<header class="intro">
+  <h1>Check your {{ channelMeta().label === 'Email' ? 'inbox' : 'phone' }}</h1>
+  <p>Enter the 6-digit code we sent to verify your sign-in.</p>
+</header>
+
+@if (challenge(); as c) {
+  <div class="destination">
+    <span class="destination-icon"><app-icon [name]="channelMeta().icon" /></span>
+    <div>
+      <small>Code sent via {{ channelMeta().label }} to</small>
+      <strong id="otp-destination">{{ c.maskedDestination }}</strong>
+    </div>
+  </div>
+}
+
+@if (error()) {
+  <div class="alert alert-error" role="alert" id="otp-error">
+    <app-icon name="alert" />
+    <span>{{ error() }}</span>
+  </div>
+}
+@if (info()) {
+  <div class="alert alert-info" role="status" id="otp-info">
+    <app-icon name="check" />
+    <span>{{ info() }}</span>
+  </div>
+}
+
+<form #otpForm [formGroup]="form" (ngSubmit)="submit()" novalidate class="auth-form" id="otp-form">
+  <div class="field">
+    <label for="otp-code">Verification code</label>
+    <p class="field-hint" id="otp-code-hint">Enter or paste the 6-digit code</p>
+    <!-- One real input (autofill / paste / a11y) layered over six visual boxes -->
+    <div class="otp-boxes" [class.focused]="focused()" [class.invalid]="!!error()">
+      <input #codeInput id="otp-code" class="otp-real" type="text" formControlName="code"
+             inputmode="numeric" autocomplete="one-time-code" pattern="\d{6}" maxlength="6"
+             enterkeyhint="done" required aria-describedby="otp-code-hint" spellcheck="false"
+             (input)="sanitize()" (focus)="focused.set(true)" (blur)="focused.set(false)"
+             (keyup)="keepCaretAtEnd()" (click)="keepCaretAtEnd()" />
+      @for (i of slots; track i) {
+        <span class="otp-box" aria-hidden="true"
+              [class.filled]="!!digits()[i]"
+              [class.active]="focused() && i === activeIndex()">
+          {{ digits()[i] ?? '' }}
+        </span>
+      }
+    </div>
+  </div>
+
+  <div class="timer">
+    <span class="expiry" [class.expired]="expired()" aria-live="polite">
+      <app-icon name="clock" />
+      @if (expired()) {
+        Code expired
+      } @else {
+        Expires in {{ formatTime(secondsLeft()) }}
+      }
+    </span>
+    <button type="button" class="link-btn" id="otp-resend" (click)="resend()"
+            [disabled]="resendIn() > 0 || resending()">
+      <app-icon name="refresh" />
+      @if (resending()) {
+        Sending…
+      } @else if (resendIn() > 0) {
+        Resend in {{ resendIn() }}s
+      } @else {
+        Resend code
+      }
+    </button>
+  </div>
+
+  <button type="submit" class="btn btn-primary btn-block btn-lg" id="otp-submit"
+          [disabled]="submitting() || expired()">
+    @if (submitting()) {
+      <span class="spinner" aria-hidden="true"></span>
+      Verifying…
+    } @else {
+      <app-icon name="shield" />
+      Verify and continue
+    }
+  </button>
+</form>
+
+<div class="switch-channel">
+  <p>Didn't get it? Send the code another way:</p>
+  <div class="channel-options">
+    @for (option of otherChannels(); track option.value) {
+      <button type="button" class="channel" [id]="'otp-switch-' + option.value.toLowerCase()"
+              (click)="resend(option.value)" [disabled]="resendIn() > 0 || resending()">
+        <app-icon [name]="option.icon" />
+        <span>{{ option.label }}</span>
+      </button>
+    }
+  </div>
+</div>
+
+<button type="button" class="link-btn back" id="otp-back" (click)="backToLogin()">
+  <app-icon name="arrowLeft" />
+  Back to sign in
+</button>
