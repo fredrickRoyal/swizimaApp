@@ -1,0 +1,186 @@
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-services-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-services-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search services</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="client-services-search" placeholder="Search by service name or code"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="client-services-category">Filter by category</label>
+    <select class="select" id="client-services-category" [value]="category()" (change)="onCategory($any($event.target).value)">
+      <option value="">All categories</option>
+      @for (c of categories; track c) { <option [value]="c">{{ humanize(c) }}</option> }
+    </select>
+    <label class="visually-hidden" for="client-services-status">Filter by status</label>
+    <select class="select" id="client-services-status" [value]="status()" (change)="onStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="client-services-refresh" (click)="services.reload()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+    <button type="button" class="btn btn-primary" id="client-services-add" (click)="openCreate()">
+      <app-icon name="plus" /> Add service
+    </button>
+  </div>
+
+  @let state = services.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load services" [message]="state.error">
+      <button type="button" class="btn" id="client-services-retry" (click)="services.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading services">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="catalog" heading="No services found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'This client has not published any services yet.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="client-services-clear" (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <button type="button" class="btn btn-primary" id="client-services-empty-add" (click)="openCreate()"><app-icon name="plus" /> Add service</button>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Service</th>
+            <th scope="col">Category</th>
+            <th scope="col">Price</th>
+            <th scope="col">Duration</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of state.data.content; track item.id) {
+            <tr [class.row-busy]="busyId() === item.id">
+              <td data-label="Service">
+                <div class="service">
+                  <span class="service-icon"><app-icon [name]="categoryIcon[item.category]" /></span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ item.serviceName }}</span>
+                    <span class="cell-secondary cell-mono">{{ item.serviceCode }}</span>
+                  </div>
+                </div>
+              </td>
+              <td data-label="Category">{{ humanize(item.category) }}</td>
+              <td data-label="Price" class="price">{{ item.price | currency: item.currency : 'code' : '1.0-2' }}</td>
+              <td data-label="Duration" class="cell-secondary">{{ duration(item.durationMinutes) }}</td>
+              <td data-label="Status"><app-status-badge [status]="item.status" /></td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'svc-edit-' + item.id" (click)="openEdit(item)"
+                          [disabled]="busyId() === item.id" [attr.aria-label]="'Edit ' + item.serviceName" title="Edit">
+                    <app-icon name="edit" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'svc-status-' + item.id" (click)="toggleStatus(item)"
+                          [disabled]="busyId() === item.id"
+                          [attr.aria-label]="(item.status === 'ACTIVE' ? 'Deactivate ' : 'Activate ') + item.serviceName"
+                          [title]="item.status === 'ACTIVE' ? 'Deactivate' : 'Activate'">
+                    <app-icon name="power" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'svc-delete-' + item.id" (click)="remove(item)"
+                          [disabled]="busyId() === item.id" [attr.aria-label]="'Delete ' + item.serviceName" title="Delete">
+                    <app-icon name="trash" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>
+
+<dialog #dialog class="dialog card" id="client-service-dialog" aria-labelledby="svc-dialog-title" (cancel)="saving() && $event.preventDefault()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <header class="dialog-head">
+      <h2 id="svc-dialog-title">{{ editing() ? 'Edit service' : 'Add service' }}</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="svc-dialog-close" (click)="closeDialog()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (formError()) {
+        <div class="alert alert-error" role="alert" id="svc-form-error"><app-icon name="alert" /><span>{{ formError() }}</span></div>
+      }
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="svc-name">Service name <em aria-hidden="true">*</em></label>
+          <input id="svc-name" class="input" formControlName="serviceName" placeholder="e.g. Full body wash" (input)="onNameInput()"
+                 [attr.aria-invalid]="invalid('serviceName')" />
+          @if (invalid('serviceName')) { <p class="field-error">Service name is required.</p> }
+        </div>
+        <div class="field">
+          <label for="svc-code">Service code <em aria-hidden="true">*</em></label>
+          <input id="svc-code" class="input cell-mono" formControlName="serviceCode" spellcheck="false" autocomplete="off"
+                 [attr.aria-invalid]="invalid('serviceCode')" />
+          @if (invalid('serviceCode')) { <p class="field-error">Code is required (max 50 characters).</p> }
+        </div>
+        <div class="field">
+          <label for="svc-category">Category <em aria-hidden="true">*</em></label>
+          <select id="svc-category" class="select" formControlName="category">
+            @for (c of categories; track c) { <option [value]="c">{{ humanize(c) }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="svc-price">Price <em aria-hidden="true">*</em></label>
+          <input id="svc-price" class="input price-input" type="text" inputmode="decimal" autocomplete="off" formControlName="price"
+                 placeholder="0" (input)="onPriceInput($event)" (blur)="onPriceBlur()" [attr.aria-invalid]="invalid('price')" />
+          @if (invalid('price')) { <p class="field-error">Enter a price of 0 or more.</p> }
+        </div>
+        <div class="field">
+          <label for="svc-currency">Currency <em aria-hidden="true">*</em></label>
+          <select id="svc-currency" class="select" formControlName="currency">
+            @for (cur of currencyOptions(); track cur) { <option [value]="cur">{{ cur }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="svc-duration">Duration (minutes)</label>
+          <input id="svc-duration" class="input" type="number" min="1" step="1" inputmode="numeric" formControlName="durationMinutes"
+                 placeholder="Optional" [attr.aria-invalid]="invalid('durationMinutes')" />
+          @if (invalid('durationMinutes')) { <p class="field-error">Must be a positive number.</p> }
+        </div>
+        <div class="field">
+          <label for="svc-status">Status</label>
+          <select id="svc-status" class="select" formControlName="status">
+            @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+          </select>
+        </div>
+        <div class="field span-2">
+          <label for="svc-description">Description</label>
+          <textarea id="svc-description" class="input" rows="3" formControlName="description" placeholder="Optional"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="svc-cancel" (click)="closeDialog()" [disabled]="saving()">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="svc-save" [disabled]="saving()">
+        @if (saving()) { <span class="spinner" aria-hidden="true"></span> }
+        {{ editing() ? 'Save changes' : 'Add service' }}
+      </button>
+    </footer>
+  </form>
+</dialog>

@@ -1,0 +1,57 @@
+:host { display: grid; gap: 1rem; }
+
+.notice {
+  .btn-icon { margin-left: auto; width: 32px; height: 32px; color: inherit; }
+  app-icon { flex: none; }
+}
+
+.toolbar-spacer { flex: 1; }
+
+.service { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.service-icon {
+  display: grid; place-items: center; flex: none;
+  width: 36px; height: 36px; border-radius: 10px;
+  color: var(--brand-500);
+  background: color-mix(in srgb, var(--brand-500) 12%, transparent);
+  app-icon { width: 18px; height: 18px; }
+}
+.price { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.col-actions { width: 1%; white-space: nowrap; text-align: right; }
+.row-actions {
+  display: inline-flex; gap: 0.15rem;
+  .btn-icon { width: 32px; height: 32px; app-icon { width: 17px; height: 17px; } }
+  .danger:hover { color: var(--danger); background: var(--danger-bg); }
+}
+.row-busy { opacity: 0.5; pointer-events: none; }
+
+/* ---------- Dialog ---------- */
+.dialog {
+  width: min(640px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  &[open] { animation: dialog-in 200ms var(--ease); }
+  &::backdrop { background: rgb(8 12 30 / 0.55); backdrop-filter: blur(3px); }
+}
+@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+.dialog-head, .dialog-foot {
+  display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.25rem;
+}
+.dialog-head { justify-content: space-between; border-bottom: 1px solid var(--border); h2 { font-size: 1.05rem; } }
+.dialog-foot { justify-content: flex-end; border-top: 1px solid var(--border); }
+.dialog-body { padding: 1.25rem; display: grid; gap: 1rem; overflow-y: auto; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+.form-grid .field { align-content: start; }
+.span-2 { grid-column: 1 / -1; }
+.price-input { font-variant-numeric: tabular-nums; }
+.field label em { color: var(--danger); font-style: normal; }
+textarea.input { resize: vertical; min-height: 4.5rem; font: inherit; }
+@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+
+@media (max-width: 720px) { .service-icon { display: none; } }

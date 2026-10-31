@@ -106,6 +106,16 @@ export interface Client {
   status: ClientStatus;
   createdAt: string;
   recordStatus: RecordStatus;
+  // Present on GET /clients/{id} (full ClientResponse)
+  description?: string;
+  alternativePhone?: string;
+  address?: string;
+  contactPersonTitle?: string;
+  contactPersonEmail?: string;
+  contactPersonPhone?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 /** POST/PUT /api/v1/clients body (mirrors ClientRequest.java). */
@@ -131,6 +141,42 @@ export interface ClientRequest {
   status?: ClientStatus;
 }
 
+// ---------- Client staff (clientapi) ----------
+export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
+
+export interface ClientStaff {
+  id: string;
+  clientId: string;
+  clientCode: string;
+  clientName: string;
+  surname: string;
+  givenName: string;
+  fullName: string;
+  gender?: Gender;
+  phoneNumber?: string;
+  alternativePhone?: string;
+  email?: string;
+  position?: string;
+  nin?: string;
+  summary?: string;
+  createdAt: string;
+  updatedAt?: string;
+  recordStatus: RecordStatus;
+}
+
+/** POST/PUT /api/v1/clients/{clientId}/staff body (mirrors ClientStaffRequest.java). */
+export interface ClientStaffRequest {
+  surname: string;
+  givenName: string;
+  gender?: Gender;
+  phoneNumber?: string;
+  alternativePhone?: string;
+  email?: string;
+  position?: string;
+  nin?: string;
+  summary?: string;
+}
+
 // ---------- Service catalog (clientapi) ----------
 export type ServiceCategory = 'CAR_PARK' | 'CAR_WASH' | 'REPAIR' | 'MAINTENANCE' | 'OTHER';
 export type ServiceCatalogStatus = 'ACTIVE' | 'INACTIVE';
@@ -149,4 +195,117 @@ export interface ServiceCatalogItem {
   durationMinutes?: number;
   status: ServiceCatalogStatus;
   createdAt: string;
+  updatedAt?: string;
+}
+
+/** POST/PUT /api/v1/service-catalogs body (mirrors ServiceCatalogRequest.java). */
+export interface ServiceCatalogRequest {
+  clientId: string;
+  serviceCode: string;
+  serviceName: string;
+  category: ServiceCategory;
+  description?: string;
+  price: number;
+  currency?: string;
+  durationMinutes?: number;
+  status?: ServiceCatalogStatus;
+}
+
+// ---------- Client transactions API ----------
+export type IdDocumentType = 'NATIONAL_ID' | 'PASSPORT' | 'DRIVING_PERMIT' | 'OTHER';
+export type PaymentStatus = 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+export type VehicleClearanceStatus = 'IN_SERVICE' | 'READY' | 'CLEARED' | 'RELEASED';
+
+/** GET /api/v1/client-transactions/vehicle-services item (mirrors VehicleServiceTransactionResponse.java). */
+export interface VehicleServiceTransaction {
+  id: string;
+  clientRef: string;
+  customerPhoneNumber: string;
+  customerAlternativePhone?: string;
+  vehicleNumberPlate: string;
+  serviceType: string;
+  amountCharged: number;
+  amountPaid: number;
+  balance: number;
+  assignedTo?: string;
+  vehicleKeyShared: boolean;
+  entryDateTime: string;
+  entryDate: string;
+  entryTime: string;
+  expectedExitTime?: string;
+  actualExitDateTime?: string;
+  actualExitDate?: string;
+  actualExitTime?: string;
+  releasedBy?: string;
+  clearedAt?: string;
+  clearedBy?: string;
+  customerName?: string;
+  customerNationality?: string;
+  customerIdDocumentType?: IdDocumentType;
+  customerIdNumber?: string;
+  customerAddress?: string;
+  generalComment?: string;
+  paymentStatus: PaymentStatus;
+  vehicleClearanceStatus: VehicleClearanceStatus;
+  recordStatus: RecordStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/** POST/PUT body (mirrors VehicleServiceTransactionRequest.java). Datetimes are local ISO "yyyy-MM-ddTHH:mm". */
+export interface VehicleServiceTransactionRequest {
+  clientRef: string;
+  customerPhoneNumber: string;
+  customerAlternativePhone?: string;
+  vehicleNumberPlate: string;
+  serviceType: string;
+  amountCharged: number;
+  assignedTo?: string;
+  vehicleKeyShared?: boolean;
+  entryDateTime?: string;
+  expectedExitTime?: string;
+  actualExitDateTime?: string;
+  customerName?: string;
+  customerNationality?: string;
+  customerIdDocumentType?: IdDocumentType;
+  customerIdNumber?: string;
+  customerAddress?: string;
+  generalComment?: string;
+  paymentStatus?: PaymentStatus;
+  vehicleClearanceStatus?: VehicleClearanceStatus;
+}
+
+export type PaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'CARD' | 'BANK';
+
+/** GET /api/v1/client-transactions/vehicle-services/{id}/payments item. */
+export interface TransactionPayment {
+  id: string;
+  transactionId: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
+  paidByName?: string;
+  paidByPhone?: string;
+  receivedBy?: string;
+  paymentDateTime: string;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface TransactionPaymentRequest {
+  amount: number;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
+  paidByName?: string;
+  paidByPhone?: string;
+  receivedBy?: string;
+  paymentDateTime?: string;
+  comment?: string;
+}
+
+/** Body for POST .../{id}/clear and .../{id}/exit (all optional; `at` defaults to now). */
+export interface VehicleActionRequest {
+  at?: string;
+  by?: string;
+  comment?: string;
 }

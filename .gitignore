@@ -39,7 +39,7 @@ local.properties
 /swizima-api/.idea/
 
 # API - Java / Maven / Spring Boot services
-# (clientapi, configurationsapi, paymentsapi, serviceapi, usersapi)
+# (clientapi, configurationsapi, paymentsapi, clienttransactionsapi, usersapi)
 /swizima-api/*/target/
 /swizima-api/*/HELP.md
 /swizima-api/*/.mvn/wrapper/maven-wrapper.jar

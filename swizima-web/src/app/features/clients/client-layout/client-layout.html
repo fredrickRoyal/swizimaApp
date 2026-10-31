@@ -1,0 +1,46 @@
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a routerLink="/clients" id="client-back"><app-icon name="arrowLeft" /> Clients</a>
+  <span aria-hidden="true">/</span>
+  <span aria-current="page">{{ client.state().data?.clientName ?? 'Client' }}</span>
+</nav>
+
+@let state = client.state();
+@if (state.error) {
+  <section class="card">
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load client" [message]="state.error">
+      <button type="button" class="btn" id="client-retry" (click)="client.reload()">Try again</button>
+      <a class="btn btn-ghost" routerLink="/clients" id="client-error-back">Back to clients</a>
+    </app-empty-state>
+  </section>
+} @else {
+  <header class="hero card page-enter">
+    @if (state.data; as c) {
+      <span class="avatar" aria-hidden="true">{{ initials(c.clientName) }}</span>
+      <div class="hero-text">
+        <h1>{{ c.clientName }}</h1>
+        <p class="meta">
+          <span class="cell-mono">{{ c.clientCode }}</span>
+          @if (c.clientType) { <span class="dot" aria-hidden="true"></span><span>{{ humanize(c.clientType) }}</span> }
+          @if (c.tradingName) { <span class="dot" aria-hidden="true"></span><span>t/a {{ c.tradingName }}</span> }
+        </p>
+      </div>
+      <app-status-badge [status]="c.status" />
+    } @else {
+      <span class="avatar skeleton" aria-hidden="true"></span>
+      <div class="hero-text" aria-busy="true" aria-label="Loading client">
+        <span class="skeleton" style="width: 220px; height: 22px"></span>
+        <span class="skeleton" style="width: 140px; height: 14px"></span>
+      </div>
+    }
+  </header>
+
+  <nav class="tabs" aria-label="Client sections">
+    @for (t of tabs; track t.path) {
+      <a [routerLink]="t.path" routerLinkActive="active" ariaCurrentWhenActive="page" class="tab" [id]="'client-tab-' + t.path">
+        <app-icon [name]="t.icon" /> {{ t.label }}
+      </a>
+    }
+  </nav>
+
+  <router-outlet />
+}

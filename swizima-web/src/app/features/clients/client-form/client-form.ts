@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../core/http/api-error';
 import { ClientRequest, ClientStatus, ClientType, ProblemDetail } from '../../../core/models/api.models';
 import { Icon } from '../../../shared/icon/icon';
 import { PageHeader } from '../../../shared/page-header/page-header';
+import { PhoneInput } from '../../../shared/phone-input/phone-input';
 import { humanize } from '../../../shared/status-badge/status-badge';
 import {
   ALL_DISTRICTS,
@@ -56,7 +57,7 @@ export interface ClientCreatedState {
  */
 @Component({
   selector: 'app-client-form',
-  imports: [ReactiveFormsModule, RouterLink, Icon, PageHeader],
+  imports: [ReactiveFormsModule, RouterLink, Icon, PageHeader, PhoneInput],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './client-form.html',
   styleUrl: './client-form.css',
@@ -330,7 +331,7 @@ export class ClientForm implements HasUnsavedChanges {
     if (errors['pattern']) {
       return name === 'clientCode'
         ? 'Use letters, numbers, dashes or underscores only.'
-        : 'Enter a valid phone number, e.g. +256 700 123456.';
+        : 'Enter a valid phone number, e.g. 700 123456.';
     }
     return 'Invalid value.';
   }

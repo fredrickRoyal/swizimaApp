@@ -9,10 +9,10 @@ Clients (web / mobile) should call **only the gateway** – `http://localhost:80
 
 | Path                                              | Service             | Default URL             | Env var                  |
 |---------------------------------------------------|---------------------|-------------------------|--------------------------|
-| `/api/v1/clients/**`, `/api/v1/service-catalogs/**` | clientapi           | `http://localhost:8081` | `CLIENT_API_URL`         |
+| `/api/v1/clients/**` (incl. `/clients/{id}/staff`), `/api/v1/service-catalogs/**` | clientapi           | `http://localhost:8081` | `CLIENT_API_URL`         |
 | `/api/v1/configurations/**`                       | configurationsapi   | `http://localhost:8082` | `CONFIGURATIONS_API_URL` |
 | `/api/v1/payments/**`                             | paymentsapi         | `http://localhost:8083` | `PAYMENTS_API_URL`       |
-| `/api/v1/services/**`                             | serviceapi          | `http://localhost:8084` | `SERVICE_API_URL`        |
+| `/api/v1/client-transactions/**`                           | clienttransactionsapi | `http://localhost:8084` | `CLIENT_TRANSACTIONS_API_URL`|
 | `/api/v1/users/**`, `/api/v1/auth/**`             | usersapi            | `http://localhost:8085` | `USERS_API_URL`          |
 | `/docs/<service>/**`                              | that service's docs | (same as above)         |                          |
 

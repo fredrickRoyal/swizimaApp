@@ -25,7 +25,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       # Created on first start by docker/postgres/init/01-create-databases.sh
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-swizima_users,swizima_client,swizima_configurations,swizima_payments,swizima_service}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-swizima_users,swizima_client,swizima_configurations,swizima_payments,swizima_client_transactions}
       TZ: UTC
       PGTZ: UTC
     ports:

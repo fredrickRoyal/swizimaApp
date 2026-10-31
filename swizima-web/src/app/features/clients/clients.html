@@ -70,6 +70,7 @@
             <th scope="col">Location</th>
             <th scope="col">Status</th>
             <th scope="col">Registered</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -93,6 +94,14 @@
               <td data-label="Location">{{ location(client.city, client.country) }}</td>
               <td data-label="Status"><app-status-badge [status]="client.status" /></td>
               <td data-label="Registered" class="cell-secondary">{{ client.createdAt | date: 'mediumDate' }}</td>
+              <td data-label="Actions" class="col-actions">
+                <button type="button" class="btn btn-icon btn-ghost" [id]="'client-actions-' + client.id"
+                        aria-haspopup="menu" [attr.aria-expanded]="openMenu()?.id === client.id"
+                        [attr.aria-label]="'Actions for ' + client.clientName"
+                        (click)="toggleMenu(client.id, $event)">
+                  <app-icon name="more" />
+                </button>
+              </td>
             </tr>
           }
         </tbody>
@@ -101,3 +110,15 @@
     <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
   }
 </section>
+
+@if (openMenu(); as m) {
+  <div class="action-menu" role="menu" id="client-action-menu"
+       [style.top.px]="m.top" [style.left.px]="m.left" (click)="$event.stopPropagation()">
+    @for (a of actions; track a.path) {
+      <a role="menuitem" class="action-item" [id]="'client-action-' + a.key"
+         [routerLink]="['/clients', m.id, a.path]" (click)="closeMenu()">
+        <app-icon [name]="a.icon" /> {{ a.label }}
+      </a>
+    }
+  </div>
+}

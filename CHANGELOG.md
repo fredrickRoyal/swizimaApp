@@ -6,13 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Entries are grouped by version, then by type of change, and prefixed with the affected component:
-`[api]`, `[clientapi]`, `[usersapi]`, `[configurationsapi]`, `[paymentsapi]`, `[serviceapi]`, `[mobile]`, `[web]`, `[repo]`.
+`[api]`, `[clientapi]`, `[usersapi]`, `[configurationsapi]`, `[paymentsapi]`, `[clienttransactionsapi]` (formerly `[serviceapi]`), `[mobile]`, `[web]`, `[repo]`.
 
 **Change types:** `Added` · `Changed` · `Deprecated` · `Removed` · `Fixed` · `Security`
 
 ---
 
 ## [Unreleased]
+
+### Changed
+- **[clienttransactionsapi]** Renamed `serviceapi` → `clienttransactionsapi` (folder, Maven artifact, package `com.swizima.clienttransactionsapi`, main class `ClienttransactionsapiApplication`, `spring.application.name`). Port stays 8084.
+- **[apigateway]** Route renamed: `/api/v1/services/**` → `/api/v1/client-transactions/**`; docs path `/docs/serviceapi` → `/docs/clienttransactionsapi`; env var `SERVICE_API_URL` → `CLIENT_TRANSACTIONS_API_URL`.
 
 ### Fixed
 - **[apigateway]** Web portal login returned `403 Invalid CORS request`: the Angular dev server origin `http://localhost:4200` is now in the default `CORS_ALLOWED_ORIGINS`.

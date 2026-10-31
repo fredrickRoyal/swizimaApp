@@ -40,11 +40,11 @@ spring:
               predicates:
                 - Path=/api/v1/payments/**
 
-            # ---------------- Service API (8084) ----------------
-            - id: serviceapi
-              uri: ${SERVICE_API_URL:http://localhost:8084}
+            # ---------------- Client Transactions API (8084) ----------------
+            - id: clienttransactionsapi
+              uri: ${CLIENT_TRANSACTIONS_API_URL:http://localhost:8084}
               predicates:
-                - Path=/api/v1/services/**
+                - Path=/api/v1/client-transactions/**
 
             # ---------------- Users API (8085) ----------------
             - id: usersapi
@@ -75,10 +75,10 @@ spring:
               filters:
                 - StripPrefix=2
 
-            - id: serviceapi-docs
-              uri: ${SERVICE_API_URL:http://localhost:8084}
+            - id: clienttransactionsapi-docs
+              uri: ${CLIENT_TRANSACTIONS_API_URL:http://localhost:8084}
               predicates:
-                - Path=/docs/serviceapi/**
+                - Path=/docs/clienttransactionsapi/**
               filters:
                 - StripPrefix=2
 
@@ -114,8 +114,8 @@ springdoc:
         url: /docs/configurationsapi/v3/api-docs
       - name: Payments API
         url: /docs/paymentsapi/v3/api-docs
-      - name: Service API
-        url: /docs/serviceapi/v3/api-docs
+      - name: Client Transactions API
+        url: /docs/clienttransactionsapi/v3/api-docs
 
 # =====================================================================
 # CORS - origins allowed to call the gateway (web app, mobile dev tools)

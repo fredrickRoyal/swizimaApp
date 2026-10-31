@@ -1,0 +1,189 @@
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-staff-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-staff-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search staff</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="client-staff-search" placeholder="Search by name, phone, email, position or NIN"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="client-staff-gender">Filter by gender</label>
+    <select class="select" id="client-staff-gender" [value]="gender()" (change)="onGender($any($event.target).value)">
+      <option value="">All genders</option>
+      @for (g of genders; track g) { <option [value]="g">{{ humanize(g) }}</option> }
+    </select>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="client-staff-refresh" (click)="staff.reload()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+    <button type="button" class="btn btn-primary" id="client-staff-add" (click)="openCreate()">
+      <app-icon name="plus" /> Add staff
+    </button>
+  </div>
+
+  @let state = staff.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load staff" [message]="state.error">
+      <button type="button" class="btn" id="client-staff-retry" (click)="staff.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading staff">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="users" heading="No staff found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'Add the people who work for this client.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="client-staff-clear" (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <button type="button" class="btn btn-primary" id="client-staff-empty-add" (click)="openCreate()"><app-icon name="plus" /> Add staff</button>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Position</th>
+            <th scope="col">Contact</th>
+            <th scope="col">Gender</th>
+            <th scope="col">NIN</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of state.data.content; track m.id) {
+            <tr [class.row-busy]="busyId() === m.id">
+              <td data-label="Name">
+                <div class="person">
+                  <span class="avatar" aria-hidden="true">{{ initials(m) }}</span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ m.surname }}, {{ m.givenName }}</span>
+                    @if (m.summary) { <span class="cell-secondary summary" [title]="m.summary">{{ m.summary }}</span> }
+                  </div>
+                </div>
+              </td>
+              <td data-label="Position">{{ m.position || '—' }}</td>
+              <td data-label="Contact">
+                <div class="cell-stack">
+                  <span>{{ m.phoneNumber || '—' }}</span>
+                  @if (m.email) { <span class="cell-secondary">{{ m.email }}</span> }
+                </div>
+              </td>
+              <td data-label="Gender">{{ humanize(m.gender) || '—' }}</td>
+              <td data-label="NIN" class="cell-mono">{{ m.nin || '—' }}</td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'staff-edit-' + m.id" (click)="openEdit(m)"
+                          [disabled]="busyId() === m.id" [attr.aria-label]="'Edit ' + m.fullName" title="Edit">
+                    <app-icon name="edit" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'staff-delete-' + m.id" (click)="remove(m)"
+                          [disabled]="busyId() === m.id" [attr.aria-label]="'Remove ' + m.fullName" title="Remove">
+                    <app-icon name="trash" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>
+
+<dialog #dialog class="dialog card" id="client-staff-dialog" aria-labelledby="staff-dialog-title" (cancel)="saving() && $event.preventDefault()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <header class="dialog-head">
+      <h2 id="staff-dialog-title">{{ editing() ? 'Edit staff member' : 'Add staff member' }}</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="staff-dialog-close" (click)="closeDialog()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (formError()) {
+        <div class="alert alert-error" role="alert" id="staff-form-error"><app-icon name="alert" /><span>{{ formError() }}</span></div>
+      }
+      <div class="form-grid">
+        <div class="field">
+          <label for="staff-surname">Surname <em aria-hidden="true">*</em></label>
+          <input id="staff-surname" class="input" formControlName="surname" autocomplete="family-name" autocapitalize="words"
+                 (input)="capitalize('surname', $event)" [attr.aria-invalid]="invalid('surname')" />
+          @if (invalid('surname')) { <p class="field-error">Surname is required.</p> }
+        </div>
+        <div class="field">
+          <label for="staff-given">Given name <em aria-hidden="true">*</em></label>
+          <input id="staff-given" class="input" formControlName="givenName" autocomplete="given-name" autocapitalize="words"
+                 (input)="capitalize('givenName', $event)" [attr.aria-invalid]="invalid('givenName')" />
+          @if (invalid('givenName')) { <p class="field-error">Given name is required.</p> }
+        </div>
+        <div class="field">
+          <label for="staff-gender">Gender</label>
+          <select id="staff-gender" class="select" formControlName="gender">
+            <option value="">Not specified</option>
+            @for (g of genders; track g) { <option [value]="g">{{ humanize(g) }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="staff-position">Position</label>
+          <select id="staff-position" class="select" formControlName="position">
+            <option value="">Select position</option>
+            @for (p of positionOptions(); track p) { <option [value]="p">{{ p }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="staff-phone">Phone number</label>
+          <app-phone-input formControlName="phoneNumber" inputId="staff-phone" autocomplete="tel-national"
+                           [defaultCountry]="clientCountry()" [invalid]="invalid('phoneNumber')" />
+          @if (invalid('phoneNumber')) { <p class="field-error">Enter a valid phone number.</p> }
+        </div>
+        <div class="field">
+          <label for="staff-alt-phone">Alternate phone</label>
+          <app-phone-input formControlName="alternativePhone" inputId="staff-alt-phone" placeholder="Optional"
+                           [defaultCountry]="clientCountry()" [invalid]="invalid('alternativePhone')" />
+          @if (invalid('alternativePhone')) { <p class="field-error">Enter a valid phone number.</p> }
+        </div>
+        <div class="field">
+          <label for="staff-email">Email</label>
+          <input id="staff-email" class="input" type="email" formControlName="email" placeholder="Optional"
+                 autocomplete="email" [attr.aria-invalid]="invalid('email')" />
+          @if (invalid('email')) { <p class="field-error">Enter a valid email address.</p> }
+        </div>
+        <div class="field">
+          <label for="staff-nin">NIN <span class="optional">(optional)</span></label>
+          <input id="staff-nin" class="input nin" formControlName="nin" maxlength="20" spellcheck="false" autocomplete="off"
+                 placeholder="National ID number" [attr.aria-invalid]="invalid('nin')" />
+          @if (invalid('nin')) { <p class="field-error">8–20 letters or digits.</p> }
+        </div>
+        <div class="field span-2">
+          <label for="staff-summary">Summary <span class="optional">(optional)</span></label>
+          <textarea id="staff-summary" class="input" rows="3" formControlName="summary"
+                    placeholder="Role, experience, notes…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="staff-cancel" (click)="closeDialog()" [disabled]="saving()">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="staff-save" [disabled]="saving()">
+        @if (saving()) { <span class="spinner" aria-hidden="true"></span> }
+        {{ editing() ? 'Save changes' : 'Add staff' }}
+      </button>
+    </footer>
+  </form>
+</dialog>

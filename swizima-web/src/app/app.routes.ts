@@ -45,6 +45,39 @@ export const routes: Routes = [
         loadComponent: () => import('./features/clients/client-form/client-form').then((m) => m.ClientForm),
       },
       {
+        path: 'clients/:id',
+        loadComponent: () => import('./features/clients/client-layout/client-layout').then((m) => m.ClientLayout),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'details' },
+          {
+            path: 'details',
+            title: 'Client details',
+            loadComponent: () => import('./features/clients/client-details/client-details').then((m) => m.ClientDetails),
+          },
+          {
+            path: 'dashboard',
+            title: 'Client dashboard',
+            loadComponent: () => import('./features/clients/client-dashboard/client-dashboard').then((m) => m.ClientDashboard),
+          },
+          {
+            path: 'services',
+            title: 'Service catalog',
+            loadComponent: () => import('./features/clients/client-services/client-services').then((m) => m.ClientServices),
+          },
+          {
+            path: 'staff',
+            title: 'Staff',
+            loadComponent: () => import('./features/clients/client-staff/client-staff').then((m) => m.ClientStaffPage),
+          },
+          {
+            path: 'transactions',
+            title: 'Transactions',
+            loadComponent: () =>
+              import('./features/clients/client-transactions/client-transactions').then((m) => m.ClientTransactionsPage),
+          },
+        ],
+      },
+      {
         path: 'services',
         title: 'Services offered',
         loadComponent: () => import('./features/services/services').then((m) => m.Services),

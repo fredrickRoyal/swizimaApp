@@ -12,6 +12,13 @@ const TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   DISABLED: 'neutral',
   SUPER_ADMIN: 'info',
   ADMIN: 'info',
+  PAID: 'success',
+  PARTIALLY_PAID: 'warning',
+  CANCELLED: 'danger',
+  IN_SERVICE: 'info',
+  READY: 'warning',
+  CLEARED: 'success',
+  RELEASED: 'neutral',
 };
 
 /** Coloured pill for enum statuses, e.g. ACTIVE -> green "Active". */

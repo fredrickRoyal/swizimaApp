@@ -1,0 +1,82 @@
+@let state = services.state();
+@if (state.error) {
+  <section class="card">
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load the dashboard" [message]="state.error">
+      <button type="button" class="btn" id="client-dash-retry" (click)="services.reload()">Try again</button>
+    </app-empty-state>
+  </section>
+} @else if (stats(); as s) {
+  <div class="kpis page-enter">
+    <article class="card kpi">
+      <span class="kpi-icon"><app-icon name="catalog" /></span>
+      <div><p class="kpi-label">Services</p><p class="kpi-value">{{ s.total }}</p></div>
+    </article>
+    <article class="card kpi tone-success">
+      <span class="kpi-icon"><app-icon name="check" /></span>
+      <div><p class="kpi-label">Active</p><p class="kpi-value">{{ s.active }}</p></div>
+    </article>
+    <article class="card kpi tone-muted">
+      <span class="kpi-icon"><app-icon name="power" /></span>
+      <div><p class="kpi-label">Inactive</p><p class="kpi-value">{{ s.inactive }}</p></div>
+    </article>
+    <article class="card kpi tone-accent">
+      <span class="kpi-icon"><app-icon name="trendingUp" /></span>
+      <div>
+        <p class="kpi-label">Avg. price</p>
+        <p class="kpi-value">{{ s.avgPrice !== null ? (s.avgPrice | currency: s.currency : 'code' : '1.0-0') : '—' }}</p>
+        @if (s.minPrice !== null) {
+          <p class="kpi-sub">{{ s.minPrice | currency: s.currency : 'code' : '1.0-0' }} – {{ s.maxPrice | currency: s.currency : 'code' : '1.0-0' }}</p>
+        }
+      </div>
+    </article>
+  </div>
+
+  <div class="panels page-enter">
+    <section class="card">
+      <header class="card-header"><h2>By category</h2></header>
+      <div class="card-body">
+        @for (c of s.categories; track c.category) {
+          <div class="bar-row">
+            <span class="bar-label"><app-icon [name]="categoryIcon[c.category]" /> {{ humanize(c.category) }}</span>
+            <span class="bar"><span class="bar-fill" [style.width.%]="c.pct"></span></span>
+            <span class="bar-count">{{ c.count }}</span>
+          </div>
+        } @empty {
+          <p class="muted">No services yet.</p>
+        }
+      </div>
+    </section>
+
+    <section class="card">
+      <header class="card-header">
+        <h2>Recently added</h2>
+        <a routerLink="../services" class="btn btn-ghost" id="client-dash-all-services">View catalog</a>
+      </header>
+      @if (s.recent.length) {
+        <ul class="recent">
+          @for (item of s.recent; track item.id) {
+            <li>
+              <span class="r-icon"><app-icon [name]="categoryIcon[item.category]" /></span>
+              <div class="cell-stack">
+                <span class="cell-primary">{{ item.serviceName }}</span>
+                <span class="cell-secondary">{{ item.createdAt | date: 'mediumDate' }}</span>
+              </div>
+              <span class="r-price">{{ item.price | currency: item.currency : 'code' : '1.0-2' }}</span>
+              <app-status-badge [status]="item.status" />
+            </li>
+          }
+        </ul>
+      } @else {
+        <app-empty-state icon="catalog" heading="No services yet" message="Add the first service this client offers.">
+          <a class="btn btn-primary" routerLink="../services" id="client-dash-add-service"><app-icon name="plus" /> Add service</a>
+        </app-empty-state>
+      }
+    </section>
+  </div>
+} @else {
+  <div class="kpis" aria-busy="true" aria-label="Loading dashboard">
+    @for (i of [1, 2, 3, 4]; track i) {
+      <div class="card kpi"><span class="skeleton" style="width: 100%; height: 48px"></span></div>
+    }
+  </div>
+}

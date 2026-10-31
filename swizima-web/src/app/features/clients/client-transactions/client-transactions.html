@@ -1,0 +1,489 @@
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-tx-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-tx-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search transactions</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="client-tx-search" placeholder="Search plate, customer, phone, service or staff"
+             [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="client-tx-payment">Filter by payment status</label>
+    <select class="select" id="client-tx-payment" [value]="paymentStatus()" (change)="onPayment($any($event.target).value)">
+      <option value="">All payments</option>
+      @for (s of paymentStatuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <label class="visually-hidden" for="client-tx-clearance">Filter by clearance status</label>
+    <select class="select" id="client-tx-clearance" [value]="clearanceStatus()" (change)="onClearance($any($event.target).value)">
+      <option value="">All clearance</option>
+      @for (s of clearanceStatuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <div class="date-range">
+      <label class="visually-hidden" for="client-tx-from">From date</label>
+      <input class="input" type="date" id="client-tx-from" [value]="fromDate()" [max]="toDate() || null"
+             (change)="onFrom($any($event.target).value)" title="Entry date from" />
+      <span aria-hidden="true">–</span>
+      <label class="visually-hidden" for="client-tx-to">To date</label>
+      <input class="input" type="date" id="client-tx-to" [value]="toDate()" [min]="fromDate() || null"
+             (change)="onTo($any($event.target).value)" title="Entry date to" />
+    </div>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="client-tx-refresh" (click)="transactions.reload()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+    <button type="button" class="btn btn-primary" id="client-tx-add" (click)="openCreate()">
+      <app-icon name="plus" /> New transaction
+    </button>
+  </div>
+
+  @let state = transactions.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load transactions" [message]="state.error">
+      <button type="button" class="btn" id="client-tx-retry" (click)="transactions.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading transactions">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="car" heading="No transactions found"
+                     [message]="hasFilters() ? 'Try a different search or clear the filters.' : 'Record the first vehicle checked in for this client.'">
+      @if (hasFilters()) {
+        <button type="button" class="btn" id="client-tx-clear" (click)="clearFilters()">Clear filters</button>
+      } @else {
+        <button type="button" class="btn btn-primary" id="client-tx-empty-add" (click)="openCreate()"><app-icon name="plus" /> New transaction</button>
+      }
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Vehicle</th>
+            <th scope="col">Customer</th>
+            <th scope="col">Service</th>
+            <th scope="col" class="num">Amount</th>
+            <th scope="col">Entry / exit</th>
+            <th scope="col">Payment</th>
+            <th scope="col">Clearance</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of state.data.content; track t.id) {
+            <tr [class.row-busy]="busyId() === t.id">
+              <td data-label="Vehicle">
+                <div class="cell-stack">
+                  <span class="plate">{{ t.vehicleNumberPlate }}</span>
+                  @if (t.vehicleKeyShared) { <span class="cell-secondary key-flag">Key shared</span> }
+                </div>
+              </td>
+              <td data-label="Customer">
+                <div class="cell-stack">
+                  <span class="cell-primary">{{ t.customerName || '—' }}</span>
+                  <span class="cell-secondary">{{ t.customerPhoneNumber }}</span>
+                </div>
+              </td>
+              <td data-label="Service">
+                <div class="cell-stack">
+                  <span>{{ t.serviceType }}</span>
+                  @if (t.assignedTo) { <span class="cell-secondary">{{ t.assignedTo }}</span> }
+                </div>
+              </td>
+              <td data-label="Amount" class="num">
+                <div class="cell-stack">
+                  <span>{{ formatMoney(t.amountCharged) }}</span>
+                  @if (t.balance > 0 && t.paymentStatus !== 'CANCELLED') {
+                    <span class="cell-secondary balance-due">Bal {{ formatMoney(t.balance) }}</span>
+                  } @else if (t.amountPaid > 0) {
+                    <span class="cell-secondary">Paid</span>
+                  }
+                </div>
+              </td>
+              <td data-label="Entry / exit">
+                <div class="cell-stack">
+                  <span>{{ formatDateTime(t.entryDateTime) }}</span>
+                  <span class="cell-secondary">
+                    @if (t.actualExitDateTime) { Out {{ formatDateTime(t.actualExitDateTime) }} }
+                    @else if (t.expectedExitTime) { Due {{ formatDateTime(t.expectedExitTime) }} }
+                    @else { Still in }
+                  </span>
+                </div>
+              </td>
+              <td data-label="Payment"><app-status-badge [status]="t.paymentStatus" /></td>
+              <td data-label="Clearance"><app-status-badge [status]="t.vehicleClearanceStatus" /></td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'client-tx-pay-' + t.id" (click)="openPayments(t)"
+                          [disabled]="busyId() === t.id" [attr.aria-label]="'Payments for ' + t.vehicleNumberPlate" title="Payments">
+                    <app-icon name="payments" />
+                  </button>
+                  @if (canExit(t)) {
+                    <button type="button" class="btn btn-sm btn-exit" [id]="'client-tx-exit-' + t.id" (click)="openAction('exit', t)"
+                            [disabled]="busyId() === t.id" title="Record vehicle exit">
+                      <app-icon name="logout" /> Exit
+                    </button>
+                  } @else if (isOpen(t)) {
+                    <button type="button" class="btn btn-sm btn-clear" [id]="'client-tx-clear-' + t.id" (click)="openAction('clear', t)"
+                            [disabled]="busyId() === t.id || !canClear(t)" [title]="clearHint(t)">
+                      <app-icon name="check" /> Clear
+                    </button>
+                  }
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'client-tx-edit-' + t.id" (click)="openEdit(t)"
+                          [disabled]="busyId() === t.id" [attr.aria-label]="'Edit ' + t.vehicleNumberPlate" title="Edit">
+                    <app-icon name="edit" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'client-tx-delete-' + t.id" (click)="remove(t)"
+                          [disabled]="busyId() === t.id" [attr.aria-label]="'Delete ' + t.vehicleNumberPlate" title="Delete">
+                    <app-icon name="trash" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>
+
+<datalist id="client-tx-services">
+  @for (s of serviceOptions(); track s.id) { <option [value]="s.serviceName">{{ formatMoney(s.price) }} {{ s.currency }}</option> }
+</datalist>
+<datalist id="client-tx-staff">
+  @for (s of staffOptions(); track s) { <option [value]="s"></option> }
+</datalist>
+<datalist id="client-tx-nationalities">
+  @for (n of nationalities; track n) { <option [value]="n"></option> }
+</datalist>
+
+<dialog #dialog class="dialog card" id="client-tx-dialog" aria-labelledby="tx-dialog-title" (cancel)="saving() && $event.preventDefault()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <header class="dialog-head">
+      <h2 id="tx-dialog-title">{{ editing() ? 'Edit transaction' : 'New vehicle service transaction' }}</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="client-tx-dialog-close" (click)="closeDialog()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (formError()) {
+        <div class="alert alert-error" role="alert" id="client-tx-form-error"><app-icon name="alert" /><span>{{ formError() }}</span></div>
+      }
+
+      <fieldset class="form-section">
+        <legend>Vehicle &amp; service</legend>
+        <div class="form-grid">
+          <div class="field">
+            <label for="tx-plate">Number plate <em aria-hidden="true">*</em></label>
+            <input id="tx-plate" class="input plate-input" formControlName="vehicleNumberPlate" maxlength="20" autocomplete="off" autocapitalize="characters"
+                   spellcheck="false" placeholder="UAA 123A" (input)="onPlateInput($event)" [attr.aria-invalid]="invalid('vehicleNumberPlate')" />
+            @if (invalid('vehicleNumberPlate')) { <p class="field-error">Number plate is required.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-service">Service type <em aria-hidden="true">*</em></label>
+            <input id="tx-service" class="input" formControlName="serviceType" list="client-tx-services" autocomplete="off"
+                   placeholder="Pick from catalog or type" (change)="onServiceType($any($event.target).value)"
+                   [attr.aria-invalid]="invalid('serviceType')" />
+            @if (invalid('serviceType')) { <p class="field-error">Service type is required.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-amount">Amount charged ({{ currency() }}) <em aria-hidden="true">*</em></label>
+            <input id="tx-amount" class="input" formControlName="amountCharged" inputmode="decimal" autocomplete="off"
+                   placeholder="0" (input)="onAmountInput($event)" [attr.aria-invalid]="invalid('amountCharged')" />
+            @if (invalid('amountCharged')) { <p class="field-error">Enter a valid amount.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-assigned">Assigned to</label>
+            <input id="tx-assigned" class="input" formControlName="assignedTo" list="client-tx-staff" autocomplete="off" placeholder="Staff member" />
+          </div>
+          <label class="check span-2" for="tx-key">
+            <input id="tx-key" type="checkbox" formControlName="vehicleKeyShared" />
+            <span>Vehicle key shared with the client</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Timing</legend>
+        <div class="form-grid three">
+          <div class="field">
+            <label for="tx-entry">Entry <em aria-hidden="true">*</em></label>
+            <input id="tx-entry" class="input" type="datetime-local" formControlName="entryDateTime" [attr.aria-invalid]="invalid('entryDateTime')" />
+            @if (invalid('entryDateTime')) { <p class="field-error">Entry time is required.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-expected">Expected exit</label>
+            <input id="tx-expected" class="input" type="datetime-local" formControlName="expectedExitTime" />
+          </div>
+          <div class="field">
+            <label for="tx-exit">Actual exit</label>
+            <input id="tx-exit" class="input" type="datetime-local" formControlName="actualExitDateTime" />
+            @if (form.controls.actualExitDateTime.disabled) { <p class="field-hint">Set by the Exit action.</p> }
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Customer</legend>
+        <div class="form-grid">
+          <div class="field">
+            <label for="tx-cust-name">Customer name</label>
+            <input id="tx-cust-name" class="input" formControlName="customerName" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="tx-cust-nat">Nationality</label>
+            <input id="tx-cust-nat" class="input" formControlName="customerNationality" list="client-tx-nationalities" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="tx-cust-phone">Phone number <em aria-hidden="true">*</em></label>
+            <app-phone-input formControlName="customerPhoneNumber" inputId="tx-cust-phone" autocomplete="off"
+                             [defaultCountry]="clientCountry()" [invalid]="invalid('customerPhoneNumber')" />
+            @if (invalid('customerPhoneNumber')) { <p class="field-error">Enter a valid phone number.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-cust-alt">Alternative phone</label>
+            <app-phone-input formControlName="customerAlternativePhone" inputId="tx-cust-alt" placeholder="Optional"
+                             [defaultCountry]="clientCountry()" [invalid]="invalid('customerAlternativePhone')" />
+            @if (invalid('customerAlternativePhone')) { <p class="field-error">Enter a valid phone number.</p> }
+          </div>
+          <div class="field">
+            <label for="tx-cust-doc">ID document type</label>
+            <select id="tx-cust-doc" class="select" formControlName="customerIdDocumentType">
+              <option value="">Not provided</option>
+              @for (d of idDocumentTypes; track d) { <option [value]="d">{{ humanize(d) }}</option> }
+            </select>
+          </div>
+          <div class="field">
+            <label for="tx-cust-idno">ID number</label>
+            <input id="tx-cust-idno" class="input mono-upper" formControlName="customerIdNumber" maxlength="50" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="field span-2">
+            <label for="tx-cust-addr">Address</label>
+            <input id="tx-cust-addr" class="input" formControlName="customerAddress" autocomplete="off" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Status</legend>
+        <div class="form-grid">
+          <div class="field">
+            <span class="label">Payment status</span>
+            <div class="status-line">
+              <app-status-badge [status]="editing()?.paymentStatus ?? 'PENDING'" />
+              <span class="field-hint">Updated from recorded payments.</span>
+            </div>
+            <label class="check" for="tx-cancelled">
+              <input id="tx-cancelled" type="checkbox" formControlName="cancelled" />
+              <span>Mark transaction as cancelled</span>
+            </label>
+          </div>
+          <div class="field">
+            <label for="tx-clearance">Vehicle clearance</label>
+            <select id="tx-clearance" class="select" formControlName="vehicleClearanceStatus">
+              @if (form.controls.vehicleClearanceStatus.disabled) {
+                <option [value]="form.controls.vehicleClearanceStatus.value">{{ humanize(form.controls.vehicleClearanceStatus.value) }}</option>
+              } @else {
+                @for (s of editableClearance; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+              }
+            </select>
+            <p class="field-hint">Use the Clear and Exit actions to clear or release the vehicle.</p>
+          </div>
+          <div class="field span-2">
+            <label for="tx-comment">General comment</label>
+            <textarea id="tx-comment" class="input" rows="3" formControlName="generalComment" placeholder="Condition of vehicle, special requests…"></textarea>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="client-tx-cancel" (click)="closeDialog()" [disabled]="saving()">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="client-tx-save" [disabled]="saving()">
+        @if (saving()) { <span class="spinner" aria-hidden="true"></span> }
+        {{ editing() ? 'Save changes' : 'Record transaction' }}
+      </button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ---------- Clear / exit ---------- -->
+<dialog #actionDialog class="dialog dialog-sm card" id="client-tx-action-dialog" aria-labelledby="tx-action-title"
+        (cancel)="actionSaving() && $event.preventDefault()">
+  @if (action(); as a) {
+    <form [formGroup]="actionForm" (ngSubmit)="submitAction()" novalidate>
+      <header class="dialog-head">
+        <h2 id="tx-action-title">{{ a.kind === 'clear' ? 'Clear vehicle' : 'Exit vehicle' }} <span class="plate">{{ a.tx.vehicleNumberPlate }}</span></h2>
+        <button type="button" class="btn btn-icon btn-ghost" id="client-tx-action-close" (click)="closeAction()" aria-label="Close">
+          <app-icon name="close" />
+        </button>
+      </header>
+      <div class="dialog-body">
+        @if (actionError()) {
+          <div class="alert alert-error" role="alert" id="client-tx-action-error"><app-icon name="alert" /><span>{{ actionError() }}</span></div>
+        }
+        <p class="action-intro">
+          @if (a.kind === 'clear') {
+            Fully paid ({{ formatMoney(a.tx.amountPaid) }}). Clearing confirms the vehicle is ready to be handed back.
+          } @else {
+            Cleared {{ formatDateTime(a.tx.clearedAt) }}@if (a.tx.clearedBy) { by {{ a.tx.clearedBy }} }. Record when the vehicle left.
+          }
+        </p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="tx-action-at">{{ a.kind === 'clear' ? 'Cleared at' : 'Exit time' }} <em aria-hidden="true">*</em></label>
+            <input id="tx-action-at" class="input" type="datetime-local" formControlName="at" [min]="a.tx.entryDateTime.slice(0, 16)" />
+          </div>
+          <div class="field">
+            <label for="tx-action-by">{{ a.kind === 'clear' ? 'Cleared by' : 'Released by' }}</label>
+            <input id="tx-action-by" class="input" formControlName="by" list="client-tx-staff" autocomplete="off" placeholder="Staff member" />
+          </div>
+          <div class="field span-2">
+            <label for="tx-action-comment">Comment</label>
+            <textarea id="tx-action-comment" class="input" rows="2" formControlName="comment" placeholder="Optional — added to the general comment"></textarea>
+          </div>
+        </div>
+      </div>
+      <footer class="dialog-foot">
+        <button type="button" class="btn" id="client-tx-action-cancel" (click)="closeAction()" [disabled]="actionSaving()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="client-tx-action-save" [disabled]="actionSaving()">
+          @if (actionSaving()) { <span class="spinner" aria-hidden="true"></span> }
+          {{ a.kind === 'clear' ? 'Clear vehicle' : 'Record exit' }}
+        </button>
+      </footer>
+    </form>
+  }
+</dialog>
+
+<!-- ---------- Payments ---------- -->
+<dialog #paymentsDialog class="dialog card" id="client-tx-payments-dialog" aria-labelledby="tx-payments-title"
+        (cancel)="paymentSaving() && $event.preventDefault()">
+  @if (payTx(); as tx) {
+    <header class="dialog-head">
+      <h2 id="tx-payments-title">Payments <span class="plate">{{ tx.vehicleNumberPlate }}</span></h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="client-tx-payments-close" (click)="closePayments()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+    <div class="dialog-body">
+      <div class="pay-summary">
+        <div><span>Charged</span><strong>{{ formatMoney(tx.amountCharged) }}</strong></div>
+        <div><span>Paid</span><strong class="ok">{{ formatMoney(tx.amountPaid) }}</strong></div>
+        <div><span>Balance</span><strong [class.due]="tx.balance > 0">{{ formatMoney(tx.balance) }}</strong></div>
+        <div><span>Status</span><app-status-badge [status]="tx.paymentStatus" /></div>
+      </div>
+
+      @if (paymentError()) {
+        <div class="alert alert-error" role="alert" id="client-tx-payment-error"><app-icon name="alert" /><span>{{ paymentError() }}</span></div>
+      }
+
+      @if (tx.balance > 0 && tx.paymentStatus !== 'CANCELLED') {
+        <form class="form-section" [formGroup]="paymentForm" (ngSubmit)="submitPayment()" novalidate>
+          <fieldset class="form-section">
+            <legend>Record payment</legend>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pay-amount">Amount ({{ currency() }}) <em aria-hidden="true">*</em></label>
+                <input id="pay-amount" class="input" formControlName="amount" inputmode="decimal" autocomplete="off"
+                       (input)="onPaymentAmountInput($event)" [attr.aria-invalid]="paymentInvalid('amount')" />
+                @if (paymentInvalid('amount')) { <p class="field-error">Enter a valid amount.</p> }
+              </div>
+              <div class="field">
+                <label for="pay-method">Method</label>
+                <select id="pay-method" class="select" formControlName="paymentMethod">
+                  @for (m of paymentMethods; track m) { <option [value]="m">{{ humanize(m) }}</option> }
+                </select>
+              </div>
+              <div class="field">
+                <label for="pay-ref">Reference / receipt no.</label>
+                <input id="pay-ref" class="input mono-upper" formControlName="referenceNumber" autocomplete="off" spellcheck="false"
+                       placeholder="e.g. Mobile money transaction ID" />
+              </div>
+              <div class="field">
+                <label for="pay-at">Payment time <em aria-hidden="true">*</em></label>
+                <input id="pay-at" class="input" type="datetime-local" formControlName="paymentDateTime" />
+              </div>
+              <div class="field">
+                <label for="pay-by-name">Paid by</label>
+                <input id="pay-by-name" class="input" formControlName="paidByName" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="pay-by-phone">Payer phone</label>
+                <app-phone-input formControlName="paidByPhone" inputId="pay-by-phone" placeholder="Optional"
+                                 [defaultCountry]="clientCountry()" [invalid]="paymentInvalid('paidByPhone')" />
+              </div>
+              <div class="field">
+                <label for="pay-received">Received by</label>
+                <input id="pay-received" class="input" formControlName="receivedBy" list="client-tx-staff" autocomplete="off" placeholder="Staff member" />
+              </div>
+              <div class="field">
+                <label for="pay-comment">Comment</label>
+                <input id="pay-comment" class="input" formControlName="comment" autocomplete="off" />
+              </div>
+            </div>
+            <div class="pay-actions">
+              <button type="submit" class="btn btn-primary" id="client-tx-payment-save" [disabled]="paymentSaving()">
+                @if (paymentSaving()) { <span class="spinner" aria-hidden="true"></span> }
+                <app-icon name="plus" /> Record payment
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      } @else if (tx.paymentStatus === 'PAID' && isOpen(tx)) {
+        <div class="alert alert-success" role="status">
+          <app-icon name="check" /><span>Fully paid — the vehicle can now be cleared.</span>
+          <button type="button" class="btn btn-sm btn-clear" id="client-tx-payments-clear"
+                  (click)="closePayments(); openAction('clear', tx)"><app-icon name="check" /> Clear vehicle</button>
+        </div>
+      }
+
+      <fieldset class="form-section">
+        <legend>History</legend>
+        @if (paymentsLoading() && payments().length === 0) {
+          <p class="muted">Loading payments…</p>
+        } @else if (payments().length === 0) {
+          <p class="muted">No payments recorded yet.</p>
+        } @else {
+          <ul class="pay-list">
+            @for (p of payments(); track p.id) {
+              <li [class.row-busy]="paymentBusyId() === p.id">
+                <div class="cell-stack">
+                  <strong>{{ formatMoney(p.amount) }} <span class="method">{{ humanize(p.paymentMethod) }}</span></strong>
+                  <span class="cell-secondary">
+                    {{ formatDateTime(p.paymentDateTime) }}
+                    @if (p.referenceNumber) { · <span class="mono">{{ p.referenceNumber }}</span> }
+                    @if (p.paidByName) { · by {{ p.paidByName }} }
+                    @if (p.receivedBy) { · received by {{ p.receivedBy }} }
+                  </span>
+                  @if (p.comment) { <span class="cell-secondary">{{ p.comment }}</span> }
+                </div>
+                @if (isOpen(tx)) {
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'client-tx-payment-delete-' + p.id"
+                          (click)="removePayment(p)" [disabled]="paymentBusyId() === p.id" aria-label="Remove payment" title="Remove payment">
+                    <app-icon name="trash" />
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </fieldset>
+    </div>
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="client-tx-payments-done" (click)="closePayments()" [disabled]="paymentSaving()">Done</button>
+    </footer>
+  }
+</dialog>

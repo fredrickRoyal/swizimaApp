@@ -12,6 +12,7 @@
       <input class="input" type="search" id="services-search" placeholder="Search by service name or code"
              [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
     </label>
+    <app-client-picker inputId="services-client" [selected]="client()" (selectedChange)="onClient($event)" />
     <label class="visually-hidden" for="services-category">Filter by category</label>
     <select class="select" id="services-category" [value]="category()" (change)="onCategory($any($event.target).value)">
       <option value="">All categories</option>

@@ -133,15 +133,15 @@
 
       <div class="field">
         <label for="cf-phone">Phone number</label>
-        <input id="cf-phone" class="input" type="tel" formControlName="phoneNumber" autocomplete="tel"
-               placeholder="+256 700 123456" [attr.aria-invalid]="invalid('phoneNumber')" />
+        <app-phone-input formControlName="phoneNumber" inputId="cf-phone" autocomplete="tel-national"
+                         [defaultCountry]="form.controls.country.value" [invalid]="invalid('phoneNumber')" />
         @if (invalid('phoneNumber')) { <p class="field-error">{{ errorFor('phoneNumber') }}</p> }
       </div>
 
       <div class="field">
         <label for="cf-alt-phone">Alternative phone</label>
-        <input id="cf-alt-phone" class="input" type="tel" formControlName="alternativePhone"
-               placeholder="Optional" [attr.aria-invalid]="invalid('alternativePhone')" />
+        <app-phone-input formControlName="alternativePhone" inputId="cf-alt-phone" placeholder="Optional"
+                         [defaultCountry]="form.controls.country.value" [invalid]="invalid('alternativePhone')" />
         @if (invalid('alternativePhone')) { <p class="field-error">{{ errorFor('alternativePhone') }}</p> }
       </div>
 
@@ -247,8 +247,8 @@
 
       <div class="field">
         <label for="cf-cp-phone">Phone</label>
-        <input id="cf-cp-phone" class="input" type="tel" formControlName="contactPersonPhone" autocomplete="off"
-               placeholder="+256 772 000000" [attr.aria-invalid]="invalid('contactPersonPhone')" />
+        <app-phone-input formControlName="contactPersonPhone" inputId="cf-cp-phone" autocomplete="off" placeholder="772 000000"
+                         [defaultCountry]="form.controls.country.value" [invalid]="invalid('contactPersonPhone')" />
         @if (invalid('contactPersonPhone')) { <p class="field-error">{{ errorFor('contactPersonPhone') }}</p> }
       </div>
     </div>

@@ -43,7 +43,7 @@ Backend services and database integration for syncing vehicle records, user auth
 | `clientapi` | 8081 | `com.swizima.clientapi` | Client (customer/organisation) management | [README](swizima-api/clientapi/README.md) |
 | `configurationsapi` | 8082 | `com.swizima.configurationsapi` | System configurations and settings | [README](swizima-api/configurationsapi/README.md) |
 | `paymentsapi` | 8083 | `com.swizima.paymentsapi` | Payments and transactions | [README](swizima-api/paymentsapi/README.md) |
-| `serviceapi` | 8084 | `com.swizima.serviceapi` | Automotive services (car park, wash, repair) | [README](swizima-api/serviceapi/README.md) |
+| `clienttransactionsapi` | 8084 | `com.swizima.clienttransactionsapi` | Client transactions | [README](swizima-api/clienttransactionsapi/README.md) |
 | `usersapi` | 8085 | `com.swizima.usersapi` | Users and authentication | [README](swizima-api/usersapi/README.md) |
 
 All services share the same package layout (`config`, `controller`, `dto`, `entity`, `exception`, `repository`, `service`), audit columns via `ParentEntity`, and soft deletes. See each service's README for its data model, endpoints and setup.
@@ -57,7 +57,7 @@ All services share the same package layout (`config`, `controller`, `dto`, `enti
 | `clientapi` | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
 | `configurationsapi` | http://localhost:8082/swagger-ui.html *(not yet available)* | http://localhost:8082/v3/api-docs |
 | `paymentsapi` | http://localhost:8083/swagger-ui.html *(not yet available)* | http://localhost:8083/v3/api-docs |
-| `serviceapi` | http://localhost:8084/swagger-ui.html *(not yet available)* | http://localhost:8084/v3/api-docs |
+| `clienttransactionsapi` | http://localhost:8084/swagger-ui.html *(not yet available)* | http://localhost:8084/v3/api-docs |
 
 > The service must be running for its link to work. `/swagger-ui.html` redirects to `/swagger-ui/index.html`.
 

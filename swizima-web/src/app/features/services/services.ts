@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CurrencyPipe } from '@angular/common';
 import { SwizimaApi } from '../../core/api/swizima-api';
 import { debounced, remoteData } from '../../core/data/remote-data';
-import { ServiceCatalogStatus, ServiceCategory } from '../../core/models/api.models';
+import { Client, ServiceCatalogStatus, ServiceCategory } from '../../core/models/api.models';
+import { ClientPicker } from '../../shared/client-picker/client-picker';
 import { EmptyState } from '../../shared/empty-state/empty-state';
 import { Icon, IconName } from '../../shared/icon/icon';
 import { PageHeader } from '../../shared/page-header/page-header';
@@ -22,10 +23,12 @@ export const CATEGORY_ICON: Record<ServiceCategory, IconName> = {
 /** Service catalogue: what each client offers (car park, wash, repair, …). */
 @Component({
   selector: 'app-services',
-  imports: [CurrencyPipe, EmptyState, Icon, PageHeader, Pagination, StatusBadge],
+  imports: [CurrencyPipe, ClientPicker, EmptyState, Icon, PageHeader, Pagination, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './services.html',
   styles: `
+    .list-card { overflow: visible; }
+    app-client-picker { flex: 1 1 240px; max-width: 320px; }
     .service { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
     .service-icon {
       display: grid;
@@ -55,6 +58,7 @@ export class Services {
   protected readonly category = signal<ServiceCategory | ''>('');
   protected readonly status = signal<ServiceCatalogStatus | ''>('');
   protected readonly page = signal(0);
+  protected readonly client = signal<Client | null>(null);
   private readonly searchTerm = debounced(this.search, 350);
 
   protected readonly services = remoteData(
@@ -62,6 +66,7 @@ export class Services {
       search: this.searchTerm().trim(),
       category: this.category(),
       status: this.status(),
+      clientId: this.client()?.id,
       page: this.page(),
       size: PAGE_SIZE,
       sort: 'createdAt,desc',
@@ -69,7 +74,14 @@ export class Services {
     (query) => this.api.serviceCatalogs(query),
   );
 
-  protected readonly hasFilters = computed(() => !!this.search().trim() || !!this.category() || !!this.status());
+  protected readonly hasFilters = computed(
+    () => !!this.search().trim() || !!this.category() || !!this.status() || !!this.client(),
+  );
+
+  protected onClient(client: Client | null): void {
+    this.client.set(client);
+    this.page.set(0);
+  }
 
   protected onSearch(value: string): void {
     this.search.set(value);
@@ -90,6 +102,7 @@ export class Services {
     this.search.set('');
     this.category.set('');
     this.status.set('');
+    this.client.set(null);
     this.page.set(0);
   }
 
