@@ -32,14 +32,13 @@ object AuthRepository {
         }
 
         try {
-            // Correct backend endpoint matching swizima-web AuthService (/api/v1/auth/login/otp)
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/auth/login/otp")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 5000
-                readTimeout = 5000
+                connectTimeout = 20000 // Increased timeout to 20 seconds
+                readTimeout = 20000
             }
             val payload = "{\"username\":\"$contactInput\"}"
             connection.outputStream.write(payload.toByteArray())
@@ -50,7 +49,7 @@ object AuthRepository {
             } else {
                 val errorMsg = try {
                     connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     ""
                 }
                 AuthResult(false, "Failed to send OTP (Server error $responseCode: $errorMsg)")
@@ -91,14 +90,13 @@ object AuthRepository {
         }
 
         try {
-            // Correct backend endpoint matching swizima-web AuthService (/api/v1/auth/verify-otp)
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/auth/verify-otp")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 5000
-                readTimeout = 5000
+                connectTimeout = 20000 // Increased timeout to 20 seconds
+                readTimeout = 20000
             }
             val payload = "{\"otpReference\":\"$lastOtpReference\",\"code\":\"$otp\"}"
             connection.outputStream.write(payload.toByteArray())
@@ -117,7 +115,7 @@ object AuthRepository {
             } else {
                 val errorMsg = try {
                     connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     ""
                 }
                 AuthResult(false, "Invalid OTP verification code (Server response $responseCode: $errorMsg)")
@@ -139,7 +137,8 @@ object AuthRepository {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 5000
+                connectTimeout = 20000 // Increased timeout to 20 seconds
+                readTimeout = 20000
             }
             val payload = "{\"contact\":\"$contact\",\"details\":\"$orgCodeOrDetails\"}"
             connection.outputStream.write(payload.toByteArray())
@@ -149,7 +148,7 @@ object AuthRepository {
             } else {
                 val errorMsg = try {
                     connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     ""
                 }
                 AuthResult(false, "Failed to submit linking request (Server response $responseCode: $errorMsg)")

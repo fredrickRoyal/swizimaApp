@@ -41,8 +41,8 @@ object VehicleRecordRepository {
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/vehicles")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 5000
-                readTimeout = 5000
+                connectTimeout = 20000 // Increased timeout to 20 seconds
+                readTimeout = 20000
             }
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
@@ -69,7 +69,8 @@ object VehicleRecordRepository {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 5000
+                connectTimeout = 20000 // Increased timeout to 20 seconds
+                readTimeout = 20000
             }
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
