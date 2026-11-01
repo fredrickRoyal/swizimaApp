@@ -5,5 +5,5 @@ object ApiGatewayConfig {
     var gatewayBaseUrl: String = "http://192.168.100.6:9080/api/v1"
 
     // When true, uses robust mock/simulation responses if the API gateway is unreachable
-    var isSimulationMode: Boolean = true
+    var isSimulationMode: Boolean = false
 }
