@@ -55,11 +55,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -627,6 +631,13 @@ fun VehicleRecordDetailBottomSheet(
     onPrint: () -> Unit,
     onWhatsApp: () -> Unit
 ) {
+    var showPaymentDialog by remember { mutableStateOf(false) }
+    var paymentAmount by remember { mutableStateOf(record.amountCharged) }
+    var paymentReference by remember { mutableStateOf("") }
+    var isActionProcessing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+
     ModalBottomSheet(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
@@ -641,7 +652,7 @@ fun VehicleRecordDetailBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Vehicle Record Details",
+                    text = "Transaction Details",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
                 Surface(
@@ -667,9 +678,73 @@ fun VehicleRecordDetailBottomSheet(
             DetailRow("Key Status", if (record.isLeavingKey) "Key Left with Attendant" else "Key with Client")
             DetailRow("Person Assigned", record.assignedToPerson.ifBlank { "None" })
             DetailRow("Amount Charged", "UGX ${record.amountCharged.ifBlank { "0" }}")
-            DetailRow("Status", record.status)
+            DetailRow("Payment Status", record.paymentStatus)
+            DetailRow("Clearance Status", record.clearanceStatus)
             if (record.generalComment.isNotBlank()) {
                 DetailRow("General Comments", record.generalComment)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Workflow Actions: Record Payment, Clear, Exit
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { showPaymentDialog = true },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
+                ) {
+                    Text("Payment", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.clearVehicle(record.id, record.assignedToPerson, "Cleared from mobile")
+                            isActionProcessing = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Vehicle cleared successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to clear vehicle", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isActionProcessing,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                ) {
+                    Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.exitVehicle(record.id, record.assignedToPerson, "Exited from mobile")
+                            isActionProcessing = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Vehicle marked as exited", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to exit vehicle", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isActionProcessing,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+                ) {
+                    Text("Exit", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -734,6 +809,69 @@ fun VehicleRecordDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+
+    if (showPaymentDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isActionProcessing) showPaymentDialog = false },
+            title = { Text("Record Payment") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = paymentAmount,
+                        onValueChange = { paymentAmount = formatWithCommas(it) },
+                        label = { Text("Payment Amount (UGX)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = paymentReference,
+                        onValueChange = { paymentReference = it },
+                        label = { Text("Reference / Receipt No. (Optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanAmt = paymentAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+                        if (cleanAmt <= 0) return@Button
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.addPayment(record.id, cleanAmt, "CASH", paymentReference)
+                            isActionProcessing = false
+                            showPaymentDialog = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Payment recorded successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to record payment", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isActionProcessing
+                ) {
+                    if (isActionProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Submit Payment")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showPaymentDialog = false },
+                    enabled = !isActionProcessing
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

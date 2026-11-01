@@ -171,8 +171,8 @@ object VehicleRecordRepository {
                   "customerNationality": "${record.nationality}",
                   "customerIdNumber": "${record.idPassportNumber}",
                   "generalComment": "${record.generalComment}",
-                  "paymentStatus": "PENDING",
-                  "vehicleClearanceStatus": "IN_SERVICE"
+                  "paymentStatus": "${record.paymentStatus}",
+                  "vehicleClearanceStatus": "${record.clearanceStatus}"
                 }
             """.trimIndent()
 
@@ -193,6 +193,80 @@ object VehicleRecordRepository {
             }
         } catch (e: Exception) {
             apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to connect to ${ApiGatewayConfig.gatewayBaseUrl}"}"
+            false
+        }
+    }
+
+    suspend fun addPayment(transactionId: String, amount: Double, method: String, reference: String?): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services/$transactionId/payments")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val payload = """
+                {
+                  "amount": $amount,
+                  "paymentMethod": "$method",
+                  "referenceNumber": "${reference ?: ""}",
+                  "paymentDateTime": "${currentDateFormatted}T00:00:00"
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun clearVehicle(transactionId: String, by: String?, comment: String?): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services/$transactionId/clear")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val payload = """
+                {
+                  "by": "${by ?: "Attendant"}",
+                  "comment": "${comment ?: "Cleared successfully"}"
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun exitVehicle(transactionId: String, by: String?, comment: String?): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services/$transactionId/exit")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val payload = """
+                {
+                  "by": "${by ?: "Attendant"}",
+                  "comment": "${comment ?: "Exited successfully"}"
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
             false
         }
     }
