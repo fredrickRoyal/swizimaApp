@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,6 +97,19 @@ fun DashboardScreen(
     onNavigateToVehiclesList: (serviceType: String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var orgName by remember { mutableStateOf("Swizima Motors & Parking Ltd") }
+    var orgAddress by remember { mutableStateOf("Plot 12, Lugogo Bypass, Kampala") }
+    var orgContact by remember { mutableStateOf("Contact: +256 414 123 456") }
+
+    LaunchedEffect(Unit) {
+        val clients = com.example.swizima.data.ClientServiceRepository.fetchClients()
+        if (clients.isNotEmpty()) {
+            val client = clients.first()
+            orgName = client.clientName
+            orgAddress = "Plot 45, Industrial Area, Kampala"
+            orgContact = "Code: ${client.clientCode}"
+        }
+    }
 
     val taskTiles = remember {
         listOf(
@@ -248,15 +262,21 @@ fun DashboardScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Welcome back!",
+                            text = orgName,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold
                             ),
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = userContact.ifEmpty { "Logged in user" },
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "📍 $orgAddress",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "📞 $orgContact | User: $userContact",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                     }
