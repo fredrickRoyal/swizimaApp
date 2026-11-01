@@ -217,7 +217,14 @@ object VehicleRecordRepository {
             """.trimIndent()
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
-            responseCode in 200..299
+            val success = responseCode in 200..299
+            if (success) {
+                // Auto-clear vehicle upon full payment
+                try {
+                    clearVehicle(transactionId, "Auto System", "Auto-cleared upon payment")
+                } catch (_: Exception) {}
+            }
+            success
         } catch (_: Exception) {
             false
         }

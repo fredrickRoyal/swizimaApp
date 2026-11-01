@@ -686,18 +686,23 @@ fun VehicleRecordDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Workflow Actions: Record Payment, Clear, Exit
+            val isPaid = record.paymentStatus.equals("PAID", ignoreCase = true)
+            val isCleared = record.clearanceStatus.equals("CLEARED", ignoreCase = true) || record.clearanceStatus.equals("RELEASED", ignoreCase = true)
+            val isReleased = record.clearanceStatus.equals("RELEASED", ignoreCase = true)
+
+            // Workflow Actions: Record Payment, Clear, Release Vehicle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = { showPaymentDialog = true },
+                    enabled = !isPaid && !isReleased && !isActionProcessing,
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
                 ) {
-                    Text("Payment", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(if (isPaid) "Paid" else "Payment", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Button(
@@ -715,7 +720,7 @@ fun VehicleRecordDetailBottomSheet(
                             }
                         }
                     },
-                    enabled = !isActionProcessing,
+                    enabled = !isCleared && !isReleased && !isActionProcessing,
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
@@ -727,23 +732,23 @@ fun VehicleRecordDetailBottomSheet(
                     onClick = {
                         isActionProcessing = true
                         scope.launch {
-                            val success = VehicleRecordRepository.exitVehicle(record.id, record.assignedToPerson, "Exited from mobile")
+                            val success = VehicleRecordRepository.exitVehicle(record.id, record.assignedToPerson, "Released from mobile")
                             isActionProcessing = false
                             if (success) {
-                                android.widget.Toast.makeText(ctx, "Vehicle marked as exited", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(ctx, "Vehicle released successfully", android.widget.Toast.LENGTH_SHORT).show()
                                 VehicleRecordRepository.fetchRecordsFromApi()
                                 onClose()
                             } else {
-                                android.widget.Toast.makeText(ctx, "Failed to exit vehicle", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(ctx, "Failed to release vehicle", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
-                    enabled = !isActionProcessing,
+                    enabled = !isReleased && !isActionProcessing,
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
                 ) {
-                    Text("Exit", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Release Vehicle", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
