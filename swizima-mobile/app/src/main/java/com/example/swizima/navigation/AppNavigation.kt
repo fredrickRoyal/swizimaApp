@@ -12,6 +12,7 @@ import com.example.swizima.ui.screens.LoginScreen
 import com.example.swizima.ui.screens.OtpScreen
 import com.example.swizima.ui.screens.ServiceFormScreen
 import com.example.swizima.ui.screens.ServiceVehiclesListScreen
+import com.example.swizima.ui.screens.SystemInformationScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -20,6 +21,9 @@ sealed class Screen(val route: String) {
     }
     object Dashboard : Screen("dashboard/{userContact}") {
         fun createRoute(userContact: String): String = "dashboard/${Uri.encode(userContact)}"
+    }
+    object SystemInformation : Screen("systemInfo/{userContact}") {
+        fun createRoute(userContact: String): String = "systemInfo/${Uri.encode(userContact)}"
     }
     object VehiclesList : Screen("vehiclesList/{serviceType}") {
         fun createRoute(serviceType: String): String = "vehiclesList/${Uri.encode(serviceType)}"
@@ -66,10 +70,18 @@ fun AppNavigation() {
                 onBackToLogin = {
                     navController.popBackStack()
                 },
-                onOtpValidated = {
-                    navController.navigate(Screen.Dashboard.createRoute(contactInput)) {
-                        popUpTo(Screen.Login.route) {
-                            inclusive = true
+                onOtpValidated = { profile ->
+                    if (profile.isLinked && profile.organizationId != null) {
+                        navController.navigate(Screen.Dashboard.createRoute(contactInput)) {
+                            popUpTo(Screen.Login.route) {
+                                inclusive = true
+                            }
+                        }
+                    } else {
+                        navController.navigate(Screen.SystemInformation.createRoute(contactInput)) {
+                            popUpTo(Screen.Login.route) {
+                                inclusive = true
+                            }
                         }
                     }
                 }
@@ -97,6 +109,28 @@ fun AppNavigation() {
                 },
                 onNavigateToVehiclesList = { serviceType ->
                     navController.navigate(Screen.VehiclesList.createRoute(serviceType))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.SystemInformation.route,
+            arguments = listOf(
+                navArgument("userContact") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            val userContact = backStackEntry.arguments?.getString("userContact") ?: ""
+            SystemInformationScreen(
+                userContact = userContact,
+                onLogout = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.SystemInformation.route) {
+                            inclusive = true
+                        }
+                    }
                 }
             )
         }

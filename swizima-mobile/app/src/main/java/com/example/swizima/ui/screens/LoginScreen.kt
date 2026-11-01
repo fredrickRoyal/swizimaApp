@@ -30,10 +30,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +60,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.swizima.data.AuthRepository
 import com.example.swizima.ui.theme.SwizimaTheme
+import kotlinx.coroutines.launch
 
 enum class LoginType {
     PHONE, EMAIL
@@ -92,8 +95,10 @@ fun LoginScreen(
 
     var emailInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val keyboardController = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
 
     val currentInput = if (selectedTabIndex == 0) phoneInput else emailInput
     val loginType = if (selectedTabIndex == 0) LoginType.PHONE else LoginType.EMAIL
@@ -101,6 +106,7 @@ fun LoginScreen(
     fun validateAndProceed() {
         keyboardController?.hide()
         val trimmed = currentInput.trim()
+        val fullContact: String
         if (loginType == LoginType.PHONE) {
             val cleanNumber = trimmed.removePrefix("+").trim()
             if (cleanNumber.length < 6 || !cleanNumber.all { it.isDigit() || it == ' ' || it == '-' }) {
@@ -108,15 +114,25 @@ fun LoginScreen(
                 return
             }
             errorMessage = null
-            val fullPhone = "$selectedCountryCode $cleanNumber"
-            onNavigateToOtp(fullPhone)
+            fullContact = "$selectedCountryCode $cleanNumber"
         } else {
             if (!android.util.Patterns.EMAIL_ADDRESS.matcher(trimmed).matches()) {
                 errorMessage = "Please enter a valid email address"
                 return
             }
             errorMessage = null
-            onNavigateToOtp(trimmed)
+            fullContact = trimmed
+        }
+
+        isLoading = true
+        scope.launch {
+            val result = AuthRepository.requestOtp(fullContact)
+            isLoading = false
+            if (result.success) {
+                onNavigateToOtp(fullContact)
+            } else {
+                errorMessage = result.message
+            }
         }
     }
 
@@ -161,7 +177,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Sign in to access your automotive services",
+                text = "Sign in via API Gateway",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -346,6 +362,7 @@ fun LoginScreen(
 
                     Button(
                         onClick = { validateAndProceed() },
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
@@ -354,17 +371,25 @@ fun LoginScreen(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text(
-                            text = "Send OTP",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Send OTP",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -372,9 +397,9 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "By signing in, you agree to our Terms of Service & Privacy Policy",
+                text = "Tip: Enter a phone ending in '0' or containing '000' to test unlinked organisation flow.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
         }
