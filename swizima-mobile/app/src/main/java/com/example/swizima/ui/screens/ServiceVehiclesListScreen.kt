@@ -69,6 +69,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.Warning
 import com.example.swizima.data.VehicleRecord
 import com.example.swizima.data.VehicleRecordRepository
 import com.example.swizima.ui.theme.SwizimaTheme
@@ -87,6 +89,10 @@ fun ServiceVehiclesListScreen(
     var selectedRecordForDetail by remember { mutableStateOf<VehicleRecord?>(null) }
     var showReceiptPreview by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        VehicleRecordRepository.fetchRecordsFromApi()
+    }
 
     val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType) {
         VehicleRecordRepository.getRecordsForService(serviceType)
@@ -161,6 +167,34 @@ fun ServiceVehiclesListScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            if (VehicleRecordRepository.apiErrorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Connection Error",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = VehicleRecordRepository.apiErrorMessage ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // Search Bar & Stats Header
             Column(
                 modifier = Modifier

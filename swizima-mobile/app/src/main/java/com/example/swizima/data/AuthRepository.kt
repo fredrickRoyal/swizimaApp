@@ -47,7 +47,7 @@ object AuthRepository {
                 AuthResult(false, "Failed to send OTP (Server error: $responseCode)")
             }
         } catch (e: Exception) {
-            AuthResult(true, "OTP sent successfully (Offline simulated mode)")
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
         }
     }
 
@@ -55,10 +55,7 @@ object AuthRepository {
         if (ApiGatewayConfig.isSimulationMode) {
             delay(1000L)
             if (otp == "123456" || otp.length == 6) {
-                // If contact contains '000' or ends with '0', simulate unlinked user (testing System Info page requirement)
-                // Otherwise simulate linked user assigned to Swizima Main Branch / Organisation
                 val isUnlinked = contactInput.contains("000") || contactInput.endsWith("0")
-
                 val profile = if (isUnlinked) {
                     UserProfile(
                         userId = "usr_unlinked_123",
@@ -98,27 +95,19 @@ object AuthRepository {
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
                 val profile = UserProfile(
-                    userId = "usr_prod_1",
+                    userId = "usr_api_1",
                     contact = contactInput,
-                    name = "Verified User",
-                    organizationId = "org_prod_1",
+                    name = "API User",
+                    organizationId = "org_api_1",
                     organizationName = "Swizima Enterprise",
                     isLinked = true
                 )
                 AuthResult(true, "Login successful", profile)
             } else {
-                AuthResult(false, "Invalid OTP verification code")
+                AuthResult(false, "Invalid OTP verification code (Server response: $responseCode)")
             }
         } catch (e: Exception) {
-            val profile = UserProfile(
-                userId = "usr_fallback",
-                contact = contactInput,
-                name = "Swizima Operator",
-                organizationId = "org_swizima_01",
-                organizationName = "Swizima Motors & Parking Ltd",
-                isLinked = true
-            )
-            AuthResult(true, "Login successful (Simulated)", profile)
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
         }
     }
 
@@ -142,10 +131,10 @@ object AuthRepository {
             if (responseCode in 200..299) {
                 AuthResult(true, "Linking request submitted successfully")
             } else {
-                AuthResult(false, "Failed to submit linking request")
+                AuthResult(false, "Failed to submit linking request (Server response: $responseCode)")
             }
         } catch (e: Exception) {
-            AuthResult(true, "Linking request submitted (Simulated)")
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
         }
     }
 }
