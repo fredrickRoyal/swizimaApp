@@ -89,12 +89,11 @@ object ClientServiceRepository {
         }
     }
 
-    suspend fun fetchServiceCatalogs(category: String?, clientId: String?): List<ApiServiceCatalogItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchServiceCatalogs(clientId: String?): List<ApiServiceCatalogItem> = withContext(Dispatchers.IO) {
         try {
             val urlStr = buildString {
                 append("${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs?")
                 val params = mutableListOf<String>("page=0", "size=50", "sort=createdAt,desc")
-                if (!category.isNullOrBlank()) params.add("category=$category")
                 if (!clientId.isNullOrBlank()) params.add("clientId=$clientId")
                 append(params.joinToString("&"))
             }
@@ -156,8 +155,7 @@ object ClientServiceRepository {
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
-                val json = extractContentJson(rawJson)
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
                 val staffList = mutableListOf<ApiClientStaff>()
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"fullName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()

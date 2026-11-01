@@ -513,14 +513,22 @@ fun ServiceFormScreen(
             selectedClientId = fetchedClients.first().id
         }
         clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
-        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, selectedClientId)
+        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedClientId)
+        if (serviceCatalogItems.isNotEmpty() && selectedService.isBlank()) {
+            selectedService = serviceCatalogItems.first().serviceName
+            amountCharged = serviceCatalogItems.first().price.toLong().toString()
+        }
     }
 
-    androidx.compose.runtime.LaunchedEffect(selectedService, selectedClientId) {
-        val catalogs = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, selectedClientId)
+    androidx.compose.runtime.LaunchedEffect(selectedClientId) {
+        val catalogs = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedClientId)
         serviceCatalogItems = catalogs
-        val matchedCatalog = catalogs.find { it.serviceName.equals(selectedService, ignoreCase = true) || it.category.equals(selectedService, ignoreCase = true) }
-        if (matchedCatalog != null && amountCharged.isBlank()) {
+        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
+    }
+
+    androidx.compose.runtime.LaunchedEffect(selectedService) {
+        val matchedCatalog = serviceCatalogItems.find { it.serviceName.equals(selectedService, ignoreCase = true) }
+        if (matchedCatalog != null) {
             amountCharged = matchedCatalog.price.toLong().toString()
         }
     }
@@ -870,7 +878,7 @@ fun ServiceFormScreen(
                                     clientDropdownExpanded = false
                                     scope.launch {
                                         clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(client.id)
-                                        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, client.id)
+                                        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(client.id)
                                     }
                                 }
                             )
