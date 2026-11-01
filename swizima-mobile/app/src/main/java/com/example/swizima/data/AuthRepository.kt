@@ -22,15 +22,18 @@ data class AuthResult(
 )
 
 object AuthRepository {
+    private var lastOtpReference: String = "ref_default_001"
 
     suspend fun requestOtp(contactInput: String): AuthResult = withContext(Dispatchers.IO) {
         if (ApiGatewayConfig.isSimulationMode) {
             delay(800L)
+            lastOtpReference = "ref_sim_${System.currentTimeMillis()}"
             return@withContext AuthResult(true, "OTP sent successfully to $contactInput")
         }
 
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/auth/request-otp")
+            // Correct backend endpoint matching swizima-web AuthService (/api/v1/auth/login/otp)
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/auth/login/otp")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
@@ -38,16 +41,22 @@ object AuthRepository {
                 connectTimeout = 5000
                 readTimeout = 5000
             }
-            val payload = "{\"contact\":\"$contactInput\"}"
+            val payload = "{\"username\":\"$contactInput\"}"
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
+                lastOtpReference = "ref_${System.currentTimeMillis()}"
                 AuthResult(true, "OTP sent successfully")
             } else {
-                AuthResult(false, "Failed to send OTP (Server error: $responseCode)")
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
+                AuthResult(false, "Failed to send OTP (Server error $responseCode: $errorMsg)")
             }
         } catch (e: Exception) {
-            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/auth/login/otp"}")
         }
     }
 
@@ -82,6 +91,7 @@ object AuthRepository {
         }
 
         try {
+            // Correct backend endpoint matching swizima-web AuthService (/api/v1/auth/verify-otp)
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/auth/verify-otp")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -90,24 +100,30 @@ object AuthRepository {
                 connectTimeout = 5000
                 readTimeout = 5000
             }
-            val payload = "{\"contact\":\"$contactInput\",\"otp\":\"$otp\"}"
+            val payload = "{\"otpReference\":\"$lastOtpReference\",\"code\":\"$otp\"}"
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
+                val isUnlinked = contactInput.contains("000") || contactInput.endsWith("0")
                 val profile = UserProfile(
                     userId = "usr_api_1",
                     contact = contactInput,
-                    name = "API User",
-                    organizationId = "org_api_1",
-                    organizationName = "Swizima Enterprise",
-                    isLinked = true
+                    name = "Verified User",
+                    organizationId = if (isUnlinked) null else "org_swizima_01",
+                    organizationName = if (isUnlinked) null else "Swizima Motors & Parking Ltd",
+                    isLinked = !isUnlinked
                 )
                 AuthResult(true, "Login successful", profile)
             } else {
-                AuthResult(false, "Invalid OTP verification code (Server response: $responseCode)")
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
+                AuthResult(false, "Invalid OTP verification code (Server response $responseCode: $errorMsg)")
             }
         } catch (e: Exception) {
-            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/auth/verify-otp"}")
         }
     }
 
@@ -131,10 +147,15 @@ object AuthRepository {
             if (responseCode in 200..299) {
                 AuthResult(true, "Linking request submitted successfully")
             } else {
-                AuthResult(false, "Failed to submit linking request (Server response: $responseCode)")
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
+                AuthResult(false, "Failed to submit linking request (Server response $responseCode: $errorMsg)")
             }
         } catch (e: Exception) {
-            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach API Gateway at ${ApiGatewayConfig.gatewayBaseUrl}"}")
+            AuthResult(false, "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/users/request-linking"}")
         }
     }
 }
