@@ -1,5 +1,8 @@
 package com.example.swizima.data
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -31,6 +34,7 @@ data class ApiClientStaff(
 )
 
 object ClientServiceRepository {
+    var apiErrorMessage by mutableStateOf<String?>(null)
 
     suspend fun fetchClients(): List<ApiClient> = withContext(Dispatchers.IO) {
         if (ApiGatewayConfig.isSimulationMode) {
@@ -66,16 +70,15 @@ object ClientServiceRepository {
                         )
                     )
                 }
-                if (clients.isEmpty()) {
-                    listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
-                } else {
-                    clients
-                }
+                apiErrorMessage = null
+                clients
             } else {
-                listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
+                apiErrorMessage = "Failed to fetch clients (Server response: ${connection.responseCode})"
+                emptyList()
             }
-        } catch (_: Exception) {
-            listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/clients"}"
+            emptyList()
         }
     }
 
@@ -142,11 +145,14 @@ object ClientServiceRepository {
                         )
                     )
                 }
+                apiErrorMessage = null
                 items
             } else {
+                apiErrorMessage = "Failed to fetch service catalogs (Server response: ${connection.responseCode})"
                 emptyList()
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs"}"
             emptyList()
         }
     }
@@ -193,11 +199,14 @@ object ClientServiceRepository {
                         )
                     )
                 }
+                apiErrorMessage = null
                 staffList
             } else {
+                apiErrorMessage = "Failed to fetch client staff (Server response: ${connection.responseCode})"
                 emptyList()
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/clients/$clientId/staff"}"
             emptyList()
         }
     }
