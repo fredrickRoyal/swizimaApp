@@ -506,6 +506,32 @@ fun ServiceFormScreen(
 
     var selectedService by remember { mutableStateOf(defaultService) }
     var serviceDropdownExpanded by remember { mutableStateOf(false) }
+    var amountCharged by remember { mutableStateOf(existingRecord?.amountCharged ?: "") }
+
+    var clientsList by remember { mutableStateOf<List<com.example.swizima.data.ApiClient>>(emptyList()) }
+    var selectedClientId by remember { mutableStateOf("org_swizima_01") }
+    var serviceCatalogItems by remember { mutableStateOf<List<com.example.swizima.data.ApiServiceCatalogItem>>(emptyList()) }
+    var clientStaffList by remember { mutableStateOf<List<com.example.swizima.data.ApiClientStaff>>(emptyList()) }
+    var staffDropdownExpanded by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val fetchedClients = com.example.swizima.data.ClientServiceRepository.fetchClients()
+        clientsList = fetchedClients
+        if (fetchedClients.isNotEmpty()) {
+            selectedClientId = fetchedClients.first().id
+        }
+        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
+        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, selectedClientId)
+    }
+
+    androidx.compose.runtime.LaunchedEffect(selectedService, selectedClientId) {
+        val catalogs = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, selectedClientId)
+        serviceCatalogItems = catalogs
+        val matchedCatalog = catalogs.find { it.serviceName.equals(selectedService, ignoreCase = true) || it.category.equals(selectedService, ignoreCase = true) }
+        if (matchedCatalog != null && amountCharged.isBlank()) {
+            amountCharged = matchedCatalog.price.toLong().toString()
+        }
+    }
 
     var dateInput by remember { mutableStateOf(existingRecord?.date ?: getCurrentFormattedDate()) }
     var entryTimeInput by remember { mutableStateOf(existingRecord?.entryTime ?: getCurrentFormattedTime()) }
@@ -581,7 +607,6 @@ fun ServiceFormScreen(
     var isLeavingKey by remember { mutableStateOf(existingRecord?.isLeavingKey ?: false) }
     var assignedToPerson by remember { mutableStateOf(existingRecord?.assignedToPerson ?: "") }
     var generalComment by remember { mutableStateOf(existingRecord?.generalComment ?: "") }
-    var amountCharged by remember { mutableStateOf(existingRecord?.amountCharged ?: "") }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
@@ -823,7 +848,8 @@ fun ServiceFormScreen(
                     }
                 }
 
-                // 3. Service Type Dropdown
+                // 3. Service Type Dropdown (Loaded from API Service Catalog)
+                val displayServices = if (serviceCatalogItems.isNotEmpty()) serviceCatalogItems.map { it.serviceName } else availableServices
                 ExposedDropdownMenuBox(
                     expanded = serviceDropdownExpanded,
                     onExpandedChange = { serviceDropdownExpanded = !serviceDropdownExpanded }
@@ -832,7 +858,7 @@ fun ServiceFormScreen(
                         value = selectedService,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Service Type *") },
+                        label = { Text("Service Type & Catalog *") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = serviceDropdownExpanded) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
@@ -842,11 +868,22 @@ fun ServiceFormScreen(
                         expanded = serviceDropdownExpanded,
                         onDismissRequest = { serviceDropdownExpanded = false }
                     ) {
-                        availableServices.forEach { service ->
+                        displayServices.forEach { serviceName ->
+                            val matchedItem = serviceCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
                             DropdownMenuItem(
-                                text = { Text(service) },
+                                text = {
+                                    Column {
+                                        Text(serviceName, fontWeight = FontWeight.Bold)
+                                        if (matchedItem != null) {
+                                            Text("${matchedItem.price.toLong()} ${matchedItem.currency}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                },
                                 onClick = {
-                                    selectedService = service
+                                    selectedService = serviceName
+                                    if (matchedItem != null) {
+                                        amountCharged = matchedItem.price.toLong().toString()
+                                    }
                                     serviceDropdownExpanded = false
                                 }
                             )
@@ -874,17 +911,39 @@ fun ServiceFormScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
-                    value = assignedToPerson,
-                    onValueChange = { assignedToPerson = it.uppercase() },
-                    label = { Text("Person Assigned To (CAPITAL)") },
-                    placeholder = { Text("e.g. MARK ATTENDANT") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Person Assigned To Dropdown (Loaded from Client Staff API)
+                ExposedDropdownMenuBox(
+                    expanded = staffDropdownExpanded,
+                    onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = assignedToPerson,
+                        onValueChange = { assignedToPerson = it.uppercase() },
+                        label = { Text("Person Assigned To (Staff)") },
+                        placeholder = { Text("Select or type staff name...") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryEditable)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = staffDropdownExpanded,
+                        onDismissRequest = { staffDropdownExpanded = false }
+                    ) {
+                        clientStaffList.forEach { staff ->
+                            DropdownMenuItem(
+                                text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },
+                                onClick = {
+                                    assignedToPerson = staff.fullName.uppercase()
+                                    staffDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Row(
                     modifier = Modifier
