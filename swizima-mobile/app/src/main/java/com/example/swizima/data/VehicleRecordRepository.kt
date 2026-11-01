@@ -38,10 +38,11 @@ object VehicleRecordRepository {
             return@withContext true
         }
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/vehicles")
+            // Correct backend endpoint matching swizima-web SwizimaApi (/api/v1/client-transactions/vehicle-services)
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 20000 // Increased timeout to 20 seconds
+                connectTimeout = 20000
                 readTimeout = 20000
             }
             val responseCode = connection.responseCode
@@ -64,12 +65,13 @@ object VehicleRecordRepository {
             return@withContext true
         }
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/vehicles")
+            // Correct backend endpoint matching swizima-web SwizimaApi (/api/v1/client-transactions/vehicle-services)
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 20000 // Increased timeout to 20 seconds
+                connectTimeout = 20000
                 readTimeout = 20000
             }
             val responseCode = connection.responseCode
