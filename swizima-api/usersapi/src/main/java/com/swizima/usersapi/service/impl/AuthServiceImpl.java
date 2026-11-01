@@ -4,6 +4,7 @@ import com.swizima.usersapi.dto.ChangePasswordRequest;
 import com.swizima.usersapi.dto.LoginRequest;
 import com.swizima.usersapi.dto.LoginResponse;
 import com.swizima.usersapi.dto.OtpChallengeResponse;
+import com.swizima.usersapi.dto.OtpLoginRequest;
 import com.swizima.usersapi.dto.ResendOtpRequest;
 import com.swizima.usersapi.dto.SystemUserResponse;
 import com.swizima.usersapi.dto.VerifyOtpRequest;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 public class AuthServiceImpl implements AuthService {
 
     private static final String INVALID_CREDENTIALS = "Invalid username or password";
+    private static final String NO_ACCOUNT = "We couldn't send a sign-in code to that email or phone number";
 
     private final SystemUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -40,6 +42,21 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public OtpChallengeResponse login(LoginRequest request) {
         SystemUser user = authenticate(request.username(), request.password());
+        return otpService.issue(user, OtpPurpose.LOGIN, request.otpChannel());
+    }
+
+    @Override
+    @Transactional
+    public OtpChallengeResponse loginWithOtp(OtpLoginRequest request) {
+        String username;
+        try {
+            username = usernameNormalizer.normalize(request.username()).value();
+        } catch (BadRequestException ex) {
+            throw new InvalidCredentialsException(NO_ACCOUNT);
+        }
+        SystemUser user = userRepository.findByUsernameAndRecordStatusNot(username, RecordStatus.DELETED)
+                .orElseThrow(() -> new InvalidCredentialsException(NO_ACCOUNT));
+        assertCanLogin(user);
         return otpService.issue(user, OtpPurpose.LOGIN, request.otpChannel());
     }
 

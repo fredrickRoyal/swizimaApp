@@ -27,6 +27,8 @@ public interface SystemUserRepository extends JpaRepository<SystemUser, UUID> {
 
     boolean existsByRoleAndRecordStatusNot(UserRole role, RecordStatus recordStatus);
 
+    java.util.List<SystemUser> findByRoleAndEnabledTrueAndRecordStatusNot(UserRole role, RecordStatus recordStatus);
+
     @Query("""
             SELECT u FROM SystemUser u
             WHERE u.recordStatus <> :excluded

@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import { Observable } from 'rxjs';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SwizimaApi } from '../../../core/api/swizima-api';
 import { debounced, remoteData } from '../../../core/data/remote-data';
 import { toErrorMessage } from '../../../core/http/api-error';
-import { ClientStaff, ClientStaffRequest, Gender } from '../../../core/models/api.models';
+import { ClientStaff, ClientStaffRequest, ClientUser, Gender, OtpChannel } from '../../../core/models/api.models';
 import { EmptyState } from '../../../shared/empty-state/empty-state';
 import { Icon } from '../../../shared/icon/icon';
 import { Pagination } from '../../../shared/pagination/pagination';
 import { PhoneInput } from '../../../shared/phone-input/phone-input';
-import { humanize } from '../../../shared/status-badge/status-badge';
+import { StatusBadge, humanize } from '../../../shared/status-badge/status-badge';
 import { ClientLayout } from '../client-layout/client-layout';
 
 const PAGE_SIZE = 10;
@@ -24,7 +25,7 @@ export function capitalizeName(value: string): string {
 /** /clients/:id/staff — people working for a client, backed by /api/v1/client-staff. */
 @Component({
   selector: 'app-client-staff',
-  imports: [ReactiveFormsModule, EmptyState, Icon, Pagination, PhoneInput],
+  imports: [ReactiveFormsModule, EmptyState, Icon, Pagination, PhoneInput, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './client-staff.html',
   styleUrl: './client-staff.css',
@@ -199,5 +200,152 @@ export class ClientStaffPage {
         this.formError.set(toErrorMessage(err));
       },
     });
+  }
+
+  // ---------- User accounts (usersapi client users) ----------
+  /** Client users of this client, keyed by staff id, so rows can show who has an account. */
+  protected readonly accounts = remoteData(
+    computed(() => this.layout.id()),
+    (clientRef) => this.api.clientUsers({ clientRef, size: 500, sort: 'createdAt,desc' }),
+  );
+  protected readonly accountByStaff = computed(() => {
+    const map = new Map<string, ClientUser>();
+    for (const u of this.accounts.state().data?.content ?? []) if (u.staffRef) map.set(u.staffRef, u);
+    return map;
+  });
+
+  private readonly detailsDialog = viewChild.required<ElementRef<HTMLDialogElement>>('detailsDialog');
+  protected readonly viewing = signal<ClientStaff | null>(null);
+  protected readonly viewingAccount = computed(() => {
+    const m = this.viewing();
+    return m ? this.accountByStaff().get(m.id) ?? null : null;
+  });
+  protected readonly accountBusy = signal(false);
+  protected readonly accountError = signal<string | null>(null);
+  /** Shown once after a new system user is created with a generated password. */
+  protected readonly issued = signal<{ username: string; password?: string; created: boolean; sentTo?: string; note?: string } | null>(null);
+  protected readonly copied = signal(false);
+
+  protected readonly assignForm = this.fb.group({
+    loginWith: this.fb.control<'phone' | 'email'>('phone'),
+    otpChannel: this.fb.control<OtpChannel>('SMS'),
+    isDefaultClient: [true],
+    sendCredentials: [true],
+  });
+
+  protected openDetails(m: ClientStaff): void {
+    this.viewing.set(m);
+    this.accountError.set(null);
+    this.issued.set(null);
+    this.copied.set(false);
+    const loginWith = m.phoneNumber ? 'phone' : 'email';
+    this.assignForm.reset({ loginWith, otpChannel: loginWith === 'phone' ? 'SMS' : 'EMAIL', isDefaultClient: true, sendCredentials: true });
+    this.detailsDialog().nativeElement.showModal();
+  }
+
+  protected closeDetails(): void {
+    if (this.accountBusy()) return;
+    this.detailsDialog().nativeElement.close();
+  }
+
+  protected editFromDetails(m: ClientStaff): void {
+    this.detailsDialog().nativeElement.close();
+    this.openEdit(m);
+  }
+
+  protected onLoginWith(value: 'phone' | 'email'): void {
+    this.assignForm.controls.otpChannel.setValue(value === 'phone' ? 'SMS' : 'EMAIL');
+  }
+
+  /** Phone stored as "+256 700123456" -> "+256700123456" for the username. */
+  private compactPhone(phone?: string): string | undefined {
+    return phone ? phone.replace(/[\s()-]/g, '') : undefined;
+  }
+
+  protected assignAccount(): void {
+    const m = this.viewing();
+    if (!m) return;
+    const v = this.assignForm.getRawValue();
+    const phone = this.compactPhone(m.phoneNumber);
+    const email = m.email || undefined;
+    const username = v.loginWith === 'phone' ? phone : email;
+    if (!username) {
+      this.accountError.set(`This staff member has no ${v.loginWith === 'phone' ? 'phone number' : 'email'}. Edit their details first.`);
+      return;
+    }
+    this.accountBusy.set(true);
+    this.accountError.set(null);
+    this.api
+      .assignAccount({
+        clientRef: this.layout.id(),
+        staffRef: m.id,
+        username,
+        phoneNumber: phone,
+        email,
+        preferredOtpChannel: v.otpChannel,
+        isDefaultClient: v.isDefaultClient,
+        sendCredentials: v.sendCredentials,
+        organisationName: this.layout.client.state().data?.clientName,
+      })
+      .subscribe({
+        next: (res) => {
+          this.accountBusy.set(false);
+          this.issued.set({
+            username: res.user.username,
+            password: res.temporaryPassword,
+            created: res.userCreated,
+            sentTo: res.credentialsSentTo,
+            note: res.deliveryNote,
+          });
+          this.notice.set({
+            tone: 'success',
+            text: res.userCreated
+              ? `Account created for ${m.fullName}.`
+              : `${m.fullName} was linked to the existing account ${res.user.username}.`,
+          });
+          this.accounts.reload();
+        },
+        error: (err) => {
+          this.accountBusy.set(false);
+          this.accountError.set(toErrorMessage(err));
+        },
+      });
+  }
+
+  protected makeDefault(account: ClientUser): void {
+    this.runAccountAction(this.api.makeDefaultClient(account.id), `${this.layout.client.state().data?.clientName ?? 'This client'} is now the default organisation.`);
+  }
+
+  protected toggleAccess(account: ClientUser): void {
+    const next = account.activationStatus === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+    this.runAccountAction(
+      this.api.updateClientUserStatus(account.id, next),
+      next === 'SUSPENDED' ? 'Access suspended for this client.' : 'Access restored.',
+    );
+  }
+
+  protected removeAccess(account: ClientUser): void {
+    if (!confirm('Remove this person\'s access to the client? Their sign-in account is kept.')) return;
+    this.runAccountAction(this.api.removeClientUser(account.id), 'Access removed.');
+  }
+
+  private runAccountAction(call: Observable<unknown>, success: string): void {
+    this.accountBusy.set(true);
+    this.accountError.set(null);
+    call.subscribe({
+      next: () => {
+        this.accountBusy.set(false);
+        this.notice.set({ tone: 'success', text: success });
+        this.accounts.reload();
+      },
+      error: (err) => {
+        this.accountBusy.set(false);
+        this.accountError.set(toErrorMessage(err));
+      },
+    });
+  }
+
+  protected copyPassword(password: string): void {
+    navigator.clipboard?.writeText(password).then(() => this.copied.set(true));
   }
 }

@@ -3,6 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   ActivationStatus,
+  AssignAccountRequest,
+  AssignAccountResponse,
+  ClientUser,
   Client,
   ClientRequest,
   ClientStatus,
@@ -144,6 +147,40 @@ export class SwizimaApi {
     );
   }
 
+  clientUsers(
+    query: PageQuery & {
+      clientRef?: string;
+      staffRef?: string;
+      activationStatus?: ActivationStatus | '';
+      isDefaultClient?: boolean | '';
+      search?: string;
+    } = {},
+  ): Observable<PageResponse<ClientUser>> {
+    return this.http.get<PageResponse<ClientUser>>(CLIENT_USERS, { params: toParams(query) });
+  }
+
+  /** Creates the system user if needed and links it to the client. */
+  assignAccount(request: AssignAccountRequest): Observable<AssignAccountResponse> {
+    return this.http.post<AssignAccountResponse>(`${CLIENT_USERS}/assign-account`, request);
+  }
+
+  /** Every client a person (phone and/or email) can access, default first. */
+  clientUsersByIdentity(phoneNumber?: string, email?: string): Observable<ClientUser[]> {
+    return this.http.get<ClientUser[]>(`${CLIENT_USERS}/by-identity`, { params: toParams({ phoneNumber, email }) });
+  }
+
+  makeDefaultClient(clientUserId: string): Observable<ClientUser> {
+    return this.http.patch<ClientUser>(`${CLIENT_USERS}/${encodeURIComponent(clientUserId)}/default`, {});
+  }
+
+  updateClientUserStatus(clientUserId: string, activationStatus: ActivationStatus): Observable<ClientUser> {
+    return this.http.patch<ClientUser>(`${CLIENT_USERS}/${encodeURIComponent(clientUserId)}/activation-status`, { activationStatus });
+  }
+
+  removeClientUser(clientUserId: string): Observable<void> {
+    return this.http.delete<void>(`${CLIENT_USERS}/${encodeURIComponent(clientUserId)}`);
+  }
+
   users(
     query: PageQuery & { search?: string; activationStatus?: ActivationStatus | ''; enabled?: boolean | '' } = {},
   ): Observable<PageResponse<SystemUser>> {
@@ -151,6 +188,7 @@ export class SwizimaApi {
   }
 }
 
+const CLIENT_USERS = '/api/v1/users/client-users';
 const VEHICLE_SERVICES = '/api/v1/client-transactions/vehicle-services';
 
 /** /api/v1/clients/{clientId}/staff[/{staffId}] */

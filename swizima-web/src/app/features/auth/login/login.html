@@ -23,6 +23,7 @@
     }
   </div>
 
+  @if (mode() === 'password') {
   <div class="field">
     <label for="login-password">Password</label>
     <div class="password">
@@ -41,6 +42,7 @@
       <p class="field-error" id="login-password-error">Enter your password.</p>
     }
   </div>
+  }
 
   <fieldset class="channels">
     <legend>Send my code via</legend>
@@ -61,8 +63,13 @@
       <span class="spinner" aria-hidden="true"></span>
       Signing in…
     } @else {
-      Sign in
+      {{ mode() === 'otp' ? 'Send me a code' : 'Sign in' }}
       <app-icon name="chevronRight" />
     }
+  </button>
+
+  <button type="button" class="btn btn-ghost btn-block" id="login-toggle-mode"
+          (click)="setMode(mode() === 'password' ? 'otp' : 'password')">
+    {{ mode() === 'password' ? 'Sign in with a one-time code instead' : 'Sign in with password instead' }}
   </button>
 </form>

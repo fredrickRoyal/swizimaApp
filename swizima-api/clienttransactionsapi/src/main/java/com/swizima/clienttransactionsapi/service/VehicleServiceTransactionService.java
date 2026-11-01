@@ -103,6 +103,9 @@ public class VehicleServiceTransactionService {
         t.setVehicleClearanceStatus(VehicleClearanceStatus.CLEARED);
         t.setClearedAt(at);
         t.setClearedBy(request == null ? null : blankToNull(request.by()));
+        // Clearance also records the actual exit (date/time parts are derived on save);
+        // the Exit action overwrites it if the vehicle actually leaves later.
+        t.setActualExitDateTime(at);
         appendComment(t, request);
         return VehicleServiceTransactionResponse.from(repository.saveAndFlush(t));
     }

@@ -231,7 +231,7 @@
           <div class="field">
             <label for="tx-exit">Actual exit</label>
             <input id="tx-exit" class="input" type="datetime-local" formControlName="actualExitDateTime" />
-            @if (form.controls.actualExitDateTime.disabled) { <p class="field-hint">Set by the Exit action.</p> }
+            @if (form.controls.actualExitDateTime.disabled) { <p class="field-hint">Set when the vehicle is cleared or exits.</p> }
           </div>
         </div>
       </fieldset>
@@ -337,7 +337,7 @@
         }
         <p class="action-intro">
           @if (a.kind === 'clear') {
-            Fully paid ({{ formatMoney(a.tx.amountPaid) }}). Clearing confirms the vehicle is ready to be handed back.
+            Fully paid ({{ formatMoney(a.tx.amountPaid) }}). Clearing confirms the vehicle is ready to be handed back and records this time as the actual exit.
           } @else {
             Cleared {{ formatDateTime(a.tx.clearedAt) }}@if (a.tx.clearedBy) { by {{ a.tx.clearedBy }} }. Record when the vehicle left.
           }

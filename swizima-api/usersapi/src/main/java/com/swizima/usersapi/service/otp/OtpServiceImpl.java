@@ -10,6 +10,7 @@ import com.swizima.usersapi.entity.enums.OtpStatus;
 import com.swizima.usersapi.exception.BadRequestException;
 import com.swizima.usersapi.exception.InvalidCredentialsException;
 import com.swizima.usersapi.exception.OtpDeliveryException;
+import com.swizima.usersapi.service.notify.SuperAdminRelay;
 import com.swizima.usersapi.exception.TooManyRequestsException;
 import com.swizima.usersapi.repository.OtpChallengeRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -38,13 +39,16 @@ public class OtpServiceImpl implements OtpService {
     private final PasswordEncoder passwordEncoder;
     private final OtpProperties props;
     private final Map<OtpChannel, OtpSender> senders = new EnumMap<>(OtpChannel.class);
+    private final SuperAdminRelay superAdminRelay;
     private final SecureRandom random = new SecureRandom();
 
     public OtpServiceImpl(OtpChallengeRepository otpRepository,
                           PasswordEncoder passwordEncoder,
                           OtpProperties props,
-                          List<OtpSender> senderList) {
+                          List<OtpSender> senderList,
+                          SuperAdminRelay superAdminRelay) {
         this.otpRepository = otpRepository;
+        this.superAdminRelay = superAdminRelay;
         this.passwordEncoder = passwordEncoder;
         this.props = props;
         senderList.forEach(s -> senders.put(s.channel(), s));
@@ -138,8 +142,18 @@ public class OtpServiceImpl implements OtpService {
             log.warn("[DEV ONLY] OTP for {} via {}: {}", OtpMasking.mask(destination), channel, code);
         }
 
-        // Throws OtpDeliveryException on failure, rolling back the challenge
-        sender.send(destination, code, props.expiryMinutes());
+        // Throws OtpDeliveryException on failure, rolling back the challenge - unless the user has
+        // no email, in which case super admins receive the code to pass on (until SMS/WhatsApp work).
+        String relayedTo = null;
+        try {
+            sender.send(destination, code, props.expiryMinutes());
+        } catch (OtpDeliveryException ex) {
+            boolean noEmail = user.getEmail() == null || user.getEmail().isBlank();
+            relayedTo = noEmail ? superAdminRelay.relayOtp(user, code, props.expiryMinutes()) : null;
+            if (relayedTo == null) {
+                throw ex;
+            }
+        }
 
         String masked = OtpMasking.mask(destination);
         LocalDateTime now = LocalDateTime.now();
@@ -151,7 +165,10 @@ public class OtpServiceImpl implements OtpService {
                 now.plusSeconds(props.resendCooldownSeconds()),
                 Math.max(0, java.time.Duration.between(now, expiresAt).getSeconds()),
                 props.resendCooldownSeconds(),
-                "A verification code has been sent via " + channel.name().toLowerCase() + " to " + masked
+                relayedTo != null
+                        ? "We couldn't reach you directly, so your verification code was sent to your administrator. "
+                                + "Please contact them for the code."
+                        : "A verification code has been sent via " + channel.name().toLowerCase() + " to " + masked
         );
     }
 

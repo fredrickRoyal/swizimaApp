@@ -43,6 +43,17 @@ export class Login {
   protected readonly submitting = signal(false);
   protected readonly showPassword = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** 'password' = password + OTP, 'otp' = passwordless (OTP only). */
+  protected readonly mode = signal<'password' | 'otp'>('password');
+
+  protected setMode(mode: 'password' | 'otp'): void {
+    this.mode.set(mode);
+    this.error.set(null);
+    const password = this.form.controls.password;
+    password.setValidators(mode === 'password' ? [Validators.required] : []);
+    if (mode === 'otp') password.reset('');
+    password.updateValueAndValidity();
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
@@ -52,9 +63,12 @@ export class Login {
     this.error.set(null);
     this.submitting.set(true);
     const { username, password, otpChannel } = this.form.getRawValue();
+    const request$ =
+      this.mode() === 'otp'
+        ? this.auth.loginWithOtp({ username: username.trim(), otpChannel })
+        : this.auth.login({ username: username.trim(), password, otpChannel });
 
-    this.auth
-      .login({ username: username.trim(), password, otpChannel })
+    request$
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: () =>

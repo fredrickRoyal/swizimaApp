@@ -1,9 +1,23 @@
-<app-page-header heading="Users" subtitle="People who can sign in to the Swizima admin portal.">
-  <button type="button" class="btn" id="users-refresh" (click)="users.reload()">
+<app-page-header heading="Users" subtitle="People who can sign in to Swizima, and the clients they can access.">
+  <button type="button" class="btn" id="users-refresh" (click)="refresh()">
     <app-icon name="refresh" /> Refresh
   </button>
 </app-page-header>
 
+<div class="tab-bar" role="tablist" aria-label="User lists">
+  <div class="tabs">
+    <button type="button" role="tab" class="tab" id="users-tab-system" [class.active]="tab() === 'system'"
+            [attr.aria-selected]="tab() === 'system'" (click)="tab.set('system')">
+      <app-icon name="shield" /> System users
+    </button>
+    <button type="button" role="tab" class="tab" id="users-tab-client" [class.active]="tab() === 'client'"
+            [attr.aria-selected]="tab() === 'client'" (click)="tab.set('client')">
+      <app-icon name="clients" /> Client users
+    </button>
+  </div>
+</div>
+
+@if (tab() === 'system') {
 <section class="card list-card page-enter">
   <div class="toolbar" role="search">
     <label class="search">
@@ -86,3 +100,184 @@
     <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
   }
 </section>
+}
+
+@if (tab() === 'client') {
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-users-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-users-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search client users</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="client-users-search" placeholder="Search by phone or email"
+             [value]="cuSearch()" (input)="onCuSearch($any($event.target).value)" autocomplete="off" />
+    </label>
+    <app-client-picker inputId="client-users-client" [selected]="cuClient()" (selectedChange)="onCuClient($event)" />
+    <label class="visually-hidden" for="client-users-status">Filter by activation status</label>
+    <select class="select" id="client-users-status" [value]="cuStatus()" (change)="onCuStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <label class="visually-hidden" for="client-users-default">Filter by default organisation</label>
+    <select class="select" id="client-users-default" [value]="cuDefault()" (change)="onCuDefault($any($event.target).value)">
+      <option value="">Default or not</option>
+      <option value="true">Default organisation</option>
+      <option value="false">Other organisations</option>
+    </select>
+  </div>
+
+  @let cu = clientUsers.state();
+  @if (cu.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load client users" [message]="cu.error">
+      <button type="button" class="btn" id="client-users-retry" (click)="clientUsers.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (cu.loading && !cu.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading client users">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (cu.data && cu.data.content.length === 0) {
+    <app-empty-state icon="users" heading="No client users found"
+                     [message]="cuHasFilters() ? 'Try a different search or clear the filters.' : 'Assign accounts from a client\'s Staff page.'">
+      @if (cuHasFilters()) {
+        <button type="button" class="btn" id="client-users-clear" (click)="clearCuFilters()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else if (cu.data) {
+    <div class="table-wrap" [style.opacity]="cu.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">User</th>
+            <th scope="col">Client</th>
+            <th scope="col">Default</th>
+            <th scope="col">Status</th>
+            <th scope="col">Linked</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of cu.data.content; track u.id) {
+            <tr [class.row-busy]="busyId() === u.id">
+              <td data-label="User">
+                <div class="user">
+                  <span class="avatar" aria-hidden="true">{{ initial(u.userEmail || u.userPhoneNumber || '?') }}</span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ u.userPhoneNumber || u.userEmail }}</span>
+                    @if (u.userPhoneNumber && u.userEmail) { <span class="cell-secondary">{{ u.userEmail }}</span> }
+                    @if (!u.systemUserId) { <span class="cell-secondary">No sign-in account</span> }
+                  </div>
+                </div>
+              </td>
+              <td data-label="Client">
+                @if (clientNames().get(u.clientRef); as c) {
+                  <a class="client-link" [routerLink]="['/clients', c.id, u.staffRef ? 'staff' : 'details']">{{ c.clientName }}</a>
+                  <div class="cell-secondary">{{ c.clientCode }}</div>
+                } @else {
+                  <span class="cell-secondary cell-mono">{{ u.clientRef.slice(0, 8) }}…</span>
+                }
+              </td>
+              <td data-label="Default">
+                @if (u.isDefaultClient) { <span class="default-pill">Default</span> } @else { <span class="cell-secondary">—</span> }
+              </td>
+              <td data-label="Status"><app-status-badge [status]="u.activationStatus" /></td>
+              <td data-label="Linked" class="cell-secondary">{{ u.createdAt | date: 'medium' }}</td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'client-user-view-' + u.id" (click)="openDetails(u)"
+                          aria-label="View details" title="View details">
+                    <app-icon name="eye" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost" [class.on]="u.isDefaultClient" [id]="'client-user-default-' + u.id"
+                          (click)="setDefault(u)" [disabled]="u.isDefaultClient || busyId() === u.id"
+                          [attr.aria-label]="u.isDefaultClient ? 'Default organisation' : 'Set as default organisation'"
+                          [title]="u.isDefaultClient ? 'Default organisation' : 'Set as default organisation'">
+                    <app-icon name="check" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'client-user-suspend-' + u.id" (click)="toggleSuspend(u)"
+                          [disabled]="busyId() === u.id"
+                          [attr.aria-label]="u.activationStatus === 'SUSPENDED' ? 'Restore access' : 'Suspend access'"
+                          [title]="u.activationStatus === 'SUSPENDED' ? 'Restore access' : 'Suspend access'">
+                    <app-icon name="power" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="cuPage()" [size]="pageSize" [total]="cu.data.totalElements" (pageChange)="cuPage.set($event)" />
+  }
+</section>
+}
+
+<dialog #detailsDialog class="dialog card" id="client-user-details" aria-labelledby="client-user-details-title">
+  @if (viewing(); as v) {
+    <header class="dialog-head">
+      <div class="user">
+        <span class="avatar" aria-hidden="true">{{ initial(v.userEmail || v.userPhoneNumber || '?') }}</span>
+        <div class="cell-stack">
+          <h2 id="client-user-details-title">{{ v.userPhoneNumber || v.userEmail }}</h2>
+          <span class="cell-secondary">{{ v.systemUserId ? 'Has a sign-in account' : 'No sign-in account' }}</span>
+        </div>
+      </div>
+      <button type="button" class="btn btn-icon btn-ghost" id="client-user-details-close" (click)="closeDetails()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+    <div class="dialog-body">
+      <dl class="details-grid">
+        <div><dt>Phone</dt><dd>{{ v.userPhoneNumber || '—' }}</dd></div>
+        <div><dt>Email</dt><dd>{{ v.userEmail || '—' }}</dd></div>
+        <div><dt>Client</dt><dd>{{ clientName(v.clientRef) }}</dd></div>
+        <div><dt>Status</dt><dd><app-status-badge [status]="v.activationStatus" /></dd></div>
+        <div><dt>Linked</dt><dd>{{ v.createdAt | date: 'medium' }}</dd></div>
+        <div><dt>Staff record</dt>
+          <dd>@if (v.staffRef) { <a class="client-link" [routerLink]="['/clients', v.clientRef, 'staff']" (click)="closeDetails()">Open staff</a> } @else { — }</dd></div>
+      </dl>
+
+      <h3 class="section-title">Organisations this user can access</h3>
+      @if (orgsError()) {
+        <div class="alert alert-error" role="alert"><app-icon name="alert" /><span>{{ orgsError() }}</span></div>
+      } @else if (orgsLoading() && orgs().length === 0) {
+        <p class="cell-secondary">Loading…</p>
+      } @else {
+        <ul class="org-list">
+          @for (o of orgs(); track o.id) {
+            <li class="org" [class.is-default]="o.isDefaultClient" [class.row-busy]="busyId() === o.id">
+              <div class="grow cell-stack">
+                <span class="cell-primary">{{ clientName(o.clientRef) }}</span>
+                <span class="cell-secondary">{{ clientNames().get(o.clientRef)?.clientCode }}</span>
+              </div>
+              <app-status-badge [status]="o.activationStatus" />
+              @if (o.isDefaultClient) {
+                <span class="default-pill">Default</span>
+              } @else {
+                <button type="button" class="btn btn-sm" [id]="'org-default-' + o.id" (click)="setDefault(o)" [disabled]="busyId() === o.id">
+                  Set default
+                </button>
+              }
+              <button type="button" class="btn btn-sm" [id]="'org-suspend-' + o.id" (click)="toggleSuspend(o)" [disabled]="busyId() === o.id">
+                {{ o.activationStatus === 'SUSPENDED' ? 'Restore' : 'Suspend' }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+    <footer class="dialog-foot">
+      <button type="button" class="btn btn-primary" id="client-user-details-done" (click)="closeDetails()">Done</button>
+    </footer>
+  }
+</dialog>

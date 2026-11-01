@@ -34,6 +34,14 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/login/otp")
+    @Operation(summary = "Passwordless step 1 - send an OTP to an email or phone number",
+            description = "No password needed. Returns an otpReference; complete login with /verify-otp.")
+    public ResponseEntity<OtpChallengeResponse> loginWithOtp(
+            @Valid @RequestBody com.swizima.usersapi.dto.OtpLoginRequest request) {
+        return ResponseEntity.ok(authService.loginWithOtp(request));
+    }
+
     @PostMapping("/verify-otp")
     @Operation(summary = "Step 2 - verify the OTP and complete login",
             description = "If mustChangePassword is true in the response, the client must call "

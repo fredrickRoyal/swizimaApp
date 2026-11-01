@@ -309,3 +309,46 @@ export interface VehicleActionRequest {
   by?: string;
   comment?: string;
 }
+
+// ---------- Client users (usersapi) ----------
+/** GET /api/v1/users/client-users item (mirrors ClientUserResponse.java). */
+export interface ClientUser {
+  id: string;
+  clientRef: string;
+  staffRef?: string;
+  systemUserId?: string;
+  userPhoneNumber?: string;
+  userEmail?: string;
+  activationStatus: ActivationStatus;
+  isDefaultClient: boolean;
+  recordStatus: RecordStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/** POST /api/v1/users/client-users/assign-account body. `username` is the sign-in id (phone or email). */
+export interface AssignAccountRequest {
+  clientRef: string;
+  staffRef?: string;
+  username: string;
+  phoneNumber?: string;
+  email?: string;
+  preferredOtpChannel?: OtpChannel;
+  isDefaultClient?: boolean;
+  /** Email the temporary password to the user (defaults to true). */
+  sendCredentials?: boolean;
+  /** Client name used in the welcome email. */
+  organisationName?: string;
+}
+
+export interface AssignAccountResponse {
+  clientUser: ClientUser;
+  user: SystemUser;
+  userCreated: boolean;
+  /** Only when a new system user was created with a generated password - shown once. */
+  temporaryPassword?: string;
+  /** Masked email the credentials were sent to. */
+  credentialsSentTo?: string;
+  /** Why the credentials weren't sent, if they weren't. */
+  deliveryNote?: string;
+}

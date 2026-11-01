@@ -50,3 +50,30 @@
 textarea.input { resize: vertical; min-height: 4.5rem; font: inherit; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .avatar { display: none; } }
+
+/* ---------- Details & account ---------- */
+.account-cell { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.default-pill {
+  display: inline-flex; align-items: center; padding: 0.1rem 0.5rem; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600; color: #4338ca; background: rgb(99 102 241 / 0.14);
+}
+.dialog-head .person h2 { font-size: 1.05rem; margin: 0; }
+.details-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem 1rem; margin: 0;
+  dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-subtle); }
+  dd { margin: 0.15rem 0 0; word-break: break-word; }
+}
+.account-card {
+  display: grid; gap: 0.9rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px;
+  background: linear-gradient(135deg, rgb(99 102 241 / 0.06), rgb(16 185 129 / 0.05));
+}
+.account-head { display: flex; align-items: center; gap: 0.5rem; h3 { margin: 0; font-size: 0.95rem; } app-icon { color: var(--primary, #6366f1); } }
+.account-intro { margin: 0; }
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.account-actions .danger:hover { color: var(--danger); background: var(--danger-bg); }
+.check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; input { width: 1rem; height: 1rem; } }
+.btn-sm { height: 28px; padding: 0 0.6rem; font-size: 0.78rem; margin-left: 0.35rem; }
+.issued .cell-stack { gap: 0.3rem; }
+.temp-pass { padding: 0.1rem 0.4rem; border-radius: 6px; font-family: var(--font-mono); background: rgb(0 0 0 / 0.08); }
+@media (max-width: 560px) { .details-grid { grid-template-columns: 1fr 1fr; } }
+.delivery-note { color: var(--warning, #b45309); font-weight: 600; }

@@ -45,6 +45,13 @@ export class AuthService {
       .pipe(tap((challenge) => this.storeChallenge(challenge, request.username)));
   }
 
+  /** Passwordless alternative to step 1: just email/phone; the API sends an OTP. */
+  loginWithOtp(request: { username: string; otpChannel?: OtpChannel }): Observable<OtpChallengeResponse> {
+    return this.http
+      .post<OtpChallengeResponse>('/api/v1/auth/login/otp', request)
+      .pipe(tap((challenge) => this.storeChallenge(challenge, request.username)));
+  }
+
   /** Step 2: verify the OTP; on success the user is signed in. */
   verifyOtp(code: string): Observable<LoginResponse> {
     const challenge = this.requireChallenge();

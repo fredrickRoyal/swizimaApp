@@ -13,6 +13,9 @@ public interface AuthService {
     /** Step 1: verifies username/password and sends an OTP. */
     OtpChallengeResponse login(LoginRequest request);
 
+    /** Passwordless alternative to step 1: sends an OTP to the given email/phone account. */
+    OtpChallengeResponse loginWithOtp(com.swizima.usersapi.dto.OtpLoginRequest request);
+
     /** Step 2: verifies the OTP and completes login. */
     LoginResponse verifyOtp(VerifyOtpRequest request);
 
