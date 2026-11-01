@@ -68,7 +68,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -583,6 +585,7 @@ fun ServiceFormScreen(
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     if (clientPhoneNumbers.isEmpty()) {
         clientPhoneNumbers.add("")
@@ -612,47 +615,49 @@ fun ServiceFormScreen(
             return
         }
 
-        if (existingRecord != null) {
-            val updatedRecord = existingRecord.copy(
-                numberPlate = plate,
-                serviceType = selectedService,
-                date = dateInput.ifBlank { getCurrentFormattedDate() },
-                entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
-                expectedExitTime = expectedExitTimeInput.trim(),
-                clientName = name,
-                nationality = selectedNationality,
-                idType = selectedIdType,
-                idPassportNumber = idPassportNumber.trim().uppercase(),
-                clientPhoneNumbers = validPhones,
-                isLeavingKey = isLeavingKey,
-                assignedToPerson = assigned,
-                generalComment = generalComment.trim(),
-                amountCharged = amountCharged.trim()
-            )
-            com.example.swizima.data.VehicleRecordRepository.updateRecord(updatedRecord)
-        } else {
-            val newRecord = com.example.swizima.data.VehicleRecord(
-                numberPlate = plate,
-                serviceType = selectedService,
-                date = dateInput.ifBlank { getCurrentFormattedDate() },
-                entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
-                expectedExitTime = expectedExitTimeInput.trim(),
-                clientName = name,
-                nationality = selectedNationality,
-                idType = selectedIdType,
-                idPassportNumber = idPassportNumber.trim().uppercase(),
-                clientPhoneNumbers = validPhones,
-                isLeavingKey = isLeavingKey,
-                assignedToPerson = assigned,
-                generalComment = generalComment.trim(),
-                amountCharged = amountCharged.trim(),
-                status = "Active"
-            )
-            com.example.swizima.data.VehicleRecordRepository.addRecord(newRecord)
-        }
+        scope.launch {
+            if (existingRecord != null) {
+                val updatedRecord = existingRecord.copy(
+                    numberPlate = plate,
+                    serviceType = selectedService,
+                    date = dateInput.ifBlank { getCurrentFormattedDate() },
+                    entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
+                    expectedExitTime = expectedExitTimeInput.trim(),
+                    clientName = name,
+                    nationality = selectedNationality,
+                    idType = selectedIdType,
+                    idPassportNumber = idPassportNumber.trim().uppercase(),
+                    clientPhoneNumbers = validPhones,
+                    isLeavingKey = isLeavingKey,
+                    assignedToPerson = assigned,
+                    generalComment = generalComment.trim(),
+                    amountCharged = amountCharged.trim()
+                )
+                com.example.swizima.data.VehicleRecordRepository.updateRecord(updatedRecord)
+            } else {
+                val newRecord = com.example.swizima.data.VehicleRecord(
+                    numberPlate = plate,
+                    serviceType = selectedService,
+                    date = dateInput.ifBlank { getCurrentFormattedDate() },
+                    entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
+                    expectedExitTime = expectedExitTimeInput.trim(),
+                    clientName = name,
+                    nationality = selectedNationality,
+                    idType = selectedIdType,
+                    idPassportNumber = idPassportNumber.trim().uppercase(),
+                    clientPhoneNumbers = validPhones,
+                    isLeavingKey = isLeavingKey,
+                    assignedToPerson = assigned,
+                    generalComment = generalComment.trim(),
+                    amountCharged = amountCharged.trim(),
+                    status = "Active"
+                )
+                com.example.swizima.data.VehicleRecordRepository.addRecord(newRecord)
+            }
 
-        errorMessage = null
-        showSuccessDialog = true
+            errorMessage = null
+            showSuccessDialog = true
+        }
     }
 
     Scaffold(
