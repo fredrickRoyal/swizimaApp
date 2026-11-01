@@ -8,6 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class VehicleRecord(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -29,16 +32,17 @@ data class VehicleRecord(
 )
 
 object VehicleRecordRepository {
-    // Zero dummy data - records start empty and are populated from the API Gateway
     val records = mutableStateListOf<VehicleRecord>()
     var apiErrorMessage by mutableStateOf<String?>(null)
+
+    private val currentDateFormatted: String
+        get() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
     suspend fun fetchRecordsFromApi(): Boolean = withContext(Dispatchers.IO) {
         if (ApiGatewayConfig.isSimulationMode) {
             return@withContext true
         }
         try {
-            // Correct backend endpoint matching swizima-web SwizimaApi (/api/v1/client-transactions/vehicle-services)
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -47,6 +51,50 @@ object VehicleRecordRepository {
             }
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val fetchedRecords = mutableListOf<VehicleRecord>()
+
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val plateMatches = Regex("\"vehicleNumberPlate\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val serviceMatches = Regex("\"serviceType\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val clientMatches = Regex("\"customerName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val phoneMatches = Regex("\"customerPhoneNumber\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val amountMatches = Regex("\"amountCharged\"\\s*:\\s*([0-9.]+)").findAll(json).toList()
+                val assignedMatches = Regex("\"assignedTo\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val commentMatches = Regex("\"generalComment\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val plates = plateMatches.map { it.groupValues[1] }
+                val services = serviceMatches.map { it.groupValues[1] }
+                val clients = clientMatches.map { it.groupValues[1] }
+                val phones = phoneMatches.map { it.groupValues[1] }
+                val amounts = amountMatches.map { it.groupValues[1] }
+                val assigned = assignedMatches.map { it.groupValues[1] }
+                val comments = commentMatches.map { it.groupValues[1] }
+
+                for (i in plates.indices) {
+                    fetchedRecords.add(
+                        VehicleRecord(
+                            id = ids.getOrElse(i) { java.util.UUID.randomUUID().toString() },
+                            numberPlate = plates[i],
+                            serviceType = services.getOrElse(i) { "Parking" },
+                            date = currentDateFormatted,
+                            entryTime = "08:30",
+                            clientName = clients.getOrElse(i) { "CLIENT" },
+                            clientPhoneNumbers = listOf(phones.getOrElse(i) { "+256 700 000 000" }),
+                            isLeavingKey = true,
+                            assignedToPerson = assigned.getOrElse(i) { "ATTENDANT" },
+                            generalComment = comments.getOrElse(i) { "" },
+                            amountCharged = amounts.getOrElse(i) { "0" },
+                            status = "Active"
+                        )
+                    )
+                }
+
+                withContext(Dispatchers.Main) {
+                    records.clear()
+                    records.addAll(fetchedRecords)
+                }
                 apiErrorMessage = null
                 true
             } else {
@@ -65,7 +113,6 @@ object VehicleRecordRepository {
             return@withContext true
         }
         try {
-            // Correct backend endpoint matching swizima-web SwizimaApi (/api/v1/client-transactions/vehicle-services)
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -101,6 +148,18 @@ object VehicleRecordRepository {
     }
 
     fun getRecordsForService(serviceType: String): List<VehicleRecord> {
-        return records.filter { it.serviceType.equals(serviceType, ignoreCase = true) }
+        val keyword = when {
+            serviceType.contains("park", ignoreCase = true) -> "park"
+            serviceType.contains("wash", ignoreCase = true) -> "wash"
+            serviceType.contains("repair", ignoreCase = true) -> "repair"
+            serviceType.contains("review", ignoreCase = true) || serviceType.contains("check", ignoreCase = true) -> "review"
+            serviceType.contains("maintenance", ignoreCase = true) -> "maintenance"
+            else -> serviceType
+        }
+        return records.filter { record ->
+            record.serviceType.equals(serviceType, ignoreCase = true) ||
+                    record.serviceType.contains(keyword, ignoreCase = true) ||
+                    keyword.contains(record.serviceType, ignoreCase = true)
+        }
     }
 }
