@@ -28,7 +28,7 @@ data class VehicleRecord(
     val assignedToPerson: String = "",
     val generalComment: String = "",
     val amountCharged: String = "",
-    val status: String = "Active"
+    val status: String = "In Service"
 )
 
 object VehicleRecordRepository {
@@ -161,7 +161,7 @@ object VehicleRecordRepository {
                   "customerIdNumber": "${record.idPassportNumber}",
                   "generalComment": "${record.generalComment}",
                   "paymentStatus": "PENDING",
-                  "vehicleClearanceStatus": "ACTIVE"
+                  "vehicleClearanceStatus": "IN_SERVICE"
                 }
             """.trimIndent()
 
