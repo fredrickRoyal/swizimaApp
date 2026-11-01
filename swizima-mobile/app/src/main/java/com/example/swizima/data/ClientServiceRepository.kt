@@ -36,16 +36,29 @@ data class ApiClientStaff(
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
 
+    private fun extractContentJson(json: String): String {
+        val contentIndex = json.indexOf("\"content\"")
+        if (contentIndex != -1) {
+            val bracketIndex = json.indexOf('[', contentIndex)
+            val closingBracketIndex = json.lastIndexOf(']')
+            if (bracketIndex != -1 && closingBracketIndex != -1 && closingBracketIndex > bracketIndex) {
+                return json.substring(bracketIndex, closingBracketIndex + 1)
+            }
+        }
+        return json
+    }
+
     suspend fun fetchClients(): List<ApiClient> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients")
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients?page=0&size=50&sort=createdAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
                 val clients = mutableListOf<ApiClient>()
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"clientName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
@@ -79,14 +92,11 @@ object ClientServiceRepository {
     suspend fun fetchServiceCatalogs(category: String?, clientId: String?): List<ApiServiceCatalogItem> = withContext(Dispatchers.IO) {
         try {
             val urlStr = buildString {
-                append("${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs")
-                if (!category.isNullOrBlank() || !clientId.isNullOrBlank()) {
-                    append("?")
-                    val params = mutableListOf<String>()
-                    if (!category.isNullOrBlank()) params.add("category=$category")
-                    if (!clientId.isNullOrBlank()) params.add("clientId=$clientId")
-                    append(params.joinToString("&"))
-                }
+                append("${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs?")
+                val params = mutableListOf<String>("page=0", "size=50", "sort=createdAt,desc")
+                if (!category.isNullOrBlank()) params.add("category=$category")
+                if (!clientId.isNullOrBlank()) params.add("clientId=$clientId")
+                append(params.joinToString("&"))
             }
             val url = URL(urlStr)
             val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -95,7 +105,8 @@ object ClientServiceRepository {
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
                 val items = mutableListOf<ApiServiceCatalogItem>()
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"serviceName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
@@ -138,14 +149,15 @@ object ClientServiceRepository {
     suspend fun fetchClientStaff(clientId: String): List<ApiClientStaff> = withContext(Dispatchers.IO) {
         if (clientId.isBlank()) return@withContext emptyList()
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients/$clientId/staff")
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients/$clientId/staff?page=0&size=50&sort=createdAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
                 val staffList = mutableListOf<ApiClientStaff>()
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"fullName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
