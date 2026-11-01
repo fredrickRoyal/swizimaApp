@@ -92,14 +92,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-val availableServices = listOf(
-    "Parking",
-    "General washing",
-    "Repair",
-    "Review",
-    "General Service"
-)
-
 val availableNationalities = listOf(
     "Ugandan",
     "Kenyan",
@@ -886,8 +878,8 @@ fun ServiceFormScreen(
                     }
                 }
 
-                // 3. Service Type Dropdown (Loaded from API Service Catalog)
-                val displayServices = if (serviceCatalogItems.isNotEmpty()) serviceCatalogItems.map { it.serviceName } else availableServices
+                // 3. Service Type Dropdown (Strictly Loaded from API Service Catalog)
+                val displayServices = serviceCatalogItems.map { it.serviceName }
                 ExposedDropdownMenuBox(
                     expanded = serviceDropdownExpanded,
                     onExpandedChange = { serviceDropdownExpanded = !serviceDropdownExpanded }
@@ -897,6 +889,7 @@ fun ServiceFormScreen(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Service Type & Catalog *") },
+                        placeholder = { Text(if (displayServices.isEmpty()) "Loading services from API..." else "Select service") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = serviceDropdownExpanded) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
@@ -906,25 +899,32 @@ fun ServiceFormScreen(
                         expanded = serviceDropdownExpanded,
                         onDismissRequest = { serviceDropdownExpanded = false }
                     ) {
-                        displayServices.forEach { serviceName ->
-                            val matchedItem = serviceCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
+                        if (displayServices.isEmpty()) {
                             DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(serviceName, fontWeight = FontWeight.Bold)
-                                        if (matchedItem != null) {
-                                            Text("${matchedItem.price.toLong()} ${matchedItem.currency}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    selectedService = serviceName
-                                    if (matchedItem != null) {
-                                        amountCharged = matchedItem.price.toLong().toString()
-                                    }
-                                    serviceDropdownExpanded = false
-                                }
+                                text = { Text("No services found in catalog", color = MaterialTheme.colorScheme.error) },
+                                onClick = { serviceDropdownExpanded = false }
                             )
+                        } else {
+                            displayServices.forEach { serviceName ->
+                                val matchedItem = serviceCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(serviceName, fontWeight = FontWeight.Bold)
+                                            if (matchedItem != null) {
+                                                Text("${matchedItem.price.toLong()} ${matchedItem.currency}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedService = serviceName
+                                        if (matchedItem != null) {
+                                            amountCharged = matchedItem.price.toLong().toString()
+                                        }
+                                        serviceDropdownExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
