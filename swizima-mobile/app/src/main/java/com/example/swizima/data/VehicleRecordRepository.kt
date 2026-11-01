@@ -38,9 +38,21 @@ object VehicleRecordRepository {
     private val currentDateFormatted: String
         get() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
+    private fun extractContentJson(json: String): String {
+        val contentIndex = json.indexOf("\"content\"")
+        if (contentIndex != -1) {
+            val bracketIndex = json.indexOf('[', contentIndex)
+            val closingBracketIndex = json.lastIndexOf(']')
+            if (bracketIndex != -1 && closingBracketIndex != -1 && closingBracketIndex > bracketIndex) {
+                return json.substring(bracketIndex, closingBracketIndex + 1)
+            }
+        }
+        return json
+    }
+
     suspend fun fetchRecordsFromApi(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services?page=0&size=50&sort=createdAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
@@ -48,7 +60,8 @@ object VehicleRecordRepository {
             }
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
-                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
                 val fetchedRecords = mutableListOf<VehicleRecord>()
 
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
@@ -71,7 +84,7 @@ object VehicleRecordRepository {
 
                 for (i in plates.indices) {
                     val rawAmount = amounts.getOrElse(i) { "0" }.toDoubleOrNull() ?: 0.0
-                    val formattedAmount = java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(rawAmount.toLong())
+                    val formattedAmount = java.text.NumberFormat.getNumberInstance(Locale.US).format(rawAmount.toLong())
 
                     fetchedRecords.add(
                         VehicleRecord(
@@ -120,10 +133,20 @@ object VehicleRecordRepository {
             val primaryPhone = record.clientPhoneNumbers.firstOrNull() ?: ""
             val altPhone = record.clientPhoneNumbers.getOrNull(1) ?: ""
             val cleanAmount = record.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0
+            val clientRefId = if (ClientServiceRepository.activeClientId.isNotBlank()) ClientServiceRepository.activeClientId else "219e77a7-b398-4829-b06f-5978193fe9c5"
+
+            val expectedExitField = if (record.expectedExitTime.isNotBlank()) {
+                val timeStr = if (record.expectedExitTime.length == 5) "${record.expectedExitTime}:00" else record.expectedExitTime
+                "\"expectedExitTime\": \"${record.date}T$timeStr\","
+            } else {
+                ""
+            }
+
+            val entryTimeStr = if (record.entryTime.length == 5) "${record.entryTime}:00" else record.entryTime
 
             val payload = """
                 {
-                  "clientRef": "219e77a7-b398-4829-b06f-5978193fe9c5",
+                  "clientRef": "$clientRefId",
                   "customerPhoneNumber": "$primaryPhone",
                   "customerAlternativePhone": "$altPhone",
                   "vehicleNumberPlate": "${record.numberPlate}",
@@ -131,8 +154,8 @@ object VehicleRecordRepository {
                   "amountCharged": $cleanAmount,
                   "assignedTo": "${record.assignedToPerson}",
                   "vehicleKeyShared": ${record.isLeavingKey},
-                  "entryDateTime": "${record.date}T${record.entryTime}",
-                  "expectedExitTime": "${if (record.expectedExitTime.isNotBlank()) "${record.date}T${record.expectedExitTime}" else ""}",
+                  "entryDateTime": "${record.date}T$entryTimeStr",
+                  $expectedExitField
                   "customerName": "${record.clientName}",
                   "customerNationality": "${record.nationality}",
                   "customerIdNumber": "${record.idPassportNumber}",
@@ -154,7 +177,7 @@ object VehicleRecordRepository {
                 } catch (_: Exception) {
                     ""
                 }
-                apiErrorMessage = "Failed to save record to API (Server response $responseCode: $errorMsg)"
+                apiErrorMessage = "Failed to save record (Server $responseCode: $errorMsg)"
                 false
             }
         } catch (e: Exception) {

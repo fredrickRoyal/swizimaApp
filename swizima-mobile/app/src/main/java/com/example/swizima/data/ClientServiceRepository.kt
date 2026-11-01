@@ -35,6 +35,7 @@ data class ApiClientStaff(
 
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
+    var activeClientId: String = "219e77a7-b398-4829-b06f-5978193fe9c5"
 
     private fun extractContentJson(json: String): String {
         val contentIndex = json.indexOf("\"content\"")
@@ -77,6 +78,9 @@ object ClientServiceRepository {
                         )
                     )
                 }
+                if (clients.isNotEmpty()) {
+                    activeClientId = clients.first().id
+                }
                 apiErrorMessage = null
                 clients
             } else {
@@ -94,7 +98,8 @@ object ClientServiceRepository {
             val urlStr = buildString {
                 append("${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs?")
                 val params = mutableListOf<String>("page=0", "size=50", "sort=createdAt,desc")
-                if (!clientId.isNullOrBlank()) params.add("clientId=$clientId")
+                val targetClientId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+                if (targetClientId.isNotBlank()) params.add("clientId=$targetClientId")
                 append(params.joinToString("&"))
             }
             val url = URL(urlStr)
@@ -123,7 +128,7 @@ object ClientServiceRepository {
                     items.add(
                         ApiServiceCatalogItem(
                             id = ids.getOrElse(i) { "s_$i" },
-                            clientId = clientId ?: "org_swizima_01",
+                            clientId = clientId ?: activeClientId,
                             clientName = "Swizima Motors",
                             serviceName = names[i],
                             category = cats.getOrElse(i) { "Parking" },
@@ -146,16 +151,18 @@ object ClientServiceRepository {
     }
 
     suspend fun fetchClientStaff(clientId: String): List<ApiClientStaff> = withContext(Dispatchers.IO) {
-        if (clientId.isBlank()) return@withContext emptyList()
+        val targetId = if (clientId.isNotBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext emptyList()
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients/$clientId/staff?page=0&size=50&sort=createdAt,desc")
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients/$targetId/staff?page=0&size=50&sort=createdAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
                 val staffList = mutableListOf<ApiClientStaff>()
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"fullName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
@@ -171,7 +178,7 @@ object ClientServiceRepository {
                     staffList.add(
                         ApiClientStaff(
                             id = ids.getOrElse(i) { "st_$i" },
-                            clientId = clientId,
+                            clientId = targetId,
                             fullName = names[i],
                             position = positions.getOrElse(i) { "Staff" },
                             phoneNumber = phones.getOrElse(i) { "" }
@@ -185,7 +192,7 @@ object ClientServiceRepository {
                 emptyList()
             }
         } catch (e: Exception) {
-            apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/clients/$clientId/staff"}"
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/clients/$targetId/staff"}"
             emptyList()
         }
     }
