@@ -22,12 +22,12 @@ data class AuthResult(
 )
 
 object AuthRepository {
-    private var lastOtpReference: String = "ref_default_001"
+    private var lastOtpReference: String = ""
 
     suspend fun requestOtp(contactInput: String): AuthResult = withContext(Dispatchers.IO) {
         if (ApiGatewayConfig.isSimulationMode) {
             delay(800L)
-            lastOtpReference = "ref_sim_${System.currentTimeMillis()}"
+            lastOtpReference = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
             return@withContext AuthResult(true, "OTP sent successfully to $contactInput")
         }
 
@@ -37,14 +37,19 @@ object AuthRepository {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 20000 // Increased timeout to 20 seconds
+                connectTimeout = 20000
                 readTimeout = 20000
             }
             val payload = "{\"username\":\"$contactInput\"}"
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
-                lastOtpReference = "ref_${System.currentTimeMillis()}"
+                val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+                // Parse actual server otpReference UUID from response JSON
+                val refMatch = Regex("\"otpReference\"\\s*:\\s*\"([^\"]+)\"").find(responseBody)
+                if (refMatch != null) {
+                    lastOtpReference = refMatch.groupValues[1]
+                }
                 AuthResult(true, "OTP sent successfully")
             } else {
                 val errorMsg = try {
@@ -95,16 +100,26 @@ object AuthRepository {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 20000 // Increased timeout to 20 seconds
+                connectTimeout = 20000
                 readTimeout = 20000
             }
-            val payload = "{\"otpReference\":\"$lastOtpReference\",\"code\":\"$otp\"}"
+            // Ensure we send the correct otpReference captured during requestOtp
+            val refToSend = if (lastOtpReference.isNotBlank()) lastOtpReference else "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            val payload = "{\"otpReference\":\"$refToSend\",\"code\":\"$otp\"}"
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
+                val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+
+                var userId = "usr_api_1"
+                val userMatch = Regex("\"userId\"\\s*:\\s*\"([^\"]+)\"").find(responseBody)
+                if (userMatch != null) {
+                    userId = userMatch.groupValues[1]
+                }
+
                 val isUnlinked = contactInput.contains("000") || contactInput.endsWith("0")
                 val profile = UserProfile(
-                    userId = "usr_api_1",
+                    userId = userId,
                     contact = contactInput,
                     name = "Verified User",
                     organizationId = if (isUnlinked) null else "org_swizima_01",
@@ -137,7 +152,7 @@ object AuthRepository {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 20000 // Increased timeout to 20 seconds
+                connectTimeout = 20000
                 readTimeout = 20000
             }
             val payload = "{\"contact\":\"$contact\",\"details\":\"$orgCodeOrDetails\"}"
