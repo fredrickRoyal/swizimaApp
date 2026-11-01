@@ -489,16 +489,14 @@ fun ServiceFormScreen(
         }
     }
 
-    val defaultService = existingRecord?.serviceType ?: when {
-        initialService.contains("wash", ignoreCase = true) -> "General washing"
-        initialService.contains("repair", ignoreCase = true) -> "Repair"
-        initialService.contains("review", ignoreCase = true) || initialService.contains("check", ignoreCase = true) -> "Review"
-        else -> "Parking"
-    }
+    val defaultService = existingRecord?.serviceType ?: ""
 
     var selectedService by remember { mutableStateOf(defaultService) }
     var serviceDropdownExpanded by remember { mutableStateOf(false) }
     var amountCharged by remember { mutableStateOf(existingRecord?.amountCharged ?: "") }
+
+    var selectedCountryCode by remember { mutableStateOf("+256") }
+    var countryDropdownExpanded by remember { mutableStateOf(false) }
 
     var clientsList by remember { mutableStateOf<List<com.example.swizima.data.ApiClient>>(emptyList()) }
     var selectedClientId by remember { mutableStateOf("org_swizima_01") }
@@ -730,19 +728,50 @@ fun ServiceFormScreen(
                 clientPhoneNumbers.forEachIndexed { index, phone ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        ExposedDropdownMenuBox(
+                            expanded = countryDropdownExpanded,
+                            onExpandedChange = { countryDropdownExpanded = !countryDropdownExpanded },
+                            modifier = Modifier.width(105.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = selectedCountryCode,
+                                onValueChange = {},
+                                readOnly = true,
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = countryDropdownExpanded,
+                                onDismissRequest = { countryDropdownExpanded = false }
+                            ) {
+                                countryCodes.forEach { country ->
+                                    DropdownMenuItem(
+                                        text = { Text("${country.flag} ${country.code}") },
+                                        onClick = {
+                                            selectedCountryCode = country.code
+                                            countryDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         OutlinedTextField(
                             value = phone,
                             onValueChange = { newValue ->
-                                clientPhoneNumbers[index] = newValue
+                                val clean = newValue.removePrefix(selectedCountryCode).trim()
+                                clientPhoneNumbers[index] = "$selectedCountryCode $clean"
                                 errorMessage = null
                             },
                             label = { Text("Phone ${index + 1}") },
-                            placeholder = { Text("+256 700 123 456") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Phone, contentDescription = null)
-                            },
+                            placeholder = { Text("700 123 456") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             shape = RoundedCornerShape(12.dp),
