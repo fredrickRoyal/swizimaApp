@@ -70,6 +70,9 @@ object VehicleRecordRepository {
                 val comments = commentMatches.map { it.groupValues[1] }
 
                 for (i in plates.indices) {
+                    val rawAmount = amounts.getOrElse(i) { "0" }.toDoubleOrNull() ?: 0.0
+                    val formattedAmount = java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(rawAmount.toLong())
+
                     fetchedRecords.add(
                         VehicleRecord(
                             id = ids.getOrElse(i) { java.util.UUID.randomUUID().toString() },
@@ -82,7 +85,7 @@ object VehicleRecordRepository {
                             isLeavingKey = true,
                             assignedToPerson = assigned.getOrElse(i) { "ATTENDANT" },
                             generalComment = comments.getOrElse(i) { "" },
-                            amountCharged = amounts.getOrElse(i) { "0" },
+                            amountCharged = formattedAmount,
                             status = "Active"
                         )
                     )
@@ -114,13 +117,44 @@ object VehicleRecordRepository {
                 connectTimeout = 20000
                 readTimeout = 20000
             }
+            val primaryPhone = record.clientPhoneNumbers.firstOrNull() ?: ""
+            val altPhone = record.clientPhoneNumbers.getOrNull(1) ?: ""
+            val cleanAmount = record.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0
+
+            val payload = """
+                {
+                  "clientRef": "219e77a7-b398-4829-b06f-5978193fe9c5",
+                  "customerPhoneNumber": "$primaryPhone",
+                  "customerAlternativePhone": "$altPhone",
+                  "vehicleNumberPlate": "${record.numberPlate}",
+                  "serviceType": "${record.serviceType}",
+                  "amountCharged": $cleanAmount,
+                  "assignedTo": "${record.assignedToPerson}",
+                  "vehicleKeyShared": ${record.isLeavingKey},
+                  "entryDateTime": "${record.date}T${record.entryTime}",
+                  "expectedExitTime": "${if (record.expectedExitTime.isNotBlank()) "${record.date}T${record.expectedExitTime}" else ""}",
+                  "customerName": "${record.clientName}",
+                  "customerNationality": "${record.nationality}",
+                  "customerIdNumber": "${record.idPassportNumber}",
+                  "generalComment": "${record.generalComment}",
+                  "paymentStatus": "PENDING",
+                  "vehicleClearanceStatus": "ACTIVE"
+                }
+            """.trimIndent()
+
+            connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
                 records.add(0, record)
                 apiErrorMessage = null
                 true
             } else {
-                apiErrorMessage = "Failed to save record to API (Server response: $responseCode)"
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (_: Exception) {
+                    ""
+                }
+                apiErrorMessage = "Failed to save record to API (Server response $responseCode: $errorMsg)"
                 false
             }
         } catch (e: Exception) {

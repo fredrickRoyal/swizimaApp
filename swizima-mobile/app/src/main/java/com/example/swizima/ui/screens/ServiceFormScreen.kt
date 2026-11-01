@@ -877,43 +877,7 @@ fun ServiceFormScreen(
                     }
                 }
 
-                // Client / Organisation Selector
-                var clientDropdownExpanded by remember { mutableStateOf(false) }
-                val currentClientName = clientsList.find { it.id == selectedClientId }?.clientName ?: "Swizima Motors & Parking Ltd"
 
-                ExposedDropdownMenuBox(
-                    expanded = clientDropdownExpanded,
-                    onExpandedChange = { clientDropdownExpanded = !clientDropdownExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = currentClientName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Client / Organisation *") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = clientDropdownExpanded) },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = clientDropdownExpanded,
-                        onDismissRequest = { clientDropdownExpanded = false }
-                    ) {
-                        clientsList.forEach { client ->
-                            DropdownMenuItem(
-                                text = { Text("${client.clientName} (${client.clientCode})") },
-                                onClick = {
-                                    selectedClientId = client.id
-                                    clientDropdownExpanded = false
-                                    scope.launch {
-                                        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(client.id)
-                                        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(client.id)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
 
                 // 3. Service Type Dropdown (Strictly Loaded from API Service Catalog)
                 val displayServices = serviceCatalogItems.map { it.serviceName }
@@ -969,7 +933,7 @@ fun ServiceFormScreen(
                 // Amount Charged (UGX)
                 OutlinedTextField(
                     value = amountCharged,
-                    onValueChange = { amountCharged = it },
+                    onValueChange = { amountCharged = formatWithCommas(it) },
                     label = { Text("Amount Charged (UGX)") },
                     placeholder = { Text("e.g. 50,000") },
                     leadingIcon = {
@@ -1330,4 +1294,11 @@ fun ServiceFormScreen(
             }
         )
     }
+}
+
+fun formatWithCommas(input: String): String {
+    val clean = input.replace(",", "").filter { it.isDigit() }
+    if (clean.isEmpty()) return ""
+    val parsed = clean.toLongOrNull() ?: return clean
+    return java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(parsed)
 }
