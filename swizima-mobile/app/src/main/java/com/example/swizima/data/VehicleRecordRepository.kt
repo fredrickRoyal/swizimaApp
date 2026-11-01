@@ -28,6 +28,8 @@ data class VehicleRecord(
     val assignedToPerson: String = "",
     val generalComment: String = "",
     val amountCharged: String = "",
+    val paymentStatus: String = "PENDING",
+    val clearanceStatus: String = "IN_SERVICE",
     val status: String = "In Service"
 )
 
@@ -72,6 +74,8 @@ object VehicleRecordRepository {
                 val amountMatches = Regex("\"amountCharged\"\\s*:\\s*([0-9.]+)").findAll(json).toList()
                 val assignedMatches = Regex("\"assignedTo\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val commentMatches = Regex("\"generalComment\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val paymentStatusMatches = Regex("\"paymentStatus\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val clearanceMatches = Regex("\"vehicleClearanceStatus\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
 
                 val ids = idMatches.map { it.groupValues[1] }
                 val plates = plateMatches.map { it.groupValues[1] }
@@ -81,10 +85,15 @@ object VehicleRecordRepository {
                 val amounts = amountMatches.map { it.groupValues[1] }
                 val assigned = assignedMatches.map { it.groupValues[1] }
                 val comments = commentMatches.map { it.groupValues[1] }
+                val paymentStatuses = paymentStatusMatches.map { it.groupValues[1] }
+                val clearances = clearanceMatches.map { it.groupValues[1] }
 
                 for (i in plates.indices) {
                     val rawAmount = amounts.getOrElse(i) { "0" }.toDoubleOrNull() ?: 0.0
                     val formattedAmount = java.text.NumberFormat.getNumberInstance(Locale.US).format(rawAmount.toLong())
+                    val payStatus = paymentStatuses.getOrElse(i) { "PENDING" }
+                    val clearStatus = clearances.getOrElse(i) { "IN_SERVICE" }
+                    val displayStatus = clearStatus.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
 
                     fetchedRecords.add(
                         VehicleRecord(
@@ -99,7 +108,9 @@ object VehicleRecordRepository {
                             assignedToPerson = assigned.getOrElse(i) { "ATTENDANT" },
                             generalComment = comments.getOrElse(i) { "" },
                             amountCharged = formattedAmount,
-                            status = "Active"
+                            paymentStatus = payStatus,
+                            clearanceStatus = clearStatus,
+                            status = displayStatus
                         )
                     )
                 }

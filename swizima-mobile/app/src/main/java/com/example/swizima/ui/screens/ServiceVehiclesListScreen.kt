@@ -479,24 +479,24 @@ fun VehicleRecordCard(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFE3F2FD)
+                    color = if (record.paymentStatus.equals("PAID", ignoreCase = true)) Color(0xFFE3F2FD) else Color(0xFFFFF8E1)
                 ) {
                     Text(
-                        text = "Payment: Paid",
+                        text = "Payment: ${record.paymentStatus.lowercase().replaceFirstChar { it.uppercase() }}",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color(0xFF1565C0),
+                        color = if (record.paymentStatus.equals("PAID", ignoreCase = true)) Color(0xFF1565C0) else Color(0xFFF57F17),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (record.status.equals("Active", ignoreCase = true)) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+                    color = if (record.clearanceStatus.equals("CLEARED", ignoreCase = true)) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
                 ) {
                     Text(
-                        text = "Clearance: ${record.status}",
+                        text = "Clearance: ${record.clearanceStatus.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }}",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (record.status.equals("Active", ignoreCase = true)) Color(0xFF2E7D32) else Color(0xFFE65100),
+                        color = if (record.clearanceStatus.equals("CLEARED", ignoreCase = true)) Color(0xFF2E7D32) else Color(0xFFE65100),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
