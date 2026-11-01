@@ -627,7 +627,10 @@ fun ServiceFormScreen(
         val plate = numberPlate.trim().uppercase()
         val name = clientName.trim().uppercase()
         val assigned = assignedToPerson.trim().uppercase()
-        val validPhones = clientPhoneNumbers.filter { it.isNotBlank() }
+        val validPhones = clientPhoneNumbers.filter { it.isNotBlank() }.map { phone ->
+            val clean = phone.trim()
+            if (clean.startsWith("+")) clean else "$selectedCountryCode $clean"
+        }
 
         if (validPhones.isEmpty()) {
             errorMessage = "Please enter at least one client phone number"
@@ -766,8 +769,7 @@ fun ServiceFormScreen(
                         OutlinedTextField(
                             value = phone,
                             onValueChange = { newValue ->
-                                val clean = newValue.removePrefix(selectedCountryCode).trim()
-                                clientPhoneNumbers[index] = "$selectedCountryCode $clean"
+                                clientPhoneNumbers[index] = newValue
                                 errorMessage = null
                             },
                             label = { Text("Phone ${index + 1}") },
