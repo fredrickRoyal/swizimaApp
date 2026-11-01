@@ -39,9 +39,6 @@ object VehicleRecordRepository {
         get() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
     suspend fun fetchRecordsFromApi(): Boolean = withContext(Dispatchers.IO) {
-        if (ApiGatewayConfig.isSimulationMode) {
-            return@withContext true
-        }
         try {
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -108,10 +105,6 @@ object VehicleRecordRepository {
     }
 
     suspend fun addRecord(record: VehicleRecord): Boolean = withContext(Dispatchers.IO) {
-        if (ApiGatewayConfig.isSimulationMode) {
-            records.add(0, record)
-            return@withContext true
-        }
         try {
             val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/client-transactions/vehicle-services")
             val connection = (url.openConnection() as HttpURLConnection).apply {
