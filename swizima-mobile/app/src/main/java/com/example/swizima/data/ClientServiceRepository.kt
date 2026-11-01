@@ -47,9 +47,32 @@ object ClientServiceRepository {
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val clients = mutableListOf<ApiClient>()
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val nameMatches = Regex("\"clientName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val codeMatches = Regex("\"clientCode\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val names = nameMatches.map { it.groupValues[1] }
+                val codes = codeMatches.map { it.groupValues[1] }
+
+                for (i in names.indices) {
+                    clients.add(
+                        ApiClient(
+                            id = ids.getOrElse(i) { "id_$i" },
+                            clientName = names[i],
+                            clientCode = codes.getOrElse(i) { "SWZ-0$i" }
+                        )
+                    )
+                }
+                if (clients.isEmpty()) {
+                    listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
+                } else {
+                    clients
+                }
             } else {
-                emptyList()
+                listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
             }
         } catch (_: Exception) {
             listOf(ApiClient("org_swizima_01", "Swizima Motors & Parking Ltd", "SWZ-001"))
@@ -91,7 +114,35 @@ object ClientServiceRepository {
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                emptyList()
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val items = mutableListOf<ApiServiceCatalogItem>()
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val nameMatches = Regex("\"serviceName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val catMatches = Regex("\"category\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val priceMatches = Regex("\"price\"\\s*:\\s*([0-9.]+)").findAll(json).toList()
+                val currMatches = Regex("\"currency\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val names = nameMatches.map { it.groupValues[1] }
+                val cats = catMatches.map { it.groupValues[1] }
+                val prices = priceMatches.map { it.groupValues[1].toDoubleOrNull() ?: 0.0 }
+                val currs = currMatches.map { it.groupValues[1] }
+
+                for (i in names.indices) {
+                    items.add(
+                        ApiServiceCatalogItem(
+                            id = ids.getOrElse(i) { "s_$i" },
+                            clientId = clientId ?: "org_swizima_01",
+                            clientName = "Swizima Motors",
+                            serviceName = names[i],
+                            category = cats.getOrElse(i) { "Parking" },
+                            price = prices.getOrElse(i) { 10000.0 },
+                            currency = currs.getOrElse(i) { "UGX" },
+                            description = null
+                        )
+                    )
+                }
+                items
             } else {
                 emptyList()
             }
@@ -119,15 +170,35 @@ object ClientServiceRepository {
                 readTimeout = 20000
             }
             if (connection.responseCode in 200..299) {
-                emptyList()
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+                val staffList = mutableListOf<ApiClientStaff>()
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val nameMatches = Regex("\"fullName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val posMatches = Regex("\"position\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val phoneMatches = Regex("\"phoneNumber\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val names = nameMatches.map { it.groupValues[1] }
+                val positions = posMatches.map { it.groupValues[1] }
+                val phones = phoneMatches.map { it.groupValues[1] }
+
+                for (i in names.indices) {
+                    staffList.add(
+                        ApiClientStaff(
+                            id = ids.getOrElse(i) { "st_$i" },
+                            clientId = clientId,
+                            fullName = names[i],
+                            position = positions.getOrElse(i) { "Staff" },
+                            phoneNumber = phones.getOrElse(i) { "" }
+                        )
+                    )
+                }
+                staffList
             } else {
                 emptyList()
             }
         } catch (_: Exception) {
-            listOf(
-                ApiClientStaff("st1", clientId, "James Mukasa", "Valet Attendant", "+256 712 345 678"),
-                ApiClientStaff("st2", clientId, "Mark Ssemwanga", "Parking Warden", "+256 733 987 654")
-            )
+            emptyList()
         }
     }
 }
