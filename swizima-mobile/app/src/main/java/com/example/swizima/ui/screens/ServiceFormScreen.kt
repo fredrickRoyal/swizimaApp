@@ -848,6 +848,44 @@ fun ServiceFormScreen(
                     }
                 }
 
+                // Client / Organisation Selector
+                var clientDropdownExpanded by remember { mutableStateOf(false) }
+                val currentClientName = clientsList.find { it.id == selectedClientId }?.clientName ?: "Swizima Motors & Parking Ltd"
+
+                ExposedDropdownMenuBox(
+                    expanded = clientDropdownExpanded,
+                    onExpandedChange = { clientDropdownExpanded = !clientDropdownExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = currentClientName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Client / Organisation *") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = clientDropdownExpanded) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = clientDropdownExpanded,
+                        onDismissRequest = { clientDropdownExpanded = false }
+                    ) {
+                        clientsList.forEach { client ->
+                            DropdownMenuItem(
+                                text = { Text("${client.clientName} (${client.clientCode})") },
+                                onClick = {
+                                    selectedClientId = client.id
+                                    clientDropdownExpanded = false
+                                    scope.launch {
+                                        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(client.id)
+                                        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedService, client.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
                 // 3. Service Type Dropdown (Loaded from API Service Catalog)
                 val displayServices = if (serviceCatalogItems.isNotEmpty()) serviceCatalogItems.map { it.serviceName } else availableServices
                 ExposedDropdownMenuBox(
