@@ -29,6 +29,17 @@ public interface SystemUserRepository extends JpaRepository<SystemUser, UUID> {
 
     java.util.List<SystemUser> findByRoleAndEnabledTrueAndRecordStatusNot(UserRole role, RecordStatus recordStatus);
 
+    /** True when another (non-deleted) user already uses this value as username, email or phone. */
+    @Query("""
+            SELECT COUNT(u) > 0 FROM SystemUser u
+            WHERE u.recordStatus <> :excluded
+              AND (:excludeId IS NULL OR u.id <> :excludeId)
+              AND (u.username = :value OR LOWER(u.email) = LOWER(:value) OR u.phoneNumber = :value)
+            """)
+    boolean contactInUse(@Param("value") String value,
+                         @Param("excludeId") UUID excludeId,
+                         @Param("excluded") RecordStatus excluded);
+
     @Query("""
             SELECT u FROM SystemUser u
             WHERE u.recordStatus <> :excluded

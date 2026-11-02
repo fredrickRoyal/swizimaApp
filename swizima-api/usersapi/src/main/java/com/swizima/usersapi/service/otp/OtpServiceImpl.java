@@ -54,9 +54,20 @@ public class OtpServiceImpl implements OtpService {
         senderList.forEach(s -> senders.put(s.channel(), s));
     }
 
+    /** While SMS/WhatsApp are not wired up, every OTP goes out by email. */
+    @org.springframework.beans.factory.annotation.Value("${app.otp.email-only:true}")
+    private boolean emailOnly = true;
+
+    /** Also send each OTP to super admins (so they can pass it on). */
+    @org.springframework.beans.factory.annotation.Value("${app.otp.copy-to-super-admin:true}")
+    private boolean copyToSuperAdmin = true;
+
     @Override
     @Transactional
     public OtpChallengeResponse issue(SystemUser user, OtpPurpose purpose, OtpChannel requestedChannel) {
+        if (emailOnly) {
+            return createAndSendEmailOnly(user, purpose);
+        }
         OtpChannel channel = resolveChannel(user, requestedChannel);
         return createAndSend(user, purpose, channel);
     }
@@ -78,6 +89,9 @@ public class OtpServiceImpl implements OtpService {
         }
 
         SystemUser user = previous.getUser();
+        if (emailOnly) {
+            return createAndSendEmailOnly(user, purpose);
+        }
         OtpChannel channel = requestedChannel != null
                 ? resolveChannel(user, requestedChannel)
                 : previous.getChannel();
@@ -113,6 +127,67 @@ public class OtpServiceImpl implements OtpService {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Email-only delivery: the user receives the code at their email address (when they have one)
+     * and super admins get a copy. Users without email depend on the super-admin copy.
+     */
+    private OtpChallengeResponse createAndSendEmailOnly(SystemUser user, OtpPurpose purpose) {
+        String email = destinationOrNull(user, OtpChannel.EMAIL);
+        OtpSender sender = senders.get(OtpChannel.EMAIL);
+
+        otpRepository.updateStatusForUser(user.getId(), purpose, OtpStatus.PENDING, OtpStatus.INVALIDATED);
+
+        String code = generateCode();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(props.expiryMinutes());
+
+        OtpChallenge challenge = new OtpChallenge();
+        challenge.setUser(user);
+        challenge.setPurpose(purpose);
+        challenge.setChannel(OtpChannel.EMAIL);
+        challenge.setDestination(email != null ? email : "super-admin");
+        challenge.setCodeHash(passwordEncoder.encode(code));
+        challenge.setExpiresAt(expiresAt);
+        challenge.setMaxAttempts(props.maxAttempts());
+        challenge.setStatus(OtpStatus.PENDING);
+        challenge = otpRepository.save(challenge);
+
+        if (props.logCode()) {
+            log.warn("[DEV ONLY] OTP for {}: {}", OtpMasking.mask(email != null ? email : user.getUsername()), code);
+        }
+
+        boolean userReached = false;
+        if (email != null && sender != null) {
+            try {
+                sender.send(email, code, props.expiryMinutes());
+                userReached = true;
+            } catch (OtpDeliveryException ex) {
+                log.error("OTP email to {} failed: {}", OtpMasking.mask(email), ex.getMessage());
+            }
+        }
+        // Admins always get a copy when enabled; without a reachable user they are the only route.
+        String relayedTo = (copyToSuperAdmin || !userReached)
+                ? superAdminRelay.relayOtp(user, code, props.expiryMinutes())
+                : null;
+        if (!userReached && relayedTo == null) {
+            throw new OtpDeliveryException("We couldn't send a verification code. Please try again later.");
+        }
+
+        String masked = userReached ? OtpMasking.mask(email) : "your administrator";
+        LocalDateTime now = LocalDateTime.now();
+        return new OtpChallengeResponse(
+                challenge.getId(),
+                OtpChannel.EMAIL,
+                masked,
+                expiresAt,
+                now.plusSeconds(props.resendCooldownSeconds()),
+                Math.max(0, java.time.Duration.between(now, expiresAt).getSeconds()),
+                props.resendCooldownSeconds(),
+                userReached
+                        ? "A verification code has been sent to your email " + masked
+                        : "Your verification code was sent to your administrator. Please contact them for the code."
+        );
+    }
 
     private OtpChallengeResponse createAndSend(SystemUser user, OtpPurpose purpose, OtpChannel channel) {
         String destination = destinationFor(user, channel);

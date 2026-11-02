@@ -291,6 +291,7 @@
               <span>Mark transaction as cancelled</span>
             </label>
           </div>
+          @if (editing()) {
           <div class="field">
             <label for="tx-clearance">Vehicle clearance</label>
             <select id="tx-clearance" class="select" formControlName="vehicleClearanceStatus">
@@ -302,6 +303,7 @@
             </select>
             <p class="field-hint">Use the Clear and Exit actions to clear or release the vehicle.</p>
           </div>
+          }
           <div class="field span-2">
             <label for="tx-comment">General comment</label>
             <textarea id="tx-comment" class="input" rows="3" formControlName="generalComment" placeholder="Condition of vehicle, special requests…"></textarea>

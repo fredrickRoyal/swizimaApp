@@ -258,13 +258,16 @@ public class VehicleServiceTransactionService {
                 ? null : r.customerIdNumber().trim().toUpperCase(Locale.ROOT));
         t.setCustomerAddress(blankToNull(r.customerAddress()));
         t.setGeneralComment(blankToNull(r.generalComment()));
+        // New transactions always start IN_SERVICE (any requested status is ignored).
         // Edits may only move between IN_SERVICE and READY; CLEARED/RELEASED go through clear()/exit().
-        VehicleClearanceStatus wanted = r.vehicleClearanceStatus();
-        boolean manual = wanted == VehicleClearanceStatus.IN_SERVICE || wanted == VehicleClearanceStatus.READY;
-        if (manual && (creating || isOpen(t))) {
-            t.setVehicleClearanceStatus(wanted);
-        } else if (creating) {
+        if (creating) {
             t.setVehicleClearanceStatus(VehicleClearanceStatus.IN_SERVICE);
+        } else {
+            VehicleClearanceStatus wanted = r.vehicleClearanceStatus();
+            boolean manual = wanted == VehicleClearanceStatus.IN_SERVICE || wanted == VehicleClearanceStatus.READY;
+            if (manual && isOpen(t)) {
+                t.setVehicleClearanceStatus(wanted);
+            }
         }
     }
 }

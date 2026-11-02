@@ -199,6 +199,30 @@ export class Users {
     );
   }
 
+  /** Statuses an admin can activate from (ACTIVE is already active; SUSPENDED uses Restore). */
+  protected canActivate(status: ActivationStatus): boolean {
+    return status === 'PENDING_ACTIVATION' || status === 'LOCKED' || status === 'DEACTIVATED';
+  }
+
+  protected activate(u: ClientUser): void {
+    this.run(u.id, this.api.updateClientUserStatus(u.id, 'ACTIVE'), `${u.userPhoneNumber || u.userEmail} activated for ${this.clientName(u.clientRef)}.`);
+  }
+
+  protected activateSystemUser(user: { id: string; username: string }): void {
+    this.busyId.set(user.id);
+    this.api.updateUserStatus(user.id, 'ACTIVE').subscribe({
+      next: () => {
+        this.busyId.set(null);
+        this.notice.set({ tone: 'success', text: `${user.username} activated.` });
+        this.users.reload();
+      },
+      error: (err) => {
+        this.busyId.set(null);
+        this.notice.set({ tone: 'error', text: toErrorMessage(err) });
+      },
+    });
+  }
+
   private run(id: string, call: Observable<unknown>, success: string): void {
     this.busyId.set(id);
     call.subscribe({
