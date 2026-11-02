@@ -2,6 +2,7 @@ package com.example.swizima.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import com.example.swizima.ui.components.SettingsDialog
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -141,6 +143,7 @@ fun LoginScreen(
     }
 
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         floatingActionButton = {
@@ -166,6 +169,31 @@ fun LoginScreen(
         ) {
             if (showSettingsDialog) {
                 SettingsDialog(onDismiss = { showSettingsDialog = false })
+            }
+
+            if (showPrivacyDialog) {
+                AlertDialog(
+                    onDismissRequest = { showPrivacyDialog = false },
+                    title = { Text("International Data Privacy & Terms", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "Swizima Automotive Management Suite is committed to protecting your personal data in compliance with international data privacy regulations (GDPR, ISO/IEC 27001, and regional data protection acts).",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "• All data transmitted through our API gateway is encrypted in transit (TLS 1.3) and at rest (AES-256).\n• We collect only essential operational data (such as vehicle number plates and contact numbers) required for automotive service management.\n• Future compliance documents and legal updates will be hosted directly at https://swizima.com.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = { showPrivacyDialog = false }, shape = RoundedCornerShape(12.dp)) {
+                            Text("Close")
+                        }
+                    }
+                )
             }
 
         Column(
@@ -203,7 +231,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Sign in via API Gateway",
+                text = "Sign in and manage your account",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -420,13 +448,18 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Tip: Enter a phone ending in '0' or containing '000' to test unlinked organisation flow.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
+                text = "By signing in, you agree to our Terms & Conditions &\nInternational Data Privacy Policy",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                ),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { showPrivacyDialog = true }
             )
         }
     }
