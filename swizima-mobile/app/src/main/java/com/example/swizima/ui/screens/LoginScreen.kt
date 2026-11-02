@@ -36,12 +36,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -140,36 +142,31 @@ fun LoginScreen(
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .imePadding()
-    ) {
-        // Top Right Settings Icon with explicit sizing and zIndex
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp, end = 16.dp)
-                .align(Alignment.TopEnd),
-            horizontalArrangement = Arrangement.End
-        ) {
-            IconButton(
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
                 onClick = { showSettingsDialog = true },
-                modifier = Modifier.size(48.dp)
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shape = CircleShape
             ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(28.dp)
+                    contentDescription = "Settings"
                 )
             }
         }
-
-        if (showSettingsDialog) {
-            SettingsDialog(onDismiss = { showSettingsDialog = false })
-        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(paddingValues)
+                .imePadding()
+        ) {
+            if (showSettingsDialog) {
+                SettingsDialog(onDismiss = { showSettingsDialog = false })
+            }
 
         Column(
             modifier = Modifier
@@ -433,6 +430,7 @@ fun LoginScreen(
             )
         }
     }
+}
 }
 
 @Preview(showBackground = true)
