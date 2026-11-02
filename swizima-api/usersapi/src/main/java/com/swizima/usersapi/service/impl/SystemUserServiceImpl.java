@@ -51,6 +51,7 @@ public class SystemUserServiceImpl implements SystemUserService {
         user.setUsername(username.value());
         user.setUsernameType(username.type());
         applyContactDetails(user, username, request.email(), request.phoneNumber(), request.preferredOtpChannel());
+        assertContactsUnique(user, null);
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setPasswordSystemGenerated(generated);
         user.setPasswordChangedAt(LocalDateTime.now());
@@ -77,10 +78,21 @@ public class SystemUserServiceImpl implements SystemUserService {
         user.setUsername(username.value());
         user.setUsernameType(username.type());
         applyContactDetails(user, username, request.email(), request.phoneNumber(), request.preferredOtpChannel());
+        assertContactsUnique(user, id);
         if (request.enabled() != null) {
             user.setEnabled(request.enabled());
         }
         return SystemUserResponse.from(userRepository.save(user));
+    }
+
+    /** Email and phone number must each belong to only one (non-deleted) user. */
+    private void assertContactsUnique(SystemUser user, UUID excludeId) {
+        if (user.getEmail() != null && userRepository.contactInUse(user.getEmail(), excludeId, RecordStatus.DELETED)) {
+            throw new DuplicateResourceException("Email '" + user.getEmail() + "' is already used by another user");
+        }
+        if (user.getPhoneNumber() != null && userRepository.contactInUse(user.getPhoneNumber(), excludeId, RecordStatus.DELETED)) {
+            throw new DuplicateResourceException("Phone number '" + user.getPhoneNumber() + "' is already used by another user");
+        }
     }
 
     @Override

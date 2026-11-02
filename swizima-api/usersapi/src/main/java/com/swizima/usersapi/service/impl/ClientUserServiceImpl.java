@@ -118,6 +118,15 @@ public class ClientUserServiceImpl implements ClientUserService {
     public ClientUserResponse updateActivationStatus(UUID id, ActivationStatus status) {
         ClientUser u = find(id);
         u.setActivationStatus(status);
+        if (status == ActivationStatus.ACTIVE && u.getSystemUserId() != null) {
+            systemUserRepository.findByIdAndRecordStatusNot(u.getSystemUserId(), RecordStatus.DELETED)
+                    .filter(su -> su.getActivationStatus() != ActivationStatus.ACTIVE)
+                    .ifPresent(su -> {
+                        su.setActivationStatus(ActivationStatus.ACTIVE);
+                        su.setEnabled(true);
+                        systemUserRepository.save(su);
+                    });
+        }
         return ClientUserResponse.from(repository.saveAndFlush(u));
     }
 
@@ -158,6 +167,13 @@ public class ClientUserServiceImpl implements ClientUserService {
             user = credentials.user();
             temporaryPassword = credentials.temporaryPassword();
         } else {
+            UUID existingId = existing.get().getId();
+            if (email != null && systemUserRepository.contactInUse(email, existingId, RecordStatus.DELETED)) {
+                throw new DuplicateResourceException("Email '" + email + "' is already used by another user");
+            }
+            if (phone != null && systemUserRepository.contactInUse(phone, existingId, RecordStatus.DELETED)) {
+                throw new DuplicateResourceException("Phone number '" + phone + "' is already used by another user");
+            }
             user = SystemUserResponse.from(existing.get());
         }
 

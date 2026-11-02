@@ -186,6 +186,10 @@ export class SwizimaApi {
   ): Observable<PageResponse<SystemUser>> {
     return this.http.get<PageResponse<SystemUser>>('/api/v1/users', { params: toParams(query) });
   }
+
+  updateUserStatus(userId: string, activationStatus: ActivationStatus): Observable<SystemUser> {
+    return this.http.patch<SystemUser>(`/api/v1/users/${encodeURIComponent(userId)}/activation-status`, { activationStatus });
+  }
 }
 
 const CLIENT_USERS = '/api/v1/users/client-users';

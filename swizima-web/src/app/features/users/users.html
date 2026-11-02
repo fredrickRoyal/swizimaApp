@@ -17,6 +17,17 @@
   </div>
 </div>
 
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-users-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-users-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
 @if (tab() === 'system') {
 <section class="card list-card page-enter">
   <div class="toolbar" role="search">
@@ -66,6 +77,7 @@
             <th scope="col">Status</th>
             <th scope="col">Access</th>
             <th scope="col">Last sign-in</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -92,6 +104,14 @@
               <td data-label="Last sign-in" class="cell-secondary">
                 {{ user.lastLoginAt ? (user.lastLoginAt | date: 'medium') : 'Never' }}
               </td>
+              <td data-label="Actions" class="col-actions">
+                @if (canActivate(user.activationStatus)) {
+                  <button type="button" class="btn btn-sm" [id]="'user-activate-' + user.id"
+                          (click)="activateSystemUser(user)" [disabled]="busyId() === user.id">
+                    <app-icon name="check" /> Activate
+                  </button>
+                }
+              </td>
             </tr>
           }
         </tbody>
@@ -103,16 +123,6 @@
 }
 
 @if (tab() === 'client') {
-@if (notice(); as n) {
-  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
-       role="status" id="client-users-notice">
-    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
-    <span>{{ n.text }}</span>
-    <button type="button" class="btn btn-icon btn-ghost" id="client-users-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
-      <app-icon name="close" />
-    </button>
-  </div>
-}
 <section class="card list-card page-enter">
   <div class="toolbar" role="search">
     <label class="search">
@@ -194,6 +204,12 @@
               <td data-label="Linked" class="cell-secondary">{{ u.createdAt | date: 'medium' }}</td>
               <td data-label="Actions" class="col-actions">
                 <div class="row-actions">
+                  @if (canActivate(u.activationStatus)) {
+                    <button type="button" class="btn btn-sm btn-primary" [id]="'client-user-activate-' + u.id"
+                            (click)="activate(u)" [disabled]="busyId() === u.id" title="Activate access">
+                      Activate
+                    </button>
+                  }
                   <button type="button" class="btn btn-icon btn-ghost" [id]="'client-user-view-' + u.id" (click)="openDetails(u)"
                           aria-label="View details" title="View details">
                     <app-icon name="eye" />
@@ -266,6 +282,11 @@
               } @else {
                 <button type="button" class="btn btn-sm" [id]="'org-default-' + o.id" (click)="setDefault(o)" [disabled]="busyId() === o.id">
                   Set default
+                </button>
+              }
+              @if (canActivate(o.activationStatus)) {
+                <button type="button" class="btn btn-sm btn-primary" [id]="'org-activate-' + o.id" (click)="activate(o)" [disabled]="busyId() === o.id">
+                  Activate
                 </button>
               }
               <button type="button" class="btn btn-sm" [id]="'org-suspend-' + o.id" (click)="toggleSuspend(o)" [disabled]="busyId() === o.id">
