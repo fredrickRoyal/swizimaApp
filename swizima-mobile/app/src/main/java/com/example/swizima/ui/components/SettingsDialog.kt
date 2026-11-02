@@ -5,8 +5,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -20,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.swizima.data.ApiGatewayConfig
@@ -31,6 +37,7 @@ fun SettingsDialog(
     val context = LocalContext.current
     var urlInput by remember { mutableStateOf(ApiGatewayConfig.gatewayBaseUrl) }
     var pinInput by remember { mutableStateOf("") }
+    var pinVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
 
@@ -60,7 +67,13 @@ fun SettingsDialog(
                     label = { Text("Admin Security Code (PIN)") },
                     placeholder = { Text("Enter secret code (2100)") },
                     singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val image = if (pinVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                        IconButton(onClick = { pinVisible = !pinVisible }) {
+                            Icon(imageVector = image, contentDescription = "Toggle PIN visibility")
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
                     isError = errorMessage != null
