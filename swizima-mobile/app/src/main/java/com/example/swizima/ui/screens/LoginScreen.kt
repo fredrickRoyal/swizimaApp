@@ -146,17 +146,23 @@ fun LoginScreen(
             .background(MaterialTheme.colorScheme.background)
             .imePadding()
     ) {
-        // Top Right Settings Icon
-        Box(
+        // Top Right Settings Icon with explicit sizing and zIndex
+        Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
+                .fillMaxWidth()
+                .padding(top = 16.dp, end = 16.dp)
+                .align(Alignment.TopEnd),
+            horizontalArrangement = Arrangement.End
         ) {
-            IconButton(onClick = { showSettingsDialog = true }) {
+            IconButton(
+                onClick = { showSettingsDialog = true },
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
