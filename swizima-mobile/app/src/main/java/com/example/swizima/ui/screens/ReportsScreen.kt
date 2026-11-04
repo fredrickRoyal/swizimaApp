@@ -1,6 +1,7 @@
 package com.example.swizima.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,32 +20,61 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.swizima.data.VehicleRecordRepository
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+enum class DateRangeOption(val label: String) {
+    ALL_TIME("All Time"),
+    TODAY("Today"),
+    THIS_WEEK("This Week"),
+    THIS_MONTH("This Month")
+}
 
 @Composable
 fun ReportsScreen() {
+    var selectedRange by remember { mutableStateOf(DateRangeOption.ALL_TIME) }
+
     LaunchedEffect(Unit) {
         VehicleRecordRepository.fetchRecordsFromApi()
     }
 
-    val records = VehicleRecordRepository.records
-    val totalTxCount = records.size
-    val totalRevenue = records.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
-    val paidCount = records.count { it.paymentStatus.equals("PAID", ignoreCase = true) }
-    val clearedCount = records.count { it.clearanceStatus.equals("CLEARED", ignoreCase = true) || it.clearanceStatus.equals("RELEASED", ignoreCase = true) }
+    val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
-    val formatter = java.text.NumberFormat.getNumberInstance(java.util.Locale.US)
+    val filteredRecords = remember(VehicleRecordRepository.records.size, selectedRange) {
+        val rawList = VehicleRecordRepository.records
+        when (selectedRange) {
+            DateRangeOption.ALL_TIME -> rawList
+            DateRangeOption.TODAY -> rawList.filter { it.date == todayStr }
+            DateRangeOption.THIS_WEEK -> rawList.filter { isDateInCurrentWeek(it.date) }
+            DateRangeOption.THIS_MONTH -> rawList.filter { isDateInCurrentMonth(it.date) }
+        }
+    }
+
+    val totalTxCount = filteredRecords.size
+    val totalRevenue = filteredRecords.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
+    val paidCount = filteredRecords.count { it.paymentStatus.equals("PAID", ignoreCase = true) }
+    val clearedCount = filteredRecords.count { it.clearanceStatus.equals("CLEARED", ignoreCase = true) || it.clearanceStatus.equals("RELEASED", ignoreCase = true) }
+
+    val formatter = java.text.NumberFormat.getNumberInstance(Locale.US)
 
     Column(
         modifier = Modifier
@@ -59,6 +89,23 @@ fun ReportsScreen() {
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground
         )
+
+        // Date Range Filter Chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DateRangeOption.values().forEach { option ->
+                FilterChip(
+                    selected = selectedRange == option,
+                    onClick = { selectedRange = option },
+                    label = { Text(option.label, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        }
 
         // KPI Cards Row 1
         Row(
@@ -133,7 +180,7 @@ fun ReportsScreen() {
 
         val categories = listOf("Parking", "General washing", "Repair", "Review")
         categories.forEach { cat ->
-            val catCount = records.count { it.serviceType.contains(cat, ignoreCase = true) || cat.contains(it.serviceType, ignoreCase = true) }
+            val catCount = filteredRecords.count { it.serviceType.contains(cat, ignoreCase = true) || cat.contains(it.serviceType, ignoreCase = true) }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -151,5 +198,33 @@ fun ReportsScreen() {
                 }
             }
         }
+    }
+}
+
+private fun isDateInCurrentWeek(dateStr: String): Boolean {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val date = sdf.parse(dateStr) ?: return false
+        val cal = Calendar.getInstance()
+        val currentWeek = cal.get(Calendar.WEEK_OF_YEAR)
+        val currentYear = cal.get(Calendar.YEAR)
+        cal.time = date
+        cal.get(Calendar.WEEK_OF_YEAR) == currentWeek && cal.get(Calendar.YEAR) == currentYear
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun isDateInCurrentMonth(dateStr: String): Boolean {
+    return try {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val date = sdf.parse(dateStr) ?: return false
+        val cal = Calendar.getInstance()
+        val currentMonth = cal.get(Calendar.MONTH)
+        val currentYear = cal.get(Calendar.YEAR)
+        cal.time = date
+        cal.get(Calendar.MONTH) == currentMonth && cal.get(Calendar.YEAR) == currentYear
+    } catch (_: Exception) {
+        false
     }
 }
