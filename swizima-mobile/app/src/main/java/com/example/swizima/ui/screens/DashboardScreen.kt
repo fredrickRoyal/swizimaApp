@@ -81,11 +81,10 @@ data class DashboardTaskTile(
 
 fun mapTileToServiceType(tileTitle: String): String {
     return when {
-        tileTitle.contains("park", ignoreCase = true) -> "Parking"
-        tileTitle.contains("wash", ignoreCase = true) -> "General washing"
+        tileTitle.contains("park", ignoreCase = true) -> "Car park"
+        tileTitle.contains("wash", ignoreCase = true) -> "Car wash"
         tileTitle.contains("repair", ignoreCase = true) -> "Repair"
-        tileTitle.contains("review", ignoreCase = true) || tileTitle.contains("check", ignoreCase = true) -> "Review"
-        else -> "General Service"
+        else -> "Maintenance"
     }
 }
 
@@ -114,43 +113,39 @@ fun DashboardScreen(
         listOf(
             DashboardTaskTile(
                 id = "car_park",
-                title = "Car Park",
+                title = "Car park",
                 description = "Parking space booking, valet services & spot management",
-                tag = "Parking",
+                tag = "Car park",
                 icon = Icons.Default.LocalParking,
                 containerColor = Color(0xFFE8F5E9),
-                iconColor = Color(0xFF2E7D32),
-                activeTasksCount = 2
+                iconColor = Color(0xFF2E7D32)
             ),
             DashboardTaskTile(
                 id = "car_wash",
-                title = "Car Wash General",
+                title = "Car wash",
                 description = "Exterior washing, interior vacuum, foam detail & polish",
-                tag = "Wash & Detail",
+                tag = "Car wash",
                 icon = Icons.Default.LocalCarWash,
                 containerColor = Color(0xFFE1F5FE),
-                iconColor = Color(0xFF0288D1),
-                activeTasksCount = 1
+                iconColor = Color(0xFF0288D1)
             ),
             DashboardTaskTile(
                 id = "car_repair",
-                title = "Car Repair",
+                title = "Repair",
                 description = "Engine diagnostic, brakes, electrical & mechanical repair",
-                tag = "Maintenance",
+                tag = "Repair",
                 icon = Icons.Default.Build,
                 containerColor = Color(0xFFFFF3E0),
-                iconColor = Color(0xFFE65100),
-                activeTasksCount = 3
+                iconColor = Color(0xFFE65100)
             ),
             DashboardTaskTile(
-                id = "car_review_check",
-                title = "Car Review and Check General",
-                description = "Comprehensive multi-point vehicle inspection & health checks",
-                tag = "Inspection",
+                id = "car_maintenance",
+                title = "Maintenance",
+                description = "Comprehensive multi-point vehicle inspection & maintenance",
+                tag = "Maintenance",
                 icon = Icons.Default.FactCheck,
                 containerColor = Color(0xFFF3E5F5),
-                iconColor = Color(0xFF7B1FA2),
-                activeTasksCount = 0
+                iconColor = Color(0xFF7B1FA2)
             )
         )
     }

@@ -178,7 +178,7 @@ fun ReportsScreen() {
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        val categories = listOf("Parking", "General washing", "Repair", "Review")
+        val categories = listOf("Car park", "Car wash", "Repair", "Maintenance")
         categories.forEach { cat ->
             val catCount = filteredRecords.count { it.serviceType.contains(cat, ignoreCase = true) || cat.contains(it.serviceType, ignoreCase = true) }
             Card(
