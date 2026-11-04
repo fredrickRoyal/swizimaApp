@@ -1,6 +1,7 @@
 package com.example.swizima.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material3.AlertDialog
@@ -24,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.swizima.data.VehicleRecordRepository
@@ -47,16 +51,45 @@ import java.util.Date
 import java.util.Locale
 
 enum class DateRangeOption(val label: String) {
-    ALL_TIME("All Time"),
     TODAY("Today"),
     THIS_WEEK("This Week"),
     THIS_MONTH("This Month"),
     CUSTOM("Custom Range")
 }
 
+fun showNativeDatePicker(
+    context: android.content.Context,
+    currentDateStr: String,
+    onDatePicked: (String) -> Unit
+) {
+    val cal = Calendar.getInstance()
+    if (currentDateStr.isNotBlank()) {
+        try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val d = sdf.parse(currentDateStr)
+            if (d != null) cal.time = d
+        } catch (_: Exception) {}
+    }
+    val y = cal.get(Calendar.YEAR)
+    val m = cal.get(Calendar.MONTH)
+    val day = cal.get(Calendar.DAY_OF_MONTH)
+
+    val dialog = android.app.DatePickerDialog(
+        context,
+        { _, year, monthOfYear, dayOfMonth ->
+            val formatted = String.format(Locale.getDefault(), "%04d-%02d-%02d", year, monthOfYear + 1, dayOfMonth)
+            onDatePicked(formatted)
+        },
+        y,
+        m,
+        day
+    )
+    dialog.show()
+}
+
 @Composable
 fun ReportsScreen() {
-    var selectedRange by remember { mutableStateOf(DateRangeOption.ALL_TIME) }
+    var selectedRange by remember { mutableStateOf(DateRangeOption.TODAY) }
     var customFromDate by remember { mutableStateOf("") }
     var customToDate by remember { mutableStateOf("") }
     var showCustomDateDialog by remember { mutableStateOf(false) }
@@ -70,7 +103,6 @@ fun ReportsScreen() {
     val filteredRecords = remember(VehicleRecordRepository.records.size, selectedRange, customFromDate, customToDate) {
         val rawList = VehicleRecordRepository.records
         when (selectedRange) {
-            DateRangeOption.ALL_TIME -> rawList
             DateRangeOption.TODAY -> rawList.filter { it.date == todayStr }
             DateRangeOption.THIS_WEEK -> rawList.filter { isDateInCurrentWeek(it.date) }
             DateRangeOption.THIS_MONTH -> rawList.filter { isDateInCurrentMonth(it.date) }
@@ -230,30 +262,47 @@ fun ReportsScreen() {
     if (showCustomDateDialog) {
         var tempFrom by remember { mutableStateOf(customFromDate) }
         var tempTo by remember { mutableStateOf(customToDate) }
+        val context = LocalContext.current
 
         AlertDialog(
             onDismissRequest = { showCustomDateDialog = false },
-            title = { Text("Select Date Range", fontWeight = FontWeight.Bold) },
+            title = { Text("Select Custom Date Range", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Enter start and end dates (yyyy-MM-dd):", style = MaterialTheme.typography.bodyMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Tap fields below to pick dates:", style = MaterialTheme.typography.bodyMedium)
+
                     OutlinedTextField(
                         value = tempFrom,
                         onValueChange = { tempFrom = it },
-                        label = { Text("From Date (yyyy-MM-dd)") },
-                        placeholder = { Text("e.g. 2026-11-01") },
-                        singleLine = true,
+                        readOnly = true,
+                        label = { Text("From Date") },
+                        placeholder = { Text("Tap to select start date") },
+                        trailingIcon = {
+                            IconButton(onClick = { showNativeDatePicker(context, tempFrom) { tempFrom = it } }) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = "Pick Start Date")
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showNativeDatePicker(context, tempFrom) { tempFrom = it } }
                     )
+
                     OutlinedTextField(
                         value = tempTo,
                         onValueChange = { tempTo = it },
-                        label = { Text("To Date (yyyy-MM-dd)") },
-                        placeholder = { Text("e.g. 2026-11-30") },
-                        singleLine = true,
+                        readOnly = true,
+                        label = { Text("To Date") },
+                        placeholder = { Text("Tap to select end date") },
+                        trailingIcon = {
+                            IconButton(onClick = { showNativeDatePicker(context, tempTo) { tempTo = it } }) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = "Pick End Date")
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showNativeDatePicker(context, tempTo) { tempTo = it } }
                     )
                 }
             },
