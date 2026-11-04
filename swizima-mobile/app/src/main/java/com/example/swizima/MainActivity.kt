@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.example.swizima.data.ApiGatewayConfig
 import com.example.swizima.navigation.AppNavigation
 import com.example.swizima.ui.theme.SwizimaTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ApiGatewayConfig.init(applicationContext)
         enableEdgeToEdge()
         setContent {
             SwizimaTheme {

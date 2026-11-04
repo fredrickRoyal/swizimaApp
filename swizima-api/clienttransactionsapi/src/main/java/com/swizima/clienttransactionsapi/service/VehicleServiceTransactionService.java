@@ -15,10 +15,14 @@ import com.swizima.clienttransactionsapi.exception.BusinessRuleException;
 import com.swizima.clienttransactionsapi.exception.ResourceNotFoundException;
 import com.swizima.clienttransactionsapi.repository.TransactionPaymentRepository;
 import com.swizima.clienttransactionsapi.repository.VehicleServiceTransactionRepository;
+import com.swizima.clienttransactionsapi.billing.BillingClient;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,25 +43,61 @@ public class VehicleServiceTransactionService {
 
     private final VehicleServiceTransactionRepository repository;
     private final TransactionPaymentRepository paymentRepository;
+    private final BillingClient billingClient;
+
+    /** Kill switch for per-transaction billing (app.billing.enabled). */
+    @Value("${app.billing.enabled:true}")
+    private boolean billingEnabled;
 
     // ------------------------------------------------------------------ CRUD
 
+    /**
+     * Saves the transaction, then deducts the client's billing percentage. If billing fails
+     * (e.g. insufficient credit) a {@link com.swizima.clienttransactionsapi.exception.BillingException}
+     * is thrown and the whole transaction is rolled back, i.e. blocked.
+     */
     public VehicleServiceTransactionResponse create(VehicleServiceTransactionRequest request) {
         VehicleServiceTransaction t = new VehicleServiceTransaction();
         t.setAmountPaid(BigDecimal.ZERO);
         apply(t, request, true);
         derivePaymentStatus(t, request.paymentStatus());
-        return VehicleServiceTransactionResponse.from(repository.saveAndFlush(t));
+        VehicleServiceTransaction saved = repository.saveAndFlush(t);
+        chargeBilling(saved);
+        return VehicleServiceTransactionResponse.from(saved);
+    }
+
+    private void chargeBilling(VehicleServiceTransaction t) {
+        if (!billingEnabled) return;
+        String ref = t.getId().toString();
+        billingClient.charge(t.getClientRef(), ref, t.getAmountCharged(),
+                t.getServiceType() + " - " + t.getVehicleNumberPlate());
+        // If our DB commit fails after billing succeeded, refund the charge so the client isn't billed
+        // for a transaction that doesn't exist.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        billingClient.reverseQuietly(ref, "Transaction was not saved");
+                    }
+                }
+            });
+        }
     }
 
     @Transactional(readOnly = true)
     public PageResponse<VehicleServiceTransactionResponse> list(UUID clientRef, PaymentStatus paymentStatus,
                                                                 VehicleClearanceStatus clearanceStatus,
                                                                 LocalDate fromDate, LocalDate toDate,
-                                                                String search, Pageable pageable) {
+                                                                String assignedTo, String search,
+                                                                Pageable pageable) {
         String term = (search == null || search.isBlank()) ? null : search.trim();
+        // "-" selects unassigned transactions (matched as an empty name).
+        String staff = assignedTo == null || assignedTo.isBlank() ? null
+                : "-".equals(assignedTo.trim()) ? "" : assignedTo.trim();
         return PageResponse.from(repository
-                .search(clientRef, paymentStatus, clearanceStatus, fromDate, toDate, term, RecordStatus.DELETED, pageable)
+                .search(clientRef, paymentStatus, clearanceStatus, fromDate, toDate, staff, term,
+                        RecordStatus.DELETED, pageable)
                 .map(VehicleServiceTransactionResponse::from));
     }
 

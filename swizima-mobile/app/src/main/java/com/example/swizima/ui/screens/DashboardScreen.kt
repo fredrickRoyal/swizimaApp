@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,8 +97,19 @@ fun DashboardScreen(
     onNavigateToVehiclesList: (serviceType: String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTile by remember { mutableStateOf<DashboardTaskTile?>(null) }
-    val sheetState = rememberModalBottomSheetState()
+    var orgName by remember { mutableStateOf("Swizima Motors & Parking Ltd") }
+    var orgAddress by remember { mutableStateOf("Plot 12, Lugogo Bypass, Kampala") }
+    var orgContact by remember { mutableStateOf("Contact: +256 414 123 456") }
+
+    LaunchedEffect(Unit) {
+        val clients = com.example.swizima.data.ClientServiceRepository.fetchClients()
+        if (clients.isNotEmpty()) {
+            val client = clients.first()
+            orgName = client.clientName
+            orgAddress = "Plot 45, Industrial Area, Kampala"
+            orgContact = "Code: ${client.clientCode}"
+        }
+    }
 
     val taskTiles = remember {
         listOf(
@@ -250,15 +262,21 @@ fun DashboardScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Welcome back!",
+                            text = orgName,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold
                             ),
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = userContact.ifEmpty { "Logged in user" },
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "📍 $orgAddress",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "📞 $orgContact | User: $userContact",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                     }
@@ -322,28 +340,13 @@ fun DashboardScreen(
                 items(filteredTiles, key = { it.id }) { tile ->
                     TaskTileCard(
                         tile = tile,
-                        onClick = { selectedTile = tile }
+                        onClick = {
+                            val serviceType = mapTileToServiceType(tile.title)
+                            onNavigateToVehiclesList(serviceType)
+                        }
                     )
                 }
             }
-        }
-    }
-
-    // Detail Bottom Sheet when a tile is tapped
-    selectedTile?.let { tile ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedTile = null },
-            sheetState = sheetState
-        ) {
-            TaskTileDetailSheetContent(
-                tile = tile,
-                onClose = { selectedTile = null },
-                onProceed = {
-                    val tileTitle = tile.title
-                    selectedTile = null
-                    onNavigateToVehiclesList(mapTileToServiceType(tileTitle))
-                }
-            )
         }
     }
 }
@@ -460,136 +463,6 @@ fun TaskTileCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun TaskTileDetailSheetContent(
-    tile: DashboardTaskTile,
-    onClose: () -> Unit,
-    onProceed: () -> Unit = {}
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(tile.containerColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = tile.icon,
-                    contentDescription = null,
-                    tint = tile.iconColor,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column {
-                Text(
-                    text = tile.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = tile.containerColor,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Text(
-                        text = tile.tag,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = tile.iconColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = tile.description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Task Actions",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Action Options
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Schedule new ${tile.title} request",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "View nearby available locations & partners",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onProceed,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Text(
-                text = "Proceed with ${tile.title}",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 

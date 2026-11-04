@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +30,8 @@ public interface VehicleServiceTransactionRepository extends JpaRepository<Vehic
               AND (:clearanceStatus IS NULL OR t.vehicleClearanceStatus = :clearanceStatus)
               AND (CAST(:fromDate AS date) IS NULL OR t.entryDate >= :fromDate)
               AND (CAST(:toDate   AS date) IS NULL OR t.entryDate <= :toDate)
+              AND (:assignedTo IS NULL
+                   OR LOWER(TRIM(COALESCE(t.assignedTo, ''))) = LOWER(CAST(:assignedTo AS string)))
               AND (:search IS NULL
                    OR LOWER(t.vehicleNumberPlate)  LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
                    OR LOWER(t.customerName)        LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
@@ -41,7 +44,28 @@ public interface VehicleServiceTransactionRepository extends JpaRepository<Vehic
                                            @Param("clearanceStatus") VehicleClearanceStatus clearanceStatus,
                                            @Param("fromDate") LocalDate fromDate,
                                            @Param("toDate") LocalDate toDate,
+                                           @Param("assignedTo") String assignedTo,
                                            @Param("search") String search,
                                            @Param("excluded") RecordStatus excluded,
                                            Pageable pageable);
+
+    /**
+     * Aggregates for the transactions report, one row per
+     * (entry date, assigned staff, payment status, clearance status):
+     * [entryDate, assignedTo, paymentStatus, clearanceStatus, count, amountCharged, amountPaid].
+     */
+    @Query("""
+            SELECT t.entryDate, t.assignedTo, t.paymentStatus, t.vehicleClearanceStatus,
+                   COUNT(t), COALESCE(SUM(t.amountCharged), 0), COALESCE(SUM(t.amountPaid), 0)
+            FROM VehicleServiceTransaction t
+            WHERE t.recordStatus <> :excluded
+              AND t.clientRef = :clientRef
+              AND t.entryDate >= :fromDate
+              AND t.entryDate <= :toDate
+            GROUP BY t.entryDate, t.assignedTo, t.paymentStatus, t.vehicleClearanceStatus
+            """)
+    List<Object[]> summarize(@Param("clientRef") UUID clientRef,
+                             @Param("fromDate") LocalDate fromDate,
+                             @Param("toDate") LocalDate toDate,
+                             @Param("excluded") RecordStatus excluded);
 }

@@ -55,11 +55,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +73,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.Warning
 import com.example.swizima.data.VehicleRecord
 import com.example.swizima.data.VehicleRecordRepository
 import com.example.swizima.ui.theme.SwizimaTheme
@@ -87,6 +93,10 @@ fun ServiceVehiclesListScreen(
     var selectedRecordForDetail by remember { mutableStateOf<VehicleRecord?>(null) }
     var showReceiptPreview by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        VehicleRecordRepository.fetchRecordsFromApi()
+    }
 
     val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType) {
         VehicleRecordRepository.getRecordsForService(serviceType)
@@ -161,6 +171,34 @@ fun ServiceVehiclesListScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            if (VehicleRecordRepository.apiErrorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Connection Error",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = VehicleRecordRepository.apiErrorMessage ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // Search Bar & Stats Header
             Column(
                 modifier = Modifier
@@ -425,22 +463,65 @@ fun VehicleRecordCard(
                 }
             }
 
-            // Date & Time Row
+            // Service Offered, Payment Status & Clearance Status Badges Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        text = "Service: ${record.serviceType}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (record.paymentStatus.equals("PAID", ignoreCase = true)) Color(0xFFE3F2FD) else Color(0xFFFFF8E1)
+                ) {
+                    Text(
+                        text = "Payment: ${record.paymentStatus.lowercase().replaceFirstChar { it.uppercase() }}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (record.paymentStatus.equals("PAID", ignoreCase = true)) Color(0xFF1565C0) else Color(0xFFF57F17),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (record.clearanceStatus.equals("CLEARED", ignoreCase = true)) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+                ) {
+                    Text(
+                        text = "Clearance: ${record.clearanceStatus.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (record.clearanceStatus.equals("CLEARED", ignoreCase = true)) Color(0xFF2E7D32) else Color(0xFFE65100),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Entry & Exit Date/Time Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.CalendarToday,
+                        imageVector = Icons.Default.Schedule,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = record.date,
+                        text = "Entry: ${record.date} @ ${record.entryTime}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -448,14 +529,14 @@ fun VehicleRecordCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Schedule,
+                        imageVector = Icons.Default.CalendarToday,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Entry: ${record.entryTime}${if (record.expectedExitTime.isNotBlank()) " | Exit: ${record.expectedExitTime}" else ""}",
+                        text = "Exit: ${if (record.expectedExitTime.isNotBlank()) record.expectedExitTime else "Not Set"} (${record.date})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -550,6 +631,13 @@ fun VehicleRecordDetailBottomSheet(
     onPrint: () -> Unit,
     onWhatsApp: () -> Unit
 ) {
+    var showPaymentDialog by remember { mutableStateOf(false) }
+    var paymentAmount by remember { mutableStateOf(record.amountCharged) }
+    var paymentReference by remember { mutableStateOf("") }
+    var isActionProcessing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+
     ModalBottomSheet(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
@@ -564,7 +652,7 @@ fun VehicleRecordDetailBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Vehicle Record Details",
+                    text = "Transaction Details",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
                 Surface(
@@ -590,9 +678,78 @@ fun VehicleRecordDetailBottomSheet(
             DetailRow("Key Status", if (record.isLeavingKey) "Key Left with Attendant" else "Key with Client")
             DetailRow("Person Assigned", record.assignedToPerson.ifBlank { "None" })
             DetailRow("Amount Charged", "UGX ${record.amountCharged.ifBlank { "0" }}")
-            DetailRow("Status", record.status)
+            DetailRow("Payment Status", record.paymentStatus)
+            DetailRow("Clearance Status", record.clearanceStatus)
             if (record.generalComment.isNotBlank()) {
                 DetailRow("General Comments", record.generalComment)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val isPaid = record.paymentStatus.equals("PAID", ignoreCase = true)
+            val isCleared = record.clearanceStatus.equals("CLEARED", ignoreCase = true) || record.clearanceStatus.equals("RELEASED", ignoreCase = true)
+            val isReleased = record.clearanceStatus.equals("RELEASED", ignoreCase = true)
+
+            // Workflow Actions: Record Payment, Clear, Release Vehicle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { showPaymentDialog = true },
+                    enabled = !isPaid && !isReleased && !isActionProcessing,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
+                ) {
+                    Text(if (isPaid) "Paid" else "Payment", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.clearVehicle(record.id, record.assignedToPerson, "Cleared from mobile")
+                            isActionProcessing = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Vehicle cleared successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to clear vehicle", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isCleared && !isReleased && !isActionProcessing,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                ) {
+                    Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.exitVehicle(record.id, record.assignedToPerson, "Released from mobile")
+                            isActionProcessing = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Vehicle released successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to release vehicle", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isReleased && !isActionProcessing,
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100))
+                ) {
+                    Text("Release Vehicle", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -657,6 +814,69 @@ fun VehicleRecordDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+
+    if (showPaymentDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isActionProcessing) showPaymentDialog = false },
+            title = { Text("Record Payment") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = paymentAmount,
+                        onValueChange = { paymentAmount = formatWithCommas(it) },
+                        label = { Text("Payment Amount (UGX)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = paymentReference,
+                        onValueChange = { paymentReference = it },
+                        label = { Text("Reference / Receipt No. (Optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanAmt = paymentAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+                        if (cleanAmt <= 0) return@Button
+                        isActionProcessing = true
+                        scope.launch {
+                            val success = VehicleRecordRepository.addPayment(record.id, cleanAmt, "CASH", paymentReference)
+                            isActionProcessing = false
+                            showPaymentDialog = false
+                            if (success) {
+                                android.widget.Toast.makeText(ctx, "Payment recorded successfully", android.widget.Toast.LENGTH_SHORT).show()
+                                VehicleRecordRepository.fetchRecordsFromApi()
+                                onClose()
+                            } else {
+                                android.widget.Toast.makeText(ctx, "Failed to record payment", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isActionProcessing
+                ) {
+                    if (isActionProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Submit Payment")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showPaymentDialog = false },
+                    enabled = !isActionProcessing
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

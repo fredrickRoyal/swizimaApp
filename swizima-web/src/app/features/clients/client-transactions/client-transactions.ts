@@ -20,6 +20,10 @@ import { Pagination } from '../../../shared/pagination/pagination';
 import { PhoneInput } from '../../../shared/phone-input/phone-input';
 import { StatusBadge, humanize } from '../../../shared/status-badge/status-badge';
 import { ClientLayout } from '../client-layout/client-layout';
+import { BillingProblem } from '../../../core/models/api.models';
+import { billingProblem, money } from '../../billing/billing-ui';
+import { LoadCreditDialog } from '../../billing/load-credit-dialog';
+import { CreditLoad } from '../../../core/models/api.models';
 
 const PAGE_SIZE = 10;
 const PHONE = /^\+?[0-9 ()-]{7,30}$/;
@@ -53,7 +57,7 @@ function toLocalInput(value?: string | Date | null): string {
 /** /clients/:id/transactions — vehicle service transactions for the selected client (clienttransactionsapi). */
 @Component({
   selector: 'app-client-transactions',
-  imports: [ReactiveFormsModule, EmptyState, Icon, Pagination, PhoneInput, StatusBadge],
+  imports: [ReactiveFormsModule, EmptyState, Icon, LoadCreditDialog, Pagination, PhoneInput, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './client-transactions.html',
   styleUrl: './client-transactions.css',
@@ -166,6 +170,26 @@ export class ClientTransactionsPage {
   protected readonly editing = signal<VehicleServiceTransaction | null>(null);
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
+  /** Set when billing blocked the save (e.g. INSUFFICIENT_CREDIT) so the form can offer a top-up. */
+  protected readonly billingBlock = signal<BillingProblem | null>(null);
+  protected readonly money = money;
+  private readonly loadDialog = viewChild.required(LoadCreditDialog);
+
+  protected openTopUp(): void {
+    const b = this.billingBlock();
+    this.loadDialog().open(this.layout.id(), {
+      clientName: this.layout.client.state().data?.clientName,
+      currency: b?.currency,
+      balance: b?.balance,
+    });
+  }
+
+  /** After a top-up from the blocked form, clear the block and let the user save again. */
+  protected onToppedUp(load: CreditLoad): void {
+    this.billingBlock.set(null);
+    this.formError.set(null);
+    this.notice.set({ tone: 'success', text: `${money(load.amount, load.currency)} credit loaded. You can now save the transaction.` });
+  }
 
   protected readonly form = this.fb.group({
     vehicleNumberPlate: ['', [Validators.required, Validators.maxLength(20)]],
@@ -311,6 +335,7 @@ export class ClientTransactionsPage {
 
     this.saving.set(true);
     this.formError.set(null);
+    this.billingBlock.set(null);
     call.subscribe({
       next: (saved) => {
         this.saving.set(false);
@@ -321,7 +346,12 @@ export class ClientTransactionsPage {
       },
       error: (err) => {
         this.saving.set(false);
-        this.formError.set(toErrorMessage(err));
+        const billing = billingProblem(err);
+        if (billing?.code) {
+          this.billingBlock.set(billing);
+        } else {
+          this.formError.set(toErrorMessage(err));
+        }
       },
     });
   }

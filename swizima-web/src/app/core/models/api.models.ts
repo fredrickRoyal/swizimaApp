@@ -252,6 +252,34 @@ export interface VehicleServiceTransaction {
   updatedAt?: string;
 }
 
+/** Money/count bucket in the transactions report (money excludes CANCELLED). */
+export interface SummaryTotals {
+  count: number;
+  amountCharged: number;
+  amountPaid: number;
+  outstanding: number;
+}
+
+/** Work done by one assigned staff member; assignedTo is null for unassigned. */
+export interface StaffSummary {
+  assignedTo: string | null;
+  totals: SummaryTotals;
+  paymentStatusCounts: Record<PaymentStatus, number>;
+  clearanceStatusCounts: Record<VehicleClearanceStatus, number>;
+}
+
+/** GET /vehicle-services/reports/summary (mirrors TransactionSummaryResponse.java). */
+export interface TransactionSummary {
+  clientRef: string;
+  fromDate: string;
+  toDate: string;
+  totals: SummaryTotals;
+  byPaymentStatus: Record<PaymentStatus, SummaryTotals>;
+  byClearanceStatus: Record<VehicleClearanceStatus, SummaryTotals>;
+  byStaff: StaffSummary[];
+  daily: { date: string; totals: SummaryTotals }[];
+}
+
 /** POST/PUT body (mirrors VehicleServiceTransactionRequest.java). Datetimes are local ISO "yyyy-MM-ddTHH:mm". */
 export interface VehicleServiceTransactionRequest {
   clientRef: string;
@@ -351,4 +379,116 @@ export interface AssignAccountResponse {
   credentialsSentTo?: string;
   /** Why the credentials weren't sent, if they weren't. */
   deliveryNote?: string;
+}
+
+// ---------- Billing plans (configurationsapi) ----------
+export type BillingPlanStatus = 'ACTIVE' | 'SUSPENDED';
+
+/** Percentage charged on every transaction for a client. */
+export interface BillingPlan {
+  id: string;
+  clientRef: string;
+  percentageRate: number;
+  currency: string;
+  lowBalanceThreshold?: number;
+  status: BillingPlanStatus;
+  notes?: string;
+  createdAt: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface BillingPlanRequest {
+  clientRef: string;
+  percentageRate: number;
+  currency?: string;
+  lowBalanceThreshold?: number;
+  status?: BillingPlanStatus;
+  notes?: string;
+}
+
+// ---------- Billing wallets, credit loads & activity (paymentsapi) ----------
+export type CreditPaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
+export type CreditLoadStatus = 'COMPLETED' | 'REVERSED';
+export type BillingActivityType = 'CREDIT_LOAD' | 'CREDIT_LOAD_REVERSAL' | 'TRANSACTION_CHARGE' | 'CHARGE_REVERSAL';
+
+/** Prepaid credit balance. Rate / threshold / planStatus are filled when fetched per client. */
+export interface BillingWallet {
+  id?: string;
+  clientRef: string;
+  currency: string;
+  balance: number;
+  totalCredited: number;
+  totalCharged: number;
+  percentageRate?: number;
+  lowBalanceThreshold?: number;
+  lowBalance?: boolean;
+  planStatus?: BillingPlanStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreditLoadRequest {
+  amount: number;
+  paymentMethod: CreditPaymentMethod;
+  paymentReference?: string;
+  payerName?: string;
+  payerPhone?: string;
+  receivedBy?: string;
+  /** ISO local date-time; defaults to now on the server. */
+  loadedAt?: string;
+  notes?: string;
+}
+
+export interface CreditLoad {
+  id: string;
+  walletId: string;
+  clientRef: string;
+  amount: number;
+  currency: string;
+  paymentMethod: CreditPaymentMethod;
+  paymentReference?: string;
+  payerName?: string;
+  payerPhone?: string;
+  receivedBy?: string;
+  loadedAt: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  notes?: string;
+  status: CreditLoadStatus;
+  reversedAt?: string;
+  reversedBy?: string;
+  reversalReason?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface BillingActivity {
+  id: string;
+  walletId: string;
+  clientRef: string;
+  activityType: BillingActivityType;
+  /** Signed: positive = credit, negative = debit. */
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  currency: string;
+  transactionRef?: string;
+  transactionAmount?: number;
+  percentageApplied?: number;
+  creditLoadId?: string;
+  paymentReference?: string;
+  description?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+/** Extra ProblemDetail fields returned when billing blocks a transaction. */
+export interface BillingProblem extends ProblemDetail {
+  code?: 'INSUFFICIENT_CREDIT' | 'BILLING_NOT_CONFIGURED' | 'BILLING_REJECTED' | 'BILLING_UNAVAILABLE';
+  topUpRequired?: boolean;
+  requiredAmount?: number;
+  balance?: number;
+  currency?: string;
 }

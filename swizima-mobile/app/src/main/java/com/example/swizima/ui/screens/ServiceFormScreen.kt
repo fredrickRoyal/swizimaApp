@@ -68,7 +68,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,14 +91,6 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-val availableServices = listOf(
-    "Parking",
-    "General washing",
-    "Repair",
-    "Review",
-    "General Service"
-)
 
 val availableNationalities = listOf(
     "Ugandan",
@@ -495,15 +489,47 @@ fun ServiceFormScreen(
         }
     }
 
-    val defaultService = existingRecord?.serviceType ?: when {
-        initialService.contains("wash", ignoreCase = true) -> "General washing"
-        initialService.contains("repair", ignoreCase = true) -> "Repair"
-        initialService.contains("review", ignoreCase = true) || initialService.contains("check", ignoreCase = true) -> "Review"
-        else -> "Parking"
-    }
+    val defaultService = existingRecord?.serviceType ?: ""
 
     var selectedService by remember { mutableStateOf(defaultService) }
     var serviceDropdownExpanded by remember { mutableStateOf(false) }
+    var amountCharged by remember { mutableStateOf(existingRecord?.amountCharged ?: "") }
+
+    var selectedCountryCode by remember { mutableStateOf("+256") }
+    var countryDropdownExpanded by remember { mutableStateOf(false) }
+
+    var clientsList by remember { mutableStateOf<List<com.example.swizima.data.ApiClient>>(emptyList()) }
+    var selectedClientId by remember { mutableStateOf("org_swizima_01") }
+    var serviceCatalogItems by remember { mutableStateOf<List<com.example.swizima.data.ApiServiceCatalogItem>>(emptyList()) }
+    var clientStaffList by remember { mutableStateOf<List<com.example.swizima.data.ApiClientStaff>>(emptyList()) }
+    var staffDropdownExpanded by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val fetchedClients = com.example.swizima.data.ClientServiceRepository.fetchClients()
+        clientsList = fetchedClients
+        if (fetchedClients.isNotEmpty()) {
+            selectedClientId = fetchedClients.first().id
+        }
+        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
+        serviceCatalogItems = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedClientId)
+        if (serviceCatalogItems.isNotEmpty() && selectedService.isBlank()) {
+            selectedService = serviceCatalogItems.first().serviceName
+            amountCharged = serviceCatalogItems.first().price.toLong().toString()
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(selectedClientId) {
+        val catalogs = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedClientId)
+        serviceCatalogItems = catalogs
+        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
+    }
+
+    androidx.compose.runtime.LaunchedEffect(selectedService) {
+        val matchedCatalog = serviceCatalogItems.find { it.serviceName.equals(selectedService, ignoreCase = true) }
+        if (matchedCatalog != null) {
+            amountCharged = matchedCatalog.price.toLong().toString()
+        }
+    }
 
     var dateInput by remember { mutableStateOf(existingRecord?.date ?: getCurrentFormattedDate()) }
     var entryTimeInput by remember { mutableStateOf(existingRecord?.entryTime ?: getCurrentFormattedTime()) }
@@ -579,10 +605,10 @@ fun ServiceFormScreen(
     var isLeavingKey by remember { mutableStateOf(existingRecord?.isLeavingKey ?: false) }
     var assignedToPerson by remember { mutableStateOf(existingRecord?.assignedToPerson ?: "") }
     var generalComment by remember { mutableStateOf(existingRecord?.generalComment ?: "") }
-    var amountCharged by remember { mutableStateOf(existingRecord?.amountCharged ?: "") }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     if (clientPhoneNumbers.isEmpty()) {
         clientPhoneNumbers.add("")
@@ -601,7 +627,10 @@ fun ServiceFormScreen(
         val plate = numberPlate.trim().uppercase()
         val name = clientName.trim().uppercase()
         val assigned = assignedToPerson.trim().uppercase()
-        val validPhones = clientPhoneNumbers.filter { it.isNotBlank() }
+        val validPhones = clientPhoneNumbers.filter { it.isNotBlank() }.map { phone ->
+            val clean = phone.trim()
+            if (clean.startsWith("+")) clean else "$selectedCountryCode $clean"
+        }
 
         if (validPhones.isEmpty()) {
             errorMessage = "Please enter at least one client phone number"
@@ -612,47 +641,49 @@ fun ServiceFormScreen(
             return
         }
 
-        if (existingRecord != null) {
-            val updatedRecord = existingRecord.copy(
-                numberPlate = plate,
-                serviceType = selectedService,
-                date = dateInput.ifBlank { getCurrentFormattedDate() },
-                entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
-                expectedExitTime = expectedExitTimeInput.trim(),
-                clientName = name,
-                nationality = selectedNationality,
-                idType = selectedIdType,
-                idPassportNumber = idPassportNumber.trim().uppercase(),
-                clientPhoneNumbers = validPhones,
-                isLeavingKey = isLeavingKey,
-                assignedToPerson = assigned,
-                generalComment = generalComment.trim(),
-                amountCharged = amountCharged.trim()
-            )
-            com.example.swizima.data.VehicleRecordRepository.updateRecord(updatedRecord)
-        } else {
-            val newRecord = com.example.swizima.data.VehicleRecord(
-                numberPlate = plate,
-                serviceType = selectedService,
-                date = dateInput.ifBlank { getCurrentFormattedDate() },
-                entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
-                expectedExitTime = expectedExitTimeInput.trim(),
-                clientName = name,
-                nationality = selectedNationality,
-                idType = selectedIdType,
-                idPassportNumber = idPassportNumber.trim().uppercase(),
-                clientPhoneNumbers = validPhones,
-                isLeavingKey = isLeavingKey,
-                assignedToPerson = assigned,
-                generalComment = generalComment.trim(),
-                amountCharged = amountCharged.trim(),
-                status = "Active"
-            )
-            com.example.swizima.data.VehicleRecordRepository.addRecord(newRecord)
-        }
+        scope.launch {
+            if (existingRecord != null) {
+                val updatedRecord = existingRecord.copy(
+                    numberPlate = plate,
+                    serviceType = selectedService,
+                    date = dateInput.ifBlank { getCurrentFormattedDate() },
+                    entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
+                    expectedExitTime = expectedExitTimeInput.trim(),
+                    clientName = name,
+                    nationality = selectedNationality,
+                    idType = selectedIdType,
+                    idPassportNumber = idPassportNumber.trim().uppercase(),
+                    clientPhoneNumbers = validPhones,
+                    isLeavingKey = isLeavingKey,
+                    assignedToPerson = assigned,
+                    generalComment = generalComment.trim(),
+                    amountCharged = amountCharged.trim()
+                )
+                com.example.swizima.data.VehicleRecordRepository.updateRecord(updatedRecord)
+            } else {
+                val newRecord = com.example.swizima.data.VehicleRecord(
+                    numberPlate = plate,
+                    serviceType = selectedService,
+                    date = dateInput.ifBlank { getCurrentFormattedDate() },
+                    entryTime = entryTimeInput.ifBlank { getCurrentFormattedTime() },
+                    expectedExitTime = expectedExitTimeInput.trim(),
+                    clientName = name,
+                    nationality = selectedNationality,
+                    idType = selectedIdType,
+                    idPassportNumber = idPassportNumber.trim().uppercase(),
+                    clientPhoneNumbers = validPhones,
+                    isLeavingKey = isLeavingKey,
+                    assignedToPerson = assigned,
+                    generalComment = generalComment.trim(),
+                    amountCharged = amountCharged.trim(),
+                    status = "Active"
+                )
+                com.example.swizima.data.VehicleRecordRepository.addRecord(newRecord)
+            }
 
-        errorMessage = null
-        showSuccessDialog = true
+            errorMessage = null
+            showSuccessDialog = true
+        }
     }
 
     Scaffold(
@@ -700,8 +731,41 @@ fun ServiceFormScreen(
                 clientPhoneNumbers.forEachIndexed { index, phone ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        ExposedDropdownMenuBox(
+                            expanded = countryDropdownExpanded,
+                            onExpandedChange = { countryDropdownExpanded = !countryDropdownExpanded },
+                            modifier = Modifier.width(105.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = selectedCountryCode,
+                                onValueChange = {},
+                                readOnly = true,
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = countryDropdownExpanded,
+                                onDismissRequest = { countryDropdownExpanded = false }
+                            ) {
+                                countryCodes.forEach { country ->
+                                    DropdownMenuItem(
+                                        text = { Text("${country.flag} ${country.code}") },
+                                        onClick = {
+                                            selectedCountryCode = country.code
+                                            countryDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         OutlinedTextField(
                             value = phone,
                             onValueChange = { newValue ->
@@ -709,10 +773,7 @@ fun ServiceFormScreen(
                                 errorMessage = null
                             },
                             label = { Text("Phone ${index + 1}") },
-                            placeholder = { Text("+256 700 123 456") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Phone, contentDescription = null)
-                            },
+                            placeholder = { Text("700 123 456") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             shape = RoundedCornerShape(12.dp),
@@ -818,7 +879,10 @@ fun ServiceFormScreen(
                     }
                 }
 
-                // 3. Service Type Dropdown
+
+
+                // 3. Service Type Dropdown (Strictly Loaded from API Service Catalog)
+                val displayServices = serviceCatalogItems.map { it.serviceName }
                 ExposedDropdownMenuBox(
                     expanded = serviceDropdownExpanded,
                     onExpandedChange = { serviceDropdownExpanded = !serviceDropdownExpanded }
@@ -827,7 +891,8 @@ fun ServiceFormScreen(
                         value = selectedService,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Service Type *") },
+                        label = { Text("Service Type & Catalog *") },
+                        placeholder = { Text(if (displayServices.isEmpty()) "Loading services from API..." else "Select service") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = serviceDropdownExpanded) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
@@ -837,14 +902,32 @@ fun ServiceFormScreen(
                         expanded = serviceDropdownExpanded,
                         onDismissRequest = { serviceDropdownExpanded = false }
                     ) {
-                        availableServices.forEach { service ->
+                        if (displayServices.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text(service) },
-                                onClick = {
-                                    selectedService = service
-                                    serviceDropdownExpanded = false
-                                }
+                                text = { Text("No services found in catalog", color = MaterialTheme.colorScheme.error) },
+                                onClick = { serviceDropdownExpanded = false }
                             )
+                        } else {
+                            displayServices.forEach { serviceName ->
+                                val matchedItem = serviceCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(serviceName, fontWeight = FontWeight.Bold)
+                                            if (matchedItem != null) {
+                                                Text("${matchedItem.price.toLong()} ${matchedItem.currency}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedService = serviceName
+                                        if (matchedItem != null) {
+                                            amountCharged = matchedItem.price.toLong().toString()
+                                        }
+                                        serviceDropdownExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -852,7 +935,7 @@ fun ServiceFormScreen(
                 // Amount Charged (UGX)
                 OutlinedTextField(
                     value = amountCharged,
-                    onValueChange = { amountCharged = it },
+                    onValueChange = { amountCharged = formatWithCommas(it) },
                     label = { Text("Amount Charged (UGX)") },
                     placeholder = { Text("e.g. 50,000") },
                     leadingIcon = {
@@ -869,17 +952,39 @@ fun ServiceFormScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
-                    value = assignedToPerson,
-                    onValueChange = { assignedToPerson = it.uppercase() },
-                    label = { Text("Person Assigned To (CAPITAL)") },
-                    placeholder = { Text("e.g. MARK ATTENDANT") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Person Assigned To Dropdown (Loaded from Client Staff API)
+                ExposedDropdownMenuBox(
+                    expanded = staffDropdownExpanded,
+                    onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = assignedToPerson,
+                        onValueChange = { assignedToPerson = it.uppercase() },
+                        label = { Text("Person Assigned To (Staff)") },
+                        placeholder = { Text("Select or type staff name...") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryEditable)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = staffDropdownExpanded,
+                        onDismissRequest = { staffDropdownExpanded = false }
+                    ) {
+                        clientStaffList.forEach { staff ->
+                            DropdownMenuItem(
+                                text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },
+                                onClick = {
+                                    assignedToPerson = staff.fullName.uppercase()
+                                    staffDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Row(
                     modifier = Modifier
@@ -1191,4 +1296,11 @@ fun ServiceFormScreen(
             }
         )
     }
+}
+
+fun formatWithCommas(input: String): String {
+    val clean = input.replace(",", "").filter { it.isDigit() }
+    if (clean.isEmpty()) return ""
+    val parsed = clean.toLongOrNull() ?: return clean
+    return java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(parsed)
 }

@@ -3,6 +3,16 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   ActivationStatus,
+  BillingActivity,
+  BillingActivityType,
+  BillingPlan,
+  BillingPlanRequest,
+  BillingPlanStatus,
+  BillingWallet,
+  CreditLoad,
+  CreditLoadRequest,
+  CreditLoadStatus,
+  CreditPaymentMethod,
   AssignAccountRequest,
   AssignAccountResponse,
   ClientUser,
@@ -18,6 +28,7 @@ import {
   TransactionPaymentRequest,
   VehicleActionRequest,
   VehicleClearanceStatus,
+  TransactionSummary,
   VehicleServiceTransaction,
   VehicleServiceTransactionRequest,
   ServiceCatalogItem,
@@ -101,10 +112,16 @@ export class SwizimaApi {
       clearanceStatus?: VehicleClearanceStatus | '';
       fromDate?: string;
       toDate?: string;
+      /** Exact staff name; "-" selects unassigned transactions. */
+      assignedTo?: string;
       search?: string;
     } = {},
   ): Observable<PageResponse<VehicleServiceTransaction>> {
     return this.http.get<PageResponse<VehicleServiceTransaction>>(VEHICLE_SERVICES, { params: toParams(query) });
+  }
+
+  transactionSummary(query: { clientRef: string; fromDate: string; toDate: string }): Observable<TransactionSummary> {
+    return this.http.get<TransactionSummary>(`${VEHICLE_SERVICES}/reports/summary`, { params: toParams(query) });
   }
 
   vehicleService(id: string): Observable<VehicleServiceTransaction> {
@@ -190,9 +207,82 @@ export class SwizimaApi {
   updateUserStatus(userId: string, activationStatus: ActivationStatus): Observable<SystemUser> {
     return this.http.patch<SystemUser>(`/api/v1/users/${encodeURIComponent(userId)}/activation-status`, { activationStatus });
   }
+
+  // ---------- Billing plans (configurationsapi) ----------
+
+  billingPlans(query: PageQuery & { status?: BillingPlanStatus | '' } = {}): Observable<PageResponse<BillingPlan>> {
+    return this.http.get<PageResponse<BillingPlan>>(BILLING_PLANS, { params: toParams(query) });
+  }
+
+  /** 404 when the client has no plan yet. */
+  billingPlanByClient(clientRef: string): Observable<BillingPlan> {
+    return this.http.get<BillingPlan>(`${BILLING_PLANS}/client/${encodeURIComponent(clientRef)}`);
+  }
+
+  createBillingPlan(request: BillingPlanRequest): Observable<BillingPlan> {
+    return this.http.post<BillingPlan>(BILLING_PLANS, request);
+  }
+
+  updateBillingPlan(id: string, request: BillingPlanRequest): Observable<BillingPlan> {
+    return this.http.put<BillingPlan>(`${BILLING_PLANS}/${encodeURIComponent(id)}`, request);
+  }
+
+  updateBillingPlanStatus(id: string, status: BillingPlanStatus): Observable<BillingPlan> {
+    return this.http.patch<BillingPlan>(`${BILLING_PLANS}/${encodeURIComponent(id)}/status`, { status });
+  }
+
+  deleteBillingPlan(id: string): Observable<void> {
+    return this.http.delete<void>(`${BILLING_PLANS}/${encodeURIComponent(id)}`);
+  }
+
+  // ---------- Billing wallets, credit loads & activity (paymentsapi) ----------
+
+  billingWallets(query: PageQuery & { maxBalance?: number | '' } = {}): Observable<PageResponse<BillingWallet>> {
+    return this.http.get<PageResponse<BillingWallet>>(`${BILLING}/wallets`, { params: toParams(query) });
+  }
+
+  /** Balance plus the client's rate / low-balance flag. 402 BILLING_NOT_CONFIGURED without a plan. */
+  billingWallet(clientRef: string): Observable<BillingWallet> {
+    return this.http.get<BillingWallet>(`${BILLING}/wallets/client/${encodeURIComponent(clientRef)}`);
+  }
+
+  loadCredit(clientRef: string, request: CreditLoadRequest): Observable<CreditLoad> {
+    return this.http.post<CreditLoad>(`${BILLING}/wallets/client/${encodeURIComponent(clientRef)}/credits`, request);
+  }
+
+  creditLoads(
+    query: PageQuery & {
+      clientRef?: string;
+      status?: CreditLoadStatus | '';
+      paymentMethod?: CreditPaymentMethod | '';
+      from?: string;
+      to?: string;
+      search?: string;
+    } = {},
+  ): Observable<PageResponse<CreditLoad>> {
+    return this.http.get<PageResponse<CreditLoad>>(`${BILLING}/credit-loads`, { params: toParams(query) });
+  }
+
+  reverseCreditLoad(id: string, reason: string, reversedBy?: string): Observable<CreditLoad> {
+    return this.http.post<CreditLoad>(`${BILLING}/credit-loads/${encodeURIComponent(id)}/reversal`, { reason, reversedBy });
+  }
+
+  billingActivities(
+    query: PageQuery & {
+      clientRef?: string;
+      type?: BillingActivityType | '';
+      transactionRef?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ): Observable<PageResponse<BillingActivity>> {
+    return this.http.get<PageResponse<BillingActivity>>(`${BILLING}/activities`, { params: toParams(query) });
+  }
 }
 
 const CLIENT_USERS = '/api/v1/users/client-users';
+const BILLING_PLANS = '/api/v1/configurations/billing/plans';
+const BILLING = '/api/v1/payments/billing';
 const VEHICLE_SERVICES = '/api/v1/client-transactions/vehicle-services';
 
 /** /api/v1/clients/{clientId}/staff[/{staffId}] */

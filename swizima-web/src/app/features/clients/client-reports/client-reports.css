@@ -1,0 +1,87 @@
+:host { display: grid; gap: 1rem; }
+
+/* Status colours shared by bars, dots and chips. */
+.seg-PAID, .seg-CLEARED { --c: #16a34a; }
+.seg-PARTIALLY_PAID, .seg-READY { --c: #f59e0b; }
+.seg-PENDING { --c: #6366f1; }
+.seg-CANCELLED { --c: #dc2626; }
+.seg-IN_SERVICE { --c: #0ea5e9; }
+.seg-RELEASED { --c: #64748b; }
+.seg-soft-PAID, .seg-soft-CLEARED { --c: #16a34a; }
+.seg-soft-PARTIALLY_PAID, .seg-soft-READY { --c: #d97706; }
+.seg-soft-PENDING { --c: #6366f1; }
+.seg-soft-CANCELLED { --c: #dc2626; }
+.seg-soft-IN_SERVICE { --c: #0284c7; }
+.seg-soft-RELEASED { --c: #64748b; }
+
+.report-head { padding: 1rem 1.25rem; display: grid; gap: 0.5rem; }
+.report-head .toolbar { padding: 0; flex-wrap: wrap; }
+.date-range { display: inline-flex; align-items: center; gap: 0.5rem; }
+.date-range .input { width: auto; }
+.range-sep, .period-label { color: var(--text-muted); font-size: 0.875rem; }
+.period-label { margin: 0; }
+
+.stat.warn .value { color: #d97706; }
+
+.breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.breakdown { padding: 1.1rem 1.25rem; display: grid; gap: 0.85rem; align-content: start; }
+h2, .section-title {
+  margin: 0; font-size: 0.95rem; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.section-title app-icon { width: 17px; height: 17px; color: var(--text-muted); }
+
+.bar {
+  display: flex; height: 12px; border-radius: 999px; overflow: hidden;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+}
+.seg { background: var(--c); transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.legend button {
+  width: 100%; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 0.65rem;
+  padding: 0.45rem 0.6rem; border-radius: 10px; border: 1px solid transparent;
+  background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.legend button:hover { background: var(--bg-elevated); }
+.legend button.active { border-color: var(--c, var(--brand-500)); background: color-mix(in srgb, var(--brand-500) 8%, transparent); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.legend-label { font-weight: 600; font-size: 0.875rem; }
+.legend-count { font-weight: 750; font-variant-numeric: tabular-nums; }
+.legend-amount { color: var(--text-muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; min-width: 7rem; text-align: right; }
+
+.trend { padding: 1.1rem 1.25rem; display: grid; gap: 0.85rem; }
+.trend-bars { display: flex; align-items: flex-end; gap: 0.4rem; height: 160px; overflow-x: auto; padding-bottom: 0.25rem; }
+.trend-col { flex: 1 0 28px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+.trend-bar {
+  width: 100%; max-width: 36px; min-height: 3px; border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, var(--brand-500), color-mix(in srgb, var(--brand-500) 55%, #22d3ee));
+  transition: height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.15s;
+}
+.trend-col:hover .trend-bar { filter: brightness(1.15); }
+.trend-count { font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trend-date { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+
+.staff-table tr.clickable { cursor: pointer; transition: background 0.15s; }
+.staff-table tr.clickable:hover { background: var(--bg-elevated); }
+.staff-table tr.selected { background: color-mix(in srgb, var(--brand-500) 10%, transparent); box-shadow: inset 3px 0 0 var(--brand-500); }
+.avatar-sm {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font-weight: 700; font-size: 0.8125rem; color: #fff;
+  background: linear-gradient(135deg, var(--brand-600, #4338ca), var(--brand-500));
+}
+.share-line { display: block; width: 90px; height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.share-line span { display: block; height: 100%; background: var(--brand-500); }
+
+.mini-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.mini-chip {
+  font-size: 0.72rem; font-weight: 650; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap;
+  color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+
+.filter-chip {
+  font-size: 0.8125rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-500) 12%, transparent); color: var(--brand-500);
+}
+.due { color: #d97706; font-weight: 650; }

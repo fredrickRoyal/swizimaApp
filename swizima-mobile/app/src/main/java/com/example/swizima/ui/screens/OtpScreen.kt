@@ -56,6 +56,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.swizima.data.AuthRepository
+import com.example.swizima.data.UserProfile
 import com.example.swizima.ui.theme.SwizimaTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,7 +66,7 @@ import kotlinx.coroutines.launch
 fun OtpScreen(
     contactInput: String,
     onBackToLogin: () -> Unit,
-    onOtpValidated: () -> Unit
+    onOtpValidated: (UserProfile) -> Unit
 ) {
     val otpLength = 6
     var otpValue by remember { mutableStateOf("") }
@@ -101,13 +103,12 @@ fun OtpScreen(
         errorMessage = null
 
         scope.launch {
-            delay(1200L) // Simulate network validation delay
+            val result = AuthRepository.verifyOtpAndFetchProfile(contactInput, otpValue)
             isLoading = false
-            // Accept any 6-digit code or demo default 123456
-            if (otpValue.length == otpLength) {
-                onOtpValidated()
+            if (result.success && result.profile != null) {
+                onOtpValidated(result.profile!!)
             } else {
-                errorMessage = "Invalid OTP code. Try 123456"
+                errorMessage = result.message.ifBlank { "Invalid OTP code. Try 123456" }
             }
         }
     }
@@ -141,7 +142,7 @@ fun OtpScreen(
                     )
                 }
                 Text(
-                    text = "Verification",
+                    text = "Verification via API Gateway",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground

@@ -104,3 +104,12 @@ textarea.input { resize: vertical; min-height: 4.5rem; font: inherit; }
 }
 .alert .btn-clear { margin-left: auto; }
 @media (max-width: 640px) { .pay-summary { grid-template-columns: 1fr 1fr; } }
+
+/* Billing blocked the save (insufficient credit etc.) */
+.billing-block { align-items: flex-start; gap: 0.75rem; }
+.billing-block > app-icon { margin-top: 0.15rem; flex: none; }
+.billing-block .btn { margin-left: auto; flex: none; align-self: center; }
+.billing-block-body { display: grid; gap: 0.2rem; min-width: 0; }
+.billing-block-body span { color: var(--text); opacity: 0.85; font-size: 0.875rem; }
+.billing-block-figures b { font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .billing-block { flex-wrap: wrap; } .billing-block .btn { margin-left: 0; } }

@@ -1,0 +1,222 @@
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="client-billing-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-billing-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+@let ws = wallet.state();
+@if (ws.error) {
+  <section class="card">
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load billing" [message]="ws.error">
+      <button type="button" class="btn" id="client-billing-retry" (click)="wallet.reload()">Try again</button>
+    </app-empty-state>
+  </section>
+} @else if (notConfigured()) {
+  <section class="card page-enter">
+    <app-empty-state icon="payments" heading="Billing isn't set up for this client"
+                     message="Create a billing plan with the percentage charged per transaction. Until then this client can't record transactions.">
+      <a class="btn btn-primary" routerLink="/configurations" id="client-billing-setup"><app-icon name="settings" /> Set up billing plan</a>
+    </app-empty-state>
+  </section>
+} @else {
+  @let w = walletData();
+  <div class="stats page-enter">
+    <div class="card stat hero" [class.low]="w?.lowBalance" id="client-billing-balance">
+      <span class="label"><app-icon name="payments" /> Credit balance</span>
+      @if (w) {
+        <span class="value">{{ money(w.balance, w.currency) }}</span>
+        <span class="hint">
+          @if (w.lowBalance) { Running low — top up soon } @else if (w.lowBalanceThreshold != null) { Alert at {{ money(w.lowBalanceThreshold, w.currency) }} } @else { Prepaid credit }
+        </span>
+      } @else {
+        <span class="skeleton" style="width: 160px; height: 30px"></span>
+      }
+    </div>
+    <div class="card stat">
+      <span class="label"><app-icon name="receipt" /> Rate per transaction</span>
+      <span class="value">{{ w ? percent(w.percentageRate) : '—' }}</span>
+      <span class="hint">
+        @if (w?.planStatus) { <app-status-badge [status]="w!.planStatus!" /> }
+      </span>
+    </div>
+    <div class="card stat">
+      <span class="label"><app-icon name="plus" /> Total loaded</span>
+      <span class="value">{{ w ? money(w.totalCredited, w.currency) : '—' }}</span>
+      <span class="hint">All-time top-ups</span>
+    </div>
+    <div class="card stat">
+      <span class="label"><app-icon name="trendingUp" /> Total charged</span>
+      <span class="value">{{ w ? money(w.totalCharged, w.currency) : '—' }}</span>
+      <span class="hint">Net of refunds</span>
+    </div>
+  </div>
+
+  @if (w?.planStatus === 'SUSPENDED') {
+    <div class="alert alert-warning page-enter" id="client-billing-suspended">
+      <app-icon name="alert" /><span>Billing is suspended — new transactions are blocked until it is reactivated in
+      <a routerLink="/configurations" id="client-billing-config-link">Configurations</a>.</span>
+    </div>
+  } @else if (w && w.balance <= 0) {
+    <div class="alert alert-error page-enter" id="client-billing-empty">
+      <app-icon name="alert" /><span>No credit left — new transactions will be blocked until credit is loaded.</span>
+    </div>
+  }
+
+  <section class="card list-card page-enter">
+    <div class="toolbar">
+      <div class="segments" role="tablist" aria-label="Billing history">
+        <button type="button" role="tab" id="client-billing-tab-activity" [class.active]="view() === 'activity'"
+                [attr.aria-selected]="view() === 'activity'" (click)="view.set('activity')"><app-icon name="transfer" /> Activity</button>
+        <button type="button" role="tab" id="client-billing-tab-loads" [class.active]="view() === 'loads'"
+                [attr.aria-selected]="view() === 'loads'" (click)="view.set('loads')"><app-icon name="plus" /> Credit loads</button>
+      </div>
+      @if (view() === 'activity') {
+        <label class="visually-hidden" for="client-billing-type">Activity type</label>
+        <select class="select" id="client-billing-type" [value]="activityType()" (change)="activityType.set($any($event.target).value); activityPage.set(0)">
+          <option value="">All activity</option>
+          @for (t of activityTypes; track t) { <option [value]="t">{{ activityMeta[t].label }}</option> }
+        </select>
+      }
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-icon" id="client-billing-refresh" (click)="refresh()" aria-label="Refresh" title="Refresh">
+        <app-icon name="refresh" />
+      </button>
+      <button type="button" class="btn btn-primary" id="client-billing-load" (click)="openLoad()">
+        <app-icon name="plus" /> Load credit
+      </button>
+    </div>
+
+    @if (view() === 'activity') {
+      @let acts = activity.state();
+      @if (acts.error) {
+        <app-empty-state icon="alert" tone="error" heading="Couldn't load activity" [message]="acts.error">
+          <button type="button" class="btn" id="client-billing-activity-retry" (click)="activity.reload()">Try again</button>
+        </app-empty-state>
+      } @else if (acts.loading && !acts.data) {
+        <div class="skeleton-rows" aria-busy="true" aria-label="Loading activity">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+          }
+        </div>
+      } @else if (acts.data && acts.data.content.length === 0) {
+        <app-empty-state icon="transfer" heading="No billing activity yet" message="Load credit to get started; each transaction's charge will appear here." />
+      } @else if (acts.data) {
+        <div class="table-wrap" [style.opacity]="acts.loading ? 0.6 : 1">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Activity</th>
+                <th scope="col">Details</th>
+                <th scope="col" class="ta-right">Amount</th>
+                <th scope="col" class="ta-right">Balance after</th>
+                <th scope="col">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of acts.data.content; track a.id) {
+                @let meta = activityMeta[a.activityType];
+                <tr>
+                  <td data-label="Activity">
+                    <div class="client-cell">
+                      <span class="activity-icon" [class.credit]="meta.tone === 'credit'" [class.debit]="meta.tone === 'debit'"><app-icon [name]="meta.icon" /></span>
+                      <span class="cell-primary">{{ meta.label }}</span>
+                    </div>
+                  </td>
+                  <td data-label="Details">
+                    <div class="cell-stack">
+                      <span>{{ a.description ?? '—' }}</span>
+                      @if (a.transactionAmount != null) {
+                        <span class="cell-secondary">{{ percent(a.percentageApplied) }} of {{ money(a.transactionAmount, a.currency) }}</span>
+                      } @else if (a.paymentReference) {
+                        <span class="cell-secondary cell-mono">{{ a.paymentReference }}</span>
+                      }
+                    </div>
+                  </td>
+                  <td data-label="Amount" class="ta-right">
+                    <span class="amount" [class.credit]="a.amount > 0" [class.debit]="a.amount < 0">{{ a.amount > 0 ? '+' : '' }}{{ money(a.amount, a.currency) }}</span>
+                  </td>
+                  <td data-label="Balance after" class="ta-right num">{{ money(a.balanceAfter, a.currency) }}</td>
+                  <td data-label="Date" class="cell-secondary">{{ a.createdAt | date: 'medium' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <app-pagination [page]="activityPage()" [size]="pageSize" [total]="acts.data.totalElements" (pageChange)="activityPage.set($event)" />
+      }
+    } @else {
+      @let ls = loads.state();
+      @if (ls.error) {
+        <app-empty-state icon="alert" tone="error" heading="Couldn't load credit loads" [message]="ls.error">
+          <button type="button" class="btn" id="client-billing-loads-retry" (click)="loads.reload()">Try again</button>
+        </app-empty-state>
+      } @else if (ls.loading && !ls.data) {
+        <div class="skeleton-rows" aria-busy="true" aria-label="Loading credit loads">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+          }
+        </div>
+      } @else if (ls.data && ls.data.content.length === 0) {
+        <app-empty-state icon="inbox" heading="No credit loads yet" message="Top-ups for this client will be listed here." />
+      } @else if (ls.data) {
+        <div class="table-wrap" [style.opacity]="ls.loading ? 0.6 : 1">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col" class="ta-right">Amount</th>
+                <th scope="col">Method / reference</th>
+                <th scope="col">Paid by</th>
+                <th scope="col">Received by</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (l of ls.data.content; track l.id) {
+                <tr [class.row-busy]="busyId() === l.id">
+                  <td data-label="Date" class="cell-secondary">{{ l.loadedAt | date: 'medium' }}</td>
+                  <td data-label="Amount" class="ta-right"><span class="amount" [class.credit]="l.status === 'COMPLETED'">{{ money(l.amount, l.currency) }}</span></td>
+                  <td data-label="Method">
+                    <div class="cell-stack">
+                      <span>{{ methodLabel(l.paymentMethod) }}</span>
+                      @if (l.paymentReference) { <span class="cell-secondary cell-mono">{{ l.paymentReference }}</span> }
+                    </div>
+                  </td>
+                  <td data-label="Paid by">
+                    <div class="cell-stack">
+                      <span>{{ l.payerName ?? '—' }}</span>
+                      @if (l.payerPhone) { <span class="cell-secondary">{{ l.payerPhone }}</span> }
+                    </div>
+                  </td>
+                  <td data-label="Received by" class="cell-secondary">{{ l.receivedBy ?? '—' }}</td>
+                  <td data-label="Status">
+                    <span [class]="'badge badge-' + (l.status === 'COMPLETED' ? 'success' : 'neutral')" [title]="l.reversalReason ?? ''">
+                      {{ l.status === 'COMPLETED' ? 'Completed' : 'Reversed' }}
+                    </span>
+                  </td>
+                  <td data-label="Actions" class="col-actions">
+                    @if (l.status === 'COMPLETED') {
+                      <button type="button" class="btn btn-icon btn-ghost" [id]="'client-load-reverse-' + l.id" (click)="reverse(l)"
+                              [disabled]="busyId() === l.id" aria-label="Reverse credit load" title="Reverse">
+                        <app-icon name="refresh" />
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <app-pagination [page]="loadsPage()" [size]="pageSize" [total]="ls.data.totalElements" (pageChange)="loadsPage.set($event)" />
+      }
+    }
+  </section>
+}
+
+<app-load-credit-dialog (loaded)="onLoaded($event)" />

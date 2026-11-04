@@ -2,12 +2,14 @@ package com.swizima.clienttransactionsapi.controller;
 
 import com.swizima.clienttransactionsapi.dto.PageResponse;
 import com.swizima.clienttransactionsapi.dto.TransactionPaymentRequest;
+import com.swizima.clienttransactionsapi.dto.TransactionSummaryResponse;
 import com.swizima.clienttransactionsapi.dto.TransactionPaymentResponse;
 import com.swizima.clienttransactionsapi.dto.VehicleActionRequest;
 import com.swizima.clienttransactionsapi.dto.VehicleServiceTransactionRequest;
 import com.swizima.clienttransactionsapi.dto.VehicleServiceTransactionResponse;
 import com.swizima.clienttransactionsapi.entity.enums.PaymentStatus;
 import com.swizima.clienttransactionsapi.entity.enums.VehicleClearanceStatus;
+import com.swizima.clienttransactionsapi.service.TransactionReportService;
 import com.swizima.clienttransactionsapi.service.VehicleServiceTransactionService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,6 +33,7 @@ import java.util.UUID;
 public class VehicleServiceTransactionController {
 
     private final VehicleServiceTransactionService service;
+    private final TransactionReportService reportService;
 
     @PostMapping
     public ResponseEntity<VehicleServiceTransactionResponse> create(
@@ -47,9 +50,22 @@ public class VehicleServiceTransactionController {
             @RequestParam(required = false) VehicleClearanceStatus clearanceStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) String assignedTo,
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "entryDateTime", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(service.list(clientRef, paymentStatus, clearanceStatus, fromDate, toDate, search, pageable));
+        return ResponseEntity.ok(service.list(clientRef, paymentStatus, clearanceStatus, fromDate, toDate, assignedTo, search, pageable));
+    }
+
+    /**
+     * Transaction summary for a client over a day or period (defaults to today): totals,
+     * payment / clearance status breakdowns, work done per assigned staff member and a daily trend.
+     */
+    @GetMapping("/reports/summary")
+    public ResponseEntity<TransactionSummaryResponse> summary(
+            @RequestParam UUID clientRef,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        return ResponseEntity.ok(reportService.summary(clientRef, fromDate, toDate));
     }
 
     @GetMapping("/{id}")
