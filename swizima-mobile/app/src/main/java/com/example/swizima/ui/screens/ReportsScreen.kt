@@ -54,7 +54,7 @@ enum class DateRangeOption(val label: String) {
     TODAY("Today"),
     THIS_WEEK("This Week"),
     THIS_MONTH("This Month"),
-    CUSTOM("Custom Range")
+    CUSTOM("Customize")
 }
 
 fun showNativeDatePicker(
@@ -121,6 +121,21 @@ fun ReportsScreen() {
 
     val formatter = java.text.NumberFormat.getNumberInstance(Locale.US)
 
+    val activeRangeSubtitle = when (selectedRange) {
+        DateRangeOption.TODAY -> "Showing data for Today ($todayStr)"
+        DateRangeOption.THIS_WEEK -> "Showing data for This Week"
+        DateRangeOption.THIS_MONTH -> "Showing data for This Month"
+        DateRangeOption.CUSTOM -> if (customFromDate.isNotBlank() && customToDate.isNotBlank()) {
+            "Showing data from $customFromDate to $customToDate"
+        } else if (customFromDate.isNotBlank()) {
+            "Showing data from $customFromDate onwards"
+        } else if (customToDate.isNotBlank()) {
+            "Showing data up to $customToDate"
+        } else {
+            "Showing data for Custom Date Range"
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -136,34 +151,43 @@ fun ReportsScreen() {
         )
 
         // Date Range Filter Chips
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            DateRangeOption.entries.forEach { option ->
-                FilterChip(
-                    selected = selectedRange == option,
-                    onClick = {
-                        selectedRange = option
-                        if (option == DateRangeOption.CUSTOM) {
-                            showCustomDateDialog = true
-                        }
-                    },
-                    label = {
-                        Text(
-                            text = if (option == DateRangeOption.CUSTOM && customFromDate.isNotBlank() && customToDate.isNotBlank()) {
-                                "$customFromDate to $customToDate"
-                            } else {
-                                option.label
-                            },
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DateRangeOption.entries.forEach { option ->
+                    FilterChip(
+                        selected = selectedRange == option,
+                        onClick = {
+                            selectedRange = option
+                            if (option == DateRangeOption.CUSTOM) {
+                                showCustomDateDialog = true
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = if (option == DateRangeOption.CUSTOM && customFromDate.isNotBlank() && customToDate.isNotBlank()) {
+                                    "$customFromDate to $customToDate"
+                                } else {
+                                    option.label
+                                },
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
             }
+
+            Text(
+                text = activeRangeSubtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 2.dp)
+            )
         }
 
         // KPI Cards Row 1
