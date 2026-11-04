@@ -87,7 +87,8 @@ fun ServiceVehiclesListScreen(
     serviceType: String,
     onBackToDashboard: () -> Unit,
     onNavigateToAddVehicleForm: (selectedService: String) -> Unit,
-    onNavigateToEditForm: (serviceTitle: String, recordId: String) -> Unit = { _, _ -> }
+    onNavigateToEditForm: (serviceTitle: String, recordId: String) -> Unit = { _, _ -> },
+    isGlobalList: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedRecordForDetail by remember { mutableStateOf<VehicleRecord?>(null) }
@@ -98,8 +99,12 @@ fun ServiceVehiclesListScreen(
         VehicleRecordRepository.fetchRecordsFromApi()
     }
 
-    val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType) {
-        VehicleRecordRepository.getRecordsForService(serviceType)
+    val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType, isGlobalList) {
+        if (isGlobalList) {
+            VehicleRecordRepository.records
+        } else {
+            VehicleRecordRepository.getRecordsForService(serviceType)
+        }
     }
 
     val filteredRecords = remember(searchQuery, allRecordsForService) {
@@ -121,7 +126,7 @@ fun ServiceVehiclesListScreen(
                 title = {
                     Column {
                         Text(
-                            text = "$serviceType Vehicles",
+                            text = if (isGlobalList) "All Transactions" else "$serviceType Vehicles",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
@@ -132,11 +137,13 @@ fun ServiceVehiclesListScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackToDashboard) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Dashboard"
-                        )
+                    if (!isGlobalList) {
+                        IconButton(onClick = onBackToDashboard) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to Dashboard"
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

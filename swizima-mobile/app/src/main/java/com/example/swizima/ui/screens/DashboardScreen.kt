@@ -297,6 +297,62 @@ fun DashboardScreen(
                 }
             }
 
+            // --- Metrics Dashboard ---
+            val records = com.example.swizima.data.VehicleRecordRepository.records
+            val todayDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val todaysRecords = records.filter { it.date == todayDate }
+            val totalTxCount = todaysRecords.size
+            val totalCharged = todaysRecords.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
+            val totalCollected = todaysRecords.filter { it.paymentStatus.equals("PAID", ignoreCase = true) }.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
+            val totalOutstanding = totalCharged - totalCollected
+
+            val formatter = java.text.NumberFormat.getNumberInstance(java.util.Locale.US)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Total Transactions
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Today's Txns", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(totalTxCount.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+                // Collected
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Collected (UGX)", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(formatter.format(totalCollected), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
+                    }
+                }
+                // Outstanding
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Outstanding", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE65100))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(formatter.format(totalOutstanding), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Search bar & Section header
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 OutlinedTextField(
