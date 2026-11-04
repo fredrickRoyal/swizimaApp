@@ -106,8 +106,8 @@ fun DashboardScreen(
         if (clients.isNotEmpty()) {
             val client = clients.first()
             orgName = client.clientName
-            orgAddress = "Plot 45, Industrial Area, Kampala"
-            orgContact = "Code: ${client.clientCode}"
+            orgAddress = client.address.ifBlank { "Kampala, Uganda" }
+            orgContact = "Code: ${client.clientCode} ${if (client.phone.isNotBlank()) "| Phone: ${client.phone}" else ""}"
         }
     }
 
