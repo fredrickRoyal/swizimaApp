@@ -41,7 +41,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -292,6 +295,12 @@ fun ServiceVehiclesListScreen(
                 var tempFrom by remember { mutableStateOf(fromDateFilter) }
                 var tempTo by remember { mutableStateOf(toDateFilter) }
                 var tempStaff by remember { mutableStateOf(staffFilter) }
+                var staffDropdownExpanded by remember { mutableStateOf(false) }
+                var clientStaffList by remember { mutableStateOf<List<com.example.swizima.data.ApiClientStaff>>(emptyList()) }
+
+                LaunchedEffect(Unit) {
+                    clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(com.example.swizima.data.ClientServiceRepository.activeClientId)
+                }
 
                 AlertDialog(
                     onDismissRequest = { showAdvancedSearchDialog = false },
@@ -303,32 +312,77 @@ fun ServiceVehiclesListScreen(
                             OutlinedTextField(
                                 value = tempFrom,
                                 onValueChange = { tempFrom = it },
+                                readOnly = true,
                                 label = { Text("Start Date (yyyy-MM-dd)") },
-                                placeholder = { Text("e.g. 2026-11-01") },
-                                singleLine = true,
+                                placeholder = { Text("Tap to select date") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showNativeDatePicker(ctx, tempFrom) { tempFrom = it } }) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date")
+                                    }
+                                },
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showNativeDatePicker(ctx, tempFrom) { tempFrom = it } }
                             )
 
                             OutlinedTextField(
                                 value = tempTo,
                                 onValueChange = { tempTo = it },
+                                readOnly = true,
                                 label = { Text("End Date (yyyy-MM-dd)") },
-                                placeholder = { Text("e.g. 2026-11-30") },
-                                singleLine = true,
+                                placeholder = { Text("Tap to select date") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showNativeDatePicker(ctx, tempTo) { tempTo = it } }) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date")
+                                    }
+                                },
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showNativeDatePicker(ctx, tempTo) { tempTo = it } }
                             )
 
-                            OutlinedTextField(
-                                value = tempStaff,
-                                onValueChange = { tempStaff = it },
-                                label = { Text("Assigned Staff Name") },
-                                placeholder = { Text("e.g. JOSEPH AGABA") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            ExposedDropdownMenuBox(
+                                expanded = staffDropdownExpanded,
+                                onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = tempStaff,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Assigned Staff Member") },
+                                    placeholder = { Text("All Staff Members") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = staffDropdownExpanded,
+                                    onDismissRequest = { staffDropdownExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("All Staff Members", fontWeight = FontWeight.Bold) },
+                                        onClick = {
+                                            tempStaff = ""
+                                            staffDropdownExpanded = false
+                                        }
+                                    )
+                                    clientStaffList.forEach { staff ->
+                                        DropdownMenuItem(
+                                            text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },
+                                            onClick = {
+                                                tempStaff = staff.fullName.uppercase()
+                                                staffDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     },
                     confirmButton = {
