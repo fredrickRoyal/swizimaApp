@@ -216,7 +216,8 @@ fun ServiceVehiclesListScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search by Number Plate, Client Name or Phone...") },
+                    label = { Text("Search") },
+                    placeholder = { Text("Search") },
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     },

@@ -96,7 +96,6 @@ fun DashboardScreen(
     onLogout: () -> Unit,
     onNavigateToVehiclesList: (serviceType: String) -> Unit = {}
 ) {
-    var searchQuery by remember { mutableStateOf("") }
     var orgName by remember { mutableStateOf("Swizima Motors & Parking Ltd") }
     var orgAddress by remember { mutableStateOf("Plot 12, Lugogo Bypass, Kampala") }
     var orgContact by remember { mutableStateOf("Contact: +256 414 123 456") }
@@ -154,18 +153,6 @@ fun DashboardScreen(
                 activeTasksCount = 0
             )
         )
-    }
-
-    val filteredTiles = remember(searchQuery) {
-        if (searchQuery.isBlank()) {
-            taskTiles
-        } else {
-            taskTiles.filter {
-                it.title.contains(searchQuery, ignoreCase = true) ||
-                        it.description.contains(searchQuery, ignoreCase = true) ||
-                        it.tag.contains(searchQuery, ignoreCase = true)
-            }
-        }
     }
 
     Scaffold(
@@ -353,39 +340,7 @@ fun DashboardScreen(
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Search bar & Section header
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search services & task tiles...") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = "Services & Task Categories",
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Task Tiles Grid
+            // Task Tiles Grid (Sleek Redesigned Cards)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -393,7 +348,7 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(filteredTiles, key = { it.id }) { tile ->
+                items(taskTiles, key = { it.id }) { tile ->
                     TaskTileCard(
                         tile = tile,
                         onClick = {
@@ -415,9 +370,9 @@ fun TaskTileCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .height(155.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -429,7 +384,7 @@ fun TaskTileCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Icon & Tag Row
+            // Top Row: Icon Badge & Category Tag
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -438,7 +393,7 @@ fun TaskTileCard(
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(tile.containerColor),
                     contentAlignment = Alignment.Center
                 ) {
@@ -451,14 +406,14 @@ fun TaskTileCard(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = tile.containerColor
                 ) {
                     Text(
                         text = tile.tag,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
+                            fontSize = 11.sp
                         ),
                         color = tile.iconColor,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -466,7 +421,7 @@ fun TaskTileCard(
                 }
             }
 
-            // Title & Description
+            // Bottom Section: Title & Description
             Column {
                 Text(
                     text = tile.title,
@@ -483,39 +438,10 @@ fun TaskTileCard(
 
                 Text(
                     text = tile.description,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Footer Action Hint
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (tile.activeTasksCount > 0) {
-                    Text(
-                        text = "${tile.activeTasksCount} active tasks",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                } else {
-                    Text(
-                        text = "Explore task",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = "View Task",
-                    tint = tile.iconColor,
-                    modifier = Modifier.size(16.dp)
                 )
             }
         }
