@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -91,6 +92,11 @@ fun ServiceVehiclesListScreen(
     isGlobalList: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var fromDateFilter by remember { mutableStateOf("") }
+    var toDateFilter by remember { mutableStateOf("") }
+    var staffFilter by remember { mutableStateOf("") }
+    var showAdvancedSearchDialog by remember { mutableStateOf(false) }
+
     var selectedRecordForDetail by remember { mutableStateOf<VehicleRecord?>(null) }
     var showReceiptPreview by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
@@ -107,18 +113,23 @@ fun ServiceVehiclesListScreen(
         }
     }
 
-    val filteredRecords = remember(searchQuery, allRecordsForService) {
-        if (searchQuery.isBlank()) {
-            allRecordsForService
-        } else {
-            allRecordsForService.filter { record ->
-                record.numberPlate.contains(searchQuery, ignoreCase = true) ||
-                        record.clientName.contains(searchQuery, ignoreCase = true) ||
-                        record.clientPhoneNumbers.any { it.contains(searchQuery) } ||
-                        record.assignedToPerson.contains(searchQuery, ignoreCase = true)
-            }
+    val filteredRecords = remember(searchQuery, fromDateFilter, toDateFilter, staffFilter, allRecordsForService) {
+        allRecordsForService.filter { record ->
+            val matchesQuery = searchQuery.isBlank() ||
+                    record.numberPlate.contains(searchQuery, ignoreCase = true) ||
+                    record.clientName.contains(searchQuery, ignoreCase = true) ||
+                    record.clientPhoneNumbers.any { it.contains(searchQuery) } ||
+                    record.assignedToPerson.contains(searchQuery, ignoreCase = true)
+
+            val matchesFrom = fromDateFilter.isBlank() || record.date >= fromDateFilter
+            val matchesTo = toDateFilter.isBlank() || record.date <= toDateFilter
+            val matchesStaff = staffFilter.isBlank() || record.assignedToPerson.contains(staffFilter, ignoreCase = true)
+
+            matchesQuery && matchesFrom && matchesTo && matchesStaff
         }
     }
+
+    val hasActiveFilters = fromDateFilter.isNotBlank() || toDateFilter.isNotBlank() || staffFilter.isNotBlank()
 
     Scaffold(
         topBar = {
@@ -206,28 +217,148 @@ fun ServiceVehiclesListScreen(
                 }
             }
 
-            // Search Bar & Stats Header
+            // Search Bar & Advanced Filter Icon
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Search") },
-                    placeholder = { Text("Search") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search") },
+                        placeholder = { Text("Search") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
                     )
+
+                    IconButton(
+                        onClick = { showAdvancedSearchDialog = true },
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(
+                                color = if (hasActiveFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Advanced Filters",
+                            tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (hasActiveFilters) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Filters active: ${listOfNotNull(fromDateFilter.ifBlank { null }, toDateFilter.ifBlank { null }, staffFilter.ifBlank { null }).joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Reset",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.clickable {
+                                fromDateFilter = ""
+                                toDateFilter = ""
+                                staffFilter = ""
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (showAdvancedSearchDialog) {
+                var tempFrom by remember { mutableStateOf(fromDateFilter) }
+                var tempTo by remember { mutableStateOf(toDateFilter) }
+                var tempStaff by remember { mutableStateOf(staffFilter) }
+
+                AlertDialog(
+                    onDismissRequest = { showAdvancedSearchDialog = false },
+                    title = { Text("Advanced Search & Filters", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Filter transactions by date range & staff member:", style = MaterialTheme.typography.bodyMedium)
+
+                            OutlinedTextField(
+                                value = tempFrom,
+                                onValueChange = { tempFrom = it },
+                                label = { Text("Start Date (yyyy-MM-dd)") },
+                                placeholder = { Text("e.g. 2026-11-01") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = tempTo,
+                                onValueChange = { tempTo = it },
+                                label = { Text("End Date (yyyy-MM-dd)") },
+                                placeholder = { Text("e.g. 2026-11-30") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = tempStaff,
+                                onValueChange = { tempStaff = it },
+                                label = { Text("Assigned Staff Name") },
+                                placeholder = { Text("e.g. JOSEPH AGABA") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                fromDateFilter = tempFrom.trim()
+                                toDateFilter = tempTo.trim()
+                                staffFilter = tempStaff.trim()
+                                showAdvancedSearchDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Apply Filters")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                tempFrom = ""
+                                tempTo = ""
+                                tempStaff = ""
+                                fromDateFilter = ""
+                                toDateFilter = ""
+                                staffFilter = ""
+                                showAdvancedSearchDialog = false
+                            }
+                        ) {
+                            Text("Clear All")
+                        }
+                    }
                 )
             }
 

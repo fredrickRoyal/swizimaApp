@@ -18,13 +18,17 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,12 +50,16 @@ enum class DateRangeOption(val label: String) {
     ALL_TIME("All Time"),
     TODAY("Today"),
     THIS_WEEK("This Week"),
-    THIS_MONTH("This Month")
+    THIS_MONTH("This Month"),
+    CUSTOM("Custom Range")
 }
 
 @Composable
 fun ReportsScreen() {
     var selectedRange by remember { mutableStateOf(DateRangeOption.ALL_TIME) }
+    var customFromDate by remember { mutableStateOf("") }
+    var customToDate by remember { mutableStateOf("") }
+    var showCustomDateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         VehicleRecordRepository.fetchRecordsFromApi()
@@ -59,13 +67,18 @@ fun ReportsScreen() {
 
     val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
-    val filteredRecords = remember(VehicleRecordRepository.records.size, selectedRange) {
+    val filteredRecords = remember(VehicleRecordRepository.records.size, selectedRange, customFromDate, customToDate) {
         val rawList = VehicleRecordRepository.records
         when (selectedRange) {
             DateRangeOption.ALL_TIME -> rawList
             DateRangeOption.TODAY -> rawList.filter { it.date == todayStr }
             DateRangeOption.THIS_WEEK -> rawList.filter { isDateInCurrentWeek(it.date) }
             DateRangeOption.THIS_MONTH -> rawList.filter { isDateInCurrentMonth(it.date) }
+            DateRangeOption.CUSTOM -> rawList.filter { record ->
+                val matchesFrom = customFromDate.isBlank() || record.date >= customFromDate
+                val matchesTo = customToDate.isBlank() || record.date <= customToDate
+                matchesFrom && matchesTo
+            }
         }
     }
 
@@ -97,11 +110,25 @@ fun ReportsScreen() {
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DateRangeOption.values().forEach { option ->
+            DateRangeOption.entries.forEach { option ->
                 FilterChip(
                     selected = selectedRange == option,
-                    onClick = { selectedRange = option },
-                    label = { Text(option.label, fontWeight = FontWeight.SemiBold) },
+                    onClick = {
+                        selectedRange = option
+                        if (option == DateRangeOption.CUSTOM) {
+                            showCustomDateDialog = true
+                        }
+                    },
+                    label = {
+                        Text(
+                            text = if (option == DateRangeOption.CUSTOM && customFromDate.isNotBlank() && customToDate.isNotBlank()) {
+                                "$customFromDate to $customToDate"
+                            } else {
+                                option.label
+                            },
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
                     shape = RoundedCornerShape(12.dp)
                 )
             }
@@ -198,6 +225,56 @@ fun ReportsScreen() {
                 }
             }
         }
+    }
+
+    if (showCustomDateDialog) {
+        var tempFrom by remember { mutableStateOf(customFromDate) }
+        var tempTo by remember { mutableStateOf(customToDate) }
+
+        AlertDialog(
+            onDismissRequest = { showCustomDateDialog = false },
+            title = { Text("Select Date Range", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter start and end dates (yyyy-MM-dd):", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(
+                        value = tempFrom,
+                        onValueChange = { tempFrom = it },
+                        label = { Text("From Date (yyyy-MM-dd)") },
+                        placeholder = { Text("e.g. 2026-11-01") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tempTo,
+                        onValueChange = { tempTo = it },
+                        label = { Text("To Date (yyyy-MM-dd)") },
+                        placeholder = { Text("e.g. 2026-11-30") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        customFromDate = tempFrom.trim()
+                        customToDate = tempTo.trim()
+                        showCustomDateDialog = false
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Apply Range")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomDateDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
