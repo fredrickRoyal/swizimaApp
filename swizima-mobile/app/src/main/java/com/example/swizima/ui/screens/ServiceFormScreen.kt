@@ -979,7 +979,7 @@ fun ServiceFormScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Person Assigned To Dropdown (Loaded from Client Staff API)
+                // Person Assigned To Dropdown (Optional)
                 ExposedDropdownMenuBox(
                     expanded = staffDropdownExpanded,
                     onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
@@ -987,8 +987,8 @@ fun ServiceFormScreen(
                     OutlinedTextField(
                         value = assignedToPerson,
                         onValueChange = { assignedToPerson = it.uppercase() },
-                        label = { Text("Person Assigned To (Staff)") },
-                        placeholder = { Text("Select or type staff name...") },
+                        label = { Text("Person Assigned To (Staff) (Optional)") },
+                        placeholder = { Text("Select or type staff name (Optional)...") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
                         singleLine = true,
@@ -1001,6 +1001,13 @@ fun ServiceFormScreen(
                         expanded = staffDropdownExpanded,
                         onDismissRequest = { staffDropdownExpanded = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("None / Unassigned (Optional)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            onClick = {
+                                assignedToPerson = ""
+                                staffDropdownExpanded = false
+                            }
+                        )
                         clientStaffList.forEach { staff ->
                             DropdownMenuItem(
                                 text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },
