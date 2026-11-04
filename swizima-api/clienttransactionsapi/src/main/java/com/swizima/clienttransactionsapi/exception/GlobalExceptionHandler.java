@@ -29,6 +29,17 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(BillingException.class)
+    public ProblemDetail handleBilling(BillingException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        pd.setTitle(BillingException.INSUFFICIENT_CREDIT.equals(ex.getCode())
+                ? "Top up your credit" : "Billing error");
+        pd.setProperty("code", ex.getCode());
+        pd.setProperty("topUpRequired", BillingException.INSUFFICIENT_CREDIT.equals(ex.getCode()));
+        ex.getDetails().forEach(pd::setProperty);
+        return pd;
+    }
+
     @ExceptionHandler(BusinessRuleException.class)
     public ProblemDetail handleBusinessRule(BusinessRuleException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

@@ -182,6 +182,26 @@
       @if (formError()) {
         <div class="alert alert-error" role="alert" id="client-tx-form-error"><app-icon name="alert" /><span>{{ formError() }}</span></div>
       }
+      @if (billingBlock(); as b) {
+        <div class="alert billing-block" role="alert" id="client-tx-billing-block"
+             [class.alert-warning]="b.code === 'INSUFFICIENT_CREDIT'" [class.alert-error]="b.code !== 'INSUFFICIENT_CREDIT'">
+          <app-icon name="alert" />
+          <div class="billing-block-body">
+            <strong>{{ b.code === 'INSUFFICIENT_CREDIT' ? 'Top up your credit to record this transaction' : (b.title ?? 'Billing error') }}</strong>
+            <span>{{ b.detail }}</span>
+            @if (b.code === 'INSUFFICIENT_CREDIT' && b.requiredAmount != null) {
+              <span class="billing-block-figures">
+                Needed <b>{{ money(b.requiredAmount, b.currency) }}</b> · Balance <b>{{ money(b.balance, b.currency) }}</b>
+              </span>
+            }
+          </div>
+          @if (b.code === 'INSUFFICIENT_CREDIT') {
+            <button type="button" class="btn btn-primary" id="client-tx-top-up" (click)="openTopUp()">
+              <app-icon name="plus" /> Top up now
+            </button>
+          }
+        </div>
+      }
 
       <fieldset class="form-section">
         <legend>Vehicle &amp; service</legend>
@@ -489,3 +509,5 @@
     </footer>
   }
 </dialog>
+
+<app-load-credit-dialog (loaded)="onToppedUp($event)" />

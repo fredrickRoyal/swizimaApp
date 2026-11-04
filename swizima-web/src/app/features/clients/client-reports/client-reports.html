@@ -1,0 +1,246 @@
+@let ss = summary.state();
+@let cur = currency;
+
+<section class="card report-head page-enter">
+  <div class="toolbar">
+    <div class="segments" role="tablist" aria-label="Report period">
+      @for (p of presets; track p.value) {
+        <button type="button" role="tab" [id]="'report-preset-' + p.value" [class.active]="preset() === p.value"
+                [attr.aria-selected]="preset() === p.value" (click)="setPreset(p.value)">{{ p.label }}</button>
+      }
+    </div>
+    <div class="date-range">
+      <label class="visually-hidden" for="report-from">From</label>
+      <input id="report-from" class="input" type="date" [value]="fromDate()" [max]="today"
+             (change)="setFrom($any($event.target).value)" />
+      <span class="range-sep">to</span>
+      <label class="visually-hidden" for="report-to">To</label>
+      <input id="report-to" class="input" type="date" [value]="toDate()" [min]="fromDate()" [max]="today"
+             (change)="setTo($any($event.target).value)" />
+    </div>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="report-refresh" (click)="refresh()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+  </div>
+  <p class="period-label">
+    @if (singleDay()) { Summary for {{ fromDate() | date: 'EEEE, d MMMM y' }} }
+    @else { Summary from {{ fromDate() | date: 'd MMM y' }} to {{ toDate() | date: 'd MMM y' }} }
+  </p>
+</section>
+
+@if (ss.error) {
+  <section class="card">
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load the report" [message]="ss.error">
+      <button type="button" class="btn" id="report-retry" (click)="summary.reload()">Try again</button>
+    </app-empty-state>
+  </section>
+} @else {
+  @let s = ss.data;
+  <div class="stats page-enter" [style.opacity]="ss.loading && s ? 0.6 : 1">
+    <div class="card stat hero" id="report-stat-count">
+      <span class="label"><app-icon name="car" /> Transactions</span>
+      @if (s) { <span class="value">{{ s.totals.count }}</span> } @else { <span class="skeleton" style="width: 80px; height: 30px"></span> }
+      <span class="hint">{{ s ? s.byClearanceStatus.RELEASED.count : 0 }} released · {{ s ? s.byClearanceStatus.IN_SERVICE.count : 0 }} in service</span>
+    </div>
+    <div class="card stat" id="report-stat-charged">
+      <span class="label"><app-icon name="receipt" /> Total charged</span>
+      <span class="value">{{ s ? money(s.totals.amountCharged, cur) : '—' }}</span>
+      <span class="hint">Excludes cancelled</span>
+    </div>
+    <div class="card stat" id="report-stat-paid">
+      <span class="label"><app-icon name="check" /> Collected</span>
+      <span class="value">{{ s ? money(s.totals.amountPaid, cur) : '—' }}</span>
+      <span class="hint">@if (collectionRate() !== null) { {{ collectionRate() }}% collection rate } @else { Payments received }</span>
+    </div>
+    <div class="card stat" id="report-stat-outstanding" [class.warn]="!!s && s.totals.outstanding > 0">
+      <span class="label"><app-icon name="clock" /> Outstanding</span>
+      <span class="value">{{ s ? money(s.totals.outstanding, cur) : '—' }}</span>
+      <span class="hint">{{ s ? s.byPaymentStatus.PENDING.count + s.byPaymentStatus.PARTIALLY_PAID.count : 0 }} not fully paid</span>
+    </div>
+  </div>
+
+  @if (s) {
+    <div class="breakdowns page-enter">
+      <section class="card breakdown" aria-labelledby="report-payment-heading">
+        <h2 id="report-payment-heading">Payment status</h2>
+        <div class="bar" role="img" aria-label="Payment status distribution">
+          @for (st of paymentStatuses; track st) {
+            <span [class]="'seg seg-' + st" [style.width]="share(s.byPaymentStatus[st].count)"></span>
+          }
+        </div>
+        <ul class="legend">
+          @for (st of paymentStatuses; track st) {
+            <li>
+              <button type="button" [id]="'report-pay-' + st" [class.active]="paymentFilter() === st" (click)="filterBy('payment', st)">
+                <span [class]="'dot seg-' + st"></span>
+                <span class="legend-label">{{ humanize(st) }}</span>
+                <span class="legend-count">{{ s.byPaymentStatus[st].count }}</span>
+                <span class="legend-amount">{{ money(s.byPaymentStatus[st].amountCharged, cur) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+      <section class="card breakdown" aria-labelledby="report-clearance-heading">
+        <h2 id="report-clearance-heading">Clearance status</h2>
+        <div class="bar" role="img" aria-label="Clearance status distribution">
+          @for (st of clearanceStatuses; track st) {
+            <span [class]="'seg seg-' + st" [style.width]="share(s.byClearanceStatus[st].count)"></span>
+          }
+        </div>
+        <ul class="legend">
+          @for (st of clearanceStatuses; track st) {
+            <li>
+              <button type="button" [id]="'report-clr-' + st" [class.active]="clearanceFilter() === st" (click)="filterBy('clearance', st)">
+                <span [class]="'dot seg-' + st"></span>
+                <span class="legend-label">{{ humanize(st) }}</span>
+                <span class="legend-count">{{ s.byClearanceStatus[st].count }}</span>
+                <span class="legend-amount">{{ money(s.byClearanceStatus[st].outstanding, cur) }} due</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    @if (!singleDay() && s.daily.length > 1) {
+      <section class="card trend page-enter" aria-labelledby="report-trend-heading">
+        <h2 id="report-trend-heading">Daily transactions</h2>
+        <div class="trend-bars">
+          @for (d of s.daily; track d.date) {
+            <div class="trend-col" [title]="(d.date | date: 'EEE d MMM') + ': ' + d.totals.count + ' · ' + money(d.totals.amountCharged, cur)">
+              <span class="trend-count">{{ d.totals.count }}</span>
+              <span class="trend-bar" [style.height.%]="(d.totals.count / dailyMax()) * 100"></span>
+              <span class="trend-date">{{ d.date | date: 'd MMM' }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <section class="card list-card page-enter" aria-labelledby="report-staff-heading">
+      <div class="toolbar">
+        <h2 id="report-staff-heading" class="section-title"><app-icon name="users" /> Work done by staff</h2>
+        <span class="toolbar-spacer"></span>
+        <span class="cell-secondary">Select a staff member to see their transactions</span>
+      </div>
+      @if (s.byStaff.length === 0) {
+        <app-empty-state icon="users" heading="No transactions in this period" message="Pick another day or period to see staff activity." />
+      } @else {
+        <div class="table-wrap">
+          <table class="table staff-table">
+            <thead>
+              <tr>
+                <th scope="col">Staff</th>
+                <th scope="col" class="ta-right">Transactions</th>
+                <th scope="col" class="ta-right">Charged</th>
+                <th scope="col" class="ta-right">Collected</th>
+                <th scope="col" class="ta-right">Outstanding</th>
+                <th scope="col">Payment status</th>
+                <th scope="col">Clearance status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (st of s.byStaff; track staffKey(st)) {
+                <tr class="clickable" [class.selected]="staff() === staffKey(st)" tabindex="0"
+                    [id]="'report-staff-' + $index" (click)="toggleStaff(st)" (keydown.enter)="toggleStaff(st)">
+                  <td data-label="Staff">
+                    <div class="client-cell">
+                      <span class="avatar-sm">{{ st.assignedTo ? st.assignedTo.charAt(0).toUpperCase() : '?' }}</span>
+                      <div class="cell-stack">
+                        <span class="cell-primary">{{ st.assignedTo ?? 'Unassigned' }}</span>
+                        <span class="cell-secondary share-line"><span [style.width]="share(st.totals.count)"></span></span>
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="Transactions" class="ta-right num">{{ st.totals.count }}</td>
+                  <td data-label="Charged" class="ta-right num">{{ money(st.totals.amountCharged, cur) }}</td>
+                  <td data-label="Collected" class="ta-right num">{{ money(st.totals.amountPaid, cur) }}</td>
+                  <td data-label="Outstanding" class="ta-right num" [class.due]="st.totals.outstanding > 0">{{ money(st.totals.outstanding, cur) }}</td>
+                  <td data-label="Payment status">
+                    <div class="mini-chips">
+                      @for (p of paymentStatuses; track p) {
+                        @if (st.paymentStatusCounts[p]) { <span [class]="'mini-chip seg-soft-' + p">{{ humanize(p) }} {{ st.paymentStatusCounts[p] }}</span> }
+                      }
+                    </div>
+                  </td>
+                  <td data-label="Clearance status">
+                    <div class="mini-chips">
+                      @for (c of clearanceStatuses; track c) {
+                        @if (st.clearanceStatusCounts[c]) { <span [class]="'mini-chip seg-soft-' + c">{{ humanize(c) }} {{ st.clearanceStatusCounts[c] }}</span> }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="card list-card page-enter" aria-labelledby="report-tx-heading">
+    <div class="toolbar">
+      <h2 id="report-tx-heading" class="section-title"><app-icon name="transfer" /> Transactions</h2>
+      @if (selectedStaffLabel(); as name) { <span class="filter-chip">Staff: {{ name }}</span> }
+      @if (paymentFilter(); as p) { <span class="filter-chip">Payment: {{ humanize(p) }}</span> }
+      @if (clearanceFilter(); as c) { <span class="filter-chip">Clearance: {{ humanize(c) }}</span> }
+      @if (staff() !== null || paymentFilter() || clearanceFilter()) {
+        <button type="button" class="btn btn-ghost" id="report-clear-filters" (click)="clearFilters()"><app-icon name="close" /> Clear</button>
+      }
+    </div>
+    @let ts = transactions.state();
+    @if (ts.error) {
+      <app-empty-state icon="alert" tone="error" heading="Couldn't load transactions" [message]="ts.error">
+        <button type="button" class="btn" id="report-tx-retry" (click)="transactions.reload()">Try again</button>
+      </app-empty-state>
+    } @else if (ts.loading && !ts.data) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Loading transactions">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+        }
+      </div>
+    } @else if (ts.data && ts.data.content.length === 0) {
+      <app-empty-state icon="car" heading="No matching transactions" message="Try another period or clear the filters." />
+    } @else if (ts.data) {
+      <div class="table-wrap" [style.opacity]="ts.loading ? 0.6 : 1">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Vehicle</th>
+              <th scope="col">Service</th>
+              <th scope="col">Staff</th>
+              <th scope="col" class="ta-right">Charged</th>
+              <th scope="col" class="ta-right">Balance</th>
+              <th scope="col">Payment</th>
+              <th scope="col">Clearance</th>
+              <th scope="col">Entry</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of ts.data.content; track t.id) {
+              <tr>
+                <td data-label="Vehicle">
+                  <div class="cell-stack">
+                    <span class="cell-primary cell-mono">{{ t.vehicleNumberPlate }}</span>
+                    <span class="cell-secondary">{{ t.customerName || t.customerPhoneNumber }}</span>
+                  </div>
+                </td>
+                <td data-label="Service">{{ t.serviceType }}</td>
+                <td data-label="Staff">{{ t.assignedTo || '—' }}</td>
+                <td data-label="Charged" class="ta-right num">{{ money(t.amountCharged, cur) }}</td>
+                <td data-label="Balance" class="ta-right num" [class.due]="t.balance > 0">{{ money(t.balance, cur) }}</td>
+                <td data-label="Payment"><app-status-badge [status]="t.paymentStatus" /></td>
+                <td data-label="Clearance"><app-status-badge [status]="t.vehicleClearanceStatus" /></td>
+                <td data-label="Entry">{{ t.entryDateTime | date: 'd MMM, HH:mm' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [size]="pageSize" [total]="ts.data.totalElements" (pageChange)="page.set($event)" />
+    }
+  </section>
+}

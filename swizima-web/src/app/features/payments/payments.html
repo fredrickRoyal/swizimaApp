@@ -1,0 +1,286 @@
+<app-page-header heading="Payments" subtitle="Client prepaid credit, top-ups and per-transaction billing charges.">
+  <button type="button" class="btn btn-primary" id="payments-load-credit" (click)="openLoadForPicked()" [disabled]="!client()"
+          [title]="client() ? 'Load credit for ' + client()!.clientName : 'Pick a client first'">
+    <app-icon name="plus" /> Load credit
+  </button>
+</app-page-header>
+
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="payments-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="payments-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<div class="toolbar page-enter" style="padding: 0">
+  <div class="segments" role="tablist" aria-label="Payments sections">
+    @for (s of sections; track s.id) {
+      <button type="button" role="tab" [id]="'payments-tab-' + s.id" [class.active]="section() === s.id"
+              [attr.aria-selected]="section() === s.id" (click)="section.set(s.id)">
+        <app-icon [name]="s.icon" /> {{ s.label }}
+      </button>
+    }
+  </div>
+  <span class="toolbar-spacer"></span>
+  @if (section() !== 'wallets') {
+    <app-client-picker inputId="payments-client" placeholder="All clients" [selected]="client()" (selectedChange)="onClient($event)" />
+  }
+</div>
+
+<!-- ================= Wallets ================= -->
+@if (section() === 'wallets') {
+  <section class="card list-card page-enter">
+    <div class="toolbar">
+      <label class="field-inline" for="wallets-low">
+        <input type="checkbox" id="wallets-low" [checked]="lowOnly()" (change)="lowOnly.set($any($event.target).checked); walletsPage.set(0)" />
+        Only balances ≤ {{ money(lowLimit) }}
+      </label>
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-icon" id="wallets-refresh" (click)="wallets.reload()" aria-label="Refresh" title="Refresh">
+        <app-icon name="refresh" />
+      </button>
+    </div>
+    @let ws = wallets.state();
+    @if (ws.error) {
+      <app-empty-state icon="alert" tone="error" heading="Couldn't load wallets" [message]="ws.error">
+        <button type="button" class="btn" id="wallets-retry" (click)="wallets.reload()">Try again</button>
+      </app-empty-state>
+    } @else if (ws.loading && !ws.data) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Loading wallets">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+        }
+      </div>
+    } @else if (ws.data && ws.data.content.length === 0) {
+      <app-empty-state icon="payments" heading="No wallets yet"
+                       message="A wallet is created automatically on a client's first credit load. Open a client's Billing tab to load credit." />
+    } @else if (ws.data) {
+      <div class="table-wrap" [style.opacity]="ws.loading ? 0.6 : 1">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Client</th>
+              <th scope="col" class="ta-right">Balance</th>
+              <th scope="col" class="ta-right">Total loaded</th>
+              <th scope="col" class="ta-right">Total charged</th>
+              <th scope="col">Last activity</th>
+              <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (w of ws.data.content; track w.clientRef) {
+              @let c = names.get(w.clientRef)();
+              <tr>
+                <td data-label="Client">
+                  <a class="cell-stack client-cell" [routerLink]="['/clients', w.clientRef, 'billing']" [id]="'wallet-client-' + w.clientRef">
+                    <span class="cell-primary">{{ c?.name ?? '…' }}</span>
+                    @if (c?.code) { <span class="cell-secondary cell-mono">{{ c?.code }}</span> }
+                  </a>
+                </td>
+                <td data-label="Balance" class="ta-right">
+                  <span class="amount" [class.debit]="w.balance <= lowLimit">{{ money(w.balance, w.currency) }}</span>
+                </td>
+                <td data-label="Total loaded" class="ta-right num cell-secondary">{{ money(w.totalCredited, w.currency) }}</td>
+                <td data-label="Total charged" class="ta-right num cell-secondary">{{ money(w.totalCharged, w.currency) }}</td>
+                <td data-label="Last activity" class="cell-secondary">{{ (w.updatedAt ?? w.createdAt) | date: 'medium' }}</td>
+                <td data-label="Actions" class="col-actions">
+                  <button type="button" class="btn" [id]="'wallet-load-' + w.clientRef" (click)="openLoad(w)">
+                    <app-icon name="plus" /> Load
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="walletsPage()" [size]="pageSize" [total]="ws.data.totalElements" (pageChange)="walletsPage.set($event)" />
+    }
+  </section>
+}
+
+<!-- ================= Credit loads ================= -->
+@if (section() === 'credit-loads') {
+  <section class="card list-card page-enter">
+    <div class="toolbar" role="search">
+      <label class="search">
+        <span class="visually-hidden">Search credit loads</span>
+        <app-icon name="search" />
+        <input class="input" type="search" id="loads-search" placeholder="Reference, payer name or phone"
+               [value]="loadSearch()" (input)="loadSearch.set($any($event.target).value); loadsPage.set(0)" autocomplete="off" />
+      </label>
+      <label class="visually-hidden" for="loads-method">Payment method</label>
+      <select class="select" id="loads-method" [value]="loadMethod()" (change)="loadMethod.set($any($event.target).value); loadsPage.set(0)">
+        <option value="">All methods</option>
+        @for (m of methods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+      </select>
+      <label class="visually-hidden" for="loads-status">Status</label>
+      <select class="select" id="loads-status" [value]="loadStatus()" (change)="loadStatus.set($any($event.target).value); loadsPage.set(0)">
+        <option value="">All statuses</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="REVERSED">Reversed</option>
+      </select>
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-icon" id="loads-refresh" (click)="loads.reload()" aria-label="Refresh" title="Refresh">
+        <app-icon name="refresh" />
+      </button>
+    </div>
+    @let ls = loads.state();
+    @if (ls.error) {
+      <app-empty-state icon="alert" tone="error" heading="Couldn't load credit loads" [message]="ls.error">
+        <button type="button" class="btn" id="loads-retry" (click)="loads.reload()">Try again</button>
+      </app-empty-state>
+    } @else if (ls.loading && !ls.data) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Loading credit loads">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+        }
+      </div>
+    } @else if (ls.data && ls.data.content.length === 0) {
+      <app-empty-state icon="inbox" heading="No credit loads found" message="Top-ups will appear here once credit is loaded." />
+    } @else if (ls.data) {
+      <div class="table-wrap" [style.opacity]="ls.loading ? 0.6 : 1">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Client</th>
+              <th scope="col" class="ta-right">Amount</th>
+              <th scope="col">Method / reference</th>
+              <th scope="col">Paid by</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (l of ls.data.content; track l.id) {
+              <tr [class.row-busy]="busyId() === l.id">
+                <td data-label="Date" class="cell-secondary">{{ l.loadedAt | date: 'medium' }}</td>
+                <td data-label="Client">
+                  <a class="client-cell" [routerLink]="['/clients', l.clientRef, 'billing']" [id]="'load-client-' + l.id">
+                    <span class="cell-primary">{{ names.get(l.clientRef)()?.name ?? '…' }}</span>
+                  </a>
+                </td>
+                <td data-label="Amount" class="ta-right">
+                  <span class="amount" [class.credit]="l.status === 'COMPLETED'">{{ money(l.amount, l.currency) }}</span>
+                </td>
+                <td data-label="Method">
+                  <div class="cell-stack">
+                    <span>{{ methodLabel(l.paymentMethod) }}</span>
+                    @if (l.paymentReference) { <span class="cell-secondary cell-mono">{{ l.paymentReference }}</span> }
+                  </div>
+                </td>
+                <td data-label="Paid by">
+                  <div class="cell-stack">
+                    <span>{{ l.payerName ?? '—' }}</span>
+                    @if (l.payerPhone) { <span class="cell-secondary">{{ l.payerPhone }}</span> }
+                  </div>
+                </td>
+                <td data-label="Status">
+                  <span [class]="'badge badge-' + (l.status === 'COMPLETED' ? 'success' : 'neutral')"
+                        [title]="l.reversalReason ?? ''">{{ l.status === 'COMPLETED' ? 'Completed' : 'Reversed' }}</span>
+                </td>
+                <td data-label="Actions" class="col-actions">
+                  @if (l.status === 'COMPLETED') {
+                    <button type="button" class="btn btn-icon btn-ghost" [id]="'load-reverse-' + l.id" (click)="reverse(l)"
+                            [disabled]="busyId() === l.id" aria-label="Reverse credit load" title="Reverse">
+                      <app-icon name="refresh" />
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="loadsPage()" [size]="pageSize" [total]="ls.data.totalElements" (pageChange)="loadsPage.set($event)" />
+    }
+  </section>
+}
+
+<!-- ================= Activity ================= -->
+@if (section() === 'activity') {
+  <section class="card list-card page-enter">
+    <div class="toolbar">
+      <label class="visually-hidden" for="activity-type">Activity type</label>
+      <select class="select" id="activity-type" [value]="activityType()" (change)="activityType.set($any($event.target).value); activityPage.set(0)">
+        <option value="">All activity</option>
+        @for (t of activityTypes; track t) { <option [value]="t">{{ activityMeta[t].label }}</option> }
+      </select>
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-icon" id="activity-refresh" (click)="activity.reload()" aria-label="Refresh" title="Refresh">
+        <app-icon name="refresh" />
+      </button>
+    </div>
+    @let acts = activity.state();
+    @if (acts.error) {
+      <app-empty-state icon="alert" tone="error" heading="Couldn't load activity" [message]="acts.error">
+        <button type="button" class="btn" id="activity-retry" (click)="activity.reload()">Try again</button>
+      </app-empty-state>
+    } @else if (acts.loading && !acts.data) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Loading activity">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+        }
+      </div>
+    } @else if (acts.data && acts.data.content.length === 0) {
+      <app-empty-state icon="transfer" heading="No activity yet" message="Credit loads and transaction charges will show up here." />
+    } @else if (acts.data) {
+      <div class="table-wrap" [style.opacity]="acts.loading ? 0.6 : 1">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Activity</th>
+              <th scope="col">Client</th>
+              <th scope="col">Details</th>
+              <th scope="col" class="ta-right">Amount</th>
+              <th scope="col" class="ta-right">Balance after</th>
+              <th scope="col">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of acts.data.content; track a.id) {
+              @let meta = activityMeta[a.activityType];
+              <tr>
+                <td data-label="Activity">
+                  <div class="client-cell">
+                    <span class="activity-icon" [class.credit]="meta.tone === 'credit'" [class.debit]="meta.tone === 'debit'"><app-icon [name]="meta.icon" /></span>
+                    <span class="cell-primary">{{ meta.label }}</span>
+                  </div>
+                </td>
+                <td data-label="Client">
+                  <a class="client-cell" [routerLink]="['/clients', a.clientRef, 'billing']" [id]="'activity-client-' + a.id">
+                    {{ names.get(a.clientRef)()?.name ?? '…' }}
+                  </a>
+                </td>
+                <td data-label="Details">
+                  <div class="cell-stack">
+                    <span>{{ a.description ?? '—' }}</span>
+                    @if (a.transactionAmount != null) {
+                      <span class="cell-secondary">{{ percent(a.percentageApplied) }} of {{ money(a.transactionAmount, a.currency) }}</span>
+                    } @else if (a.paymentReference) {
+                      <span class="cell-secondary cell-mono">{{ a.paymentReference }}</span>
+                    }
+                  </div>
+                </td>
+                <td data-label="Amount" class="ta-right">
+                  <span class="amount" [class.credit]="a.amount > 0" [class.debit]="a.amount < 0">
+                    {{ a.amount > 0 ? '+' : '' }}{{ money(a.amount, a.currency) }}
+                  </span>
+                </td>
+                <td data-label="Balance after" class="ta-right num">{{ money(a.balanceAfter, a.currency) }}</td>
+                <td data-label="Date" class="cell-secondary">{{ a.createdAt | date: 'medium' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="activityPage()" [size]="pageSize" [total]="acts.data.totalElements" (pageChange)="activityPage.set($event)" />
+    }
+  </section>
+}
+
+<app-load-credit-dialog (loaded)="onLoaded($event)" />

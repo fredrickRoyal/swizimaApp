@@ -37,6 +37,8 @@ export class ClientLayout {
     { path: 'services', label: 'Service catalog', icon: 'catalog' },
     { path: 'staff', label: 'Staff', icon: 'users' },
     { path: 'transactions', label: 'Transactions', icon: 'transfer' },
+    { path: 'reports', label: 'Reports', icon: 'trendingUp' },
+    { path: 'billing', label: 'Billing', icon: 'payments' },
   ];
 
   protected initials(name: string): string {

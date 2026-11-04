@@ -1,0 +1,189 @@
+<app-page-header heading="Configurations" subtitle="Billing plans: the percentage Swizima charges each client per transaction." />
+
+@if (notice(); as n) {
+  <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
+       role="status" id="plans-notice">
+    <app-icon [name]="n.tone === 'success' ? 'check' : 'alert'" />
+    <span>{{ n.text }}</span>
+    <button type="button" class="btn btn-icon btn-ghost" id="plans-notice-dismiss" (click)="notice.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+<div class="alert alert-info page-enter" id="plans-info">
+  <app-icon name="info" />
+  <span>Clients without an active plan can't record transactions. Credit top-ups and balances are managed under
+    <a routerLink="/payments" id="plans-payments-link">Payments</a>.</span>
+</div>
+
+<section class="card list-card page-enter">
+  <div class="toolbar">
+    <label class="visually-hidden" for="plans-status">Filter by status</label>
+    <select class="select" id="plans-status" [value]="status()" (change)="onStatus($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="plans-refresh" (click)="plans.reload()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+    <button type="button" class="btn btn-primary" id="plans-add" (click)="openCreate()">
+      <app-icon name="plus" /> New billing plan
+    </button>
+  </div>
+
+  @let state = plans.state();
+  @if (state.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load billing plans" [message]="state.error">
+      <button type="button" class="btn" id="plans-retry" (click)="plans.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (state.loading && !state.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading billing plans">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (state.data && state.data.content.length === 0) {
+    <app-empty-state icon="payments" heading="No billing plans yet"
+                     [message]="status() ? 'No plans match this status.' : 'Map a client to a percentage to start charging per transaction.'">
+      <button type="button" class="btn btn-primary" id="plans-empty-add" (click)="openCreate()"><app-icon name="plus" /> New billing plan</button>
+    </app-empty-state>
+  } @else if (state.data) {
+    <div class="table-wrap" [style.opacity]="state.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Client</th>
+            <th scope="col" class="ta-right">Rate / transaction</th>
+            <th scope="col" class="ta-right">Low-balance alert</th>
+            <th scope="col">Status</th>
+            <th scope="col">Updated</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (plan of state.data.content; track plan.id) {
+            @let client = names.get(plan.clientRef)();
+            <tr [class.row-busy]="busyId() === plan.id">
+              <td data-label="Client">
+                <div class="client-cell">
+                  <a [routerLink]="['/clients', plan.clientRef, 'billing']" class="cell-stack" [id]="'plan-client-' + plan.id">
+                    <span class="cell-primary">{{ client?.name ?? '…' }}</span>
+                    @if (client?.code) { <span class="cell-secondary cell-mono">{{ client?.code }}</span> }
+                  </a>
+                </div>
+              </td>
+              <td data-label="Rate" class="ta-right"><span class="amount">{{ percent(plan.percentageRate) }}</span></td>
+              <td data-label="Low-balance alert" class="ta-right num cell-secondary">
+                {{ plan.lowBalanceThreshold != null ? money(plan.lowBalanceThreshold, plan.currency) : '—' }}
+              </td>
+              <td data-label="Status"><app-status-badge [status]="plan.status" /></td>
+              <td data-label="Updated" class="cell-secondary">{{ (plan.updatedAt ?? plan.createdAt) | date: 'mediumDate' }}</td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'plan-edit-' + plan.id" (click)="openEdit(plan)"
+                          [disabled]="busyId() === plan.id" aria-label="Edit plan" title="Edit">
+                    <app-icon name="edit" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'plan-status-' + plan.id" (click)="toggleStatus(plan)"
+                          [disabled]="busyId() === plan.id"
+                          [title]="plan.status === 'ACTIVE' ? 'Suspend billing' : 'Activate billing'"
+                          [attr.aria-label]="plan.status === 'ACTIVE' ? 'Suspend billing' : 'Activate billing'">
+                    <app-icon name="power" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'plan-delete-' + plan.id" (click)="remove(plan)"
+                          [disabled]="busyId() === plan.id" aria-label="Remove plan" title="Remove">
+                    <app-icon name="trash" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
+  }
+</section>
+
+<dialog #dialog class="dialog card" id="plan-dialog" aria-labelledby="plan-dialog-title" (cancel)="saving() && $event.preventDefault()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <header class="dialog-head">
+      <h2 id="plan-dialog-title">{{ editing() ? 'Edit billing plan' : 'New billing plan' }}</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="plan-dialog-close" (click)="closeDialog()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (formError()) {
+        <div class="alert alert-error" role="alert" id="plan-form-error"><app-icon name="alert" /><span>{{ formError() }}</span></div>
+      }
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="plan-client">Client <em aria-hidden="true">*</em></label>
+          @if (editing(); as e) {
+            <input id="plan-client" class="input" [value]="names.get(e.clientRef)()?.name ?? '…'" disabled />
+          } @else {
+            <app-client-picker inputId="plan-client" placeholder="Search clients" label="Client"
+                               [selected]="pickedClient()" (selectedChange)="pickedClient.set($event)" />
+            @if (clientTouched() && !pickedClient()) { <p class="field-error">Choose a client.</p> }
+          }
+        </div>
+        <div class="field">
+          <label for="plan-rate">Percentage per transaction <em aria-hidden="true">*</em></label>
+          <div class="input-suffix">
+            <input id="plan-rate" class="input" type="text" inputmode="decimal" autocomplete="off" formControlName="percentageRate"
+                   placeholder="e.g. 2.5" (input)="updateExample()" [attr.aria-invalid]="invalid('percentageRate')" />
+            <span>%</span>
+          </div>
+          @if (invalid('percentageRate')) { <p class="field-error">Enter 0–100 with up to 4 decimals.</p> }
+        </div>
+        <div class="field">
+          <label for="plan-currency">Currency</label>
+          <select id="plan-currency" class="select" formControlName="currency">
+            @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="plan-threshold">Low-balance alert at</label>
+          <div class="input-suffix">
+            <input id="plan-threshold" class="input" type="text" inputmode="decimal" autocomplete="off"
+                   formControlName="lowBalanceThreshold" placeholder="Optional" (input)="thresholdInput($event)"
+                   [attr.aria-invalid]="invalid('lowBalanceThreshold')" />
+            <span>{{ form.controls.currency.value }}</span>
+          </div>
+          @if (invalid('lowBalanceThreshold')) { <p class="field-error">Enter 0 or more.</p> }
+        </div>
+        <div class="field">
+          <label for="plan-status">Status</label>
+          <select id="plan-status" class="select" formControlName="status">
+            @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+          </select>
+        </div>
+        <div class="field span-2">
+          <label for="plan-notes">Notes</label>
+          <textarea id="plan-notes" class="input" rows="2" formControlName="notes" placeholder="Optional"></textarea>
+        </div>
+      </div>
+      @if (example() !== null) {
+        <div class="preview" id="plan-example">
+          <span>A 100,000 {{ form.controls.currency.value }} transaction is charged</span>
+          <strong>{{ money(example(), form.controls.currency.value) }}</strong>
+        </div>
+      }
+      @if (editing()) {
+        <p class="field-hint">Rate changes apply to new transactions only.</p>
+      }
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="plan-cancel" (click)="closeDialog()" [disabled]="saving()">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="plan-save" [disabled]="saving()">
+        @if (saving()) { <span class="spinner" aria-hidden="true"></span> }
+        {{ editing() ? 'Save changes' : 'Create plan' }}
+      </button>
+    </footer>
+  </form>
+</dialog>

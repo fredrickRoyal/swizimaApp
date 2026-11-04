@@ -70,10 +70,20 @@ export const routes: Routes = [
             loadComponent: () => import('./features/clients/client-staff/client-staff').then((m) => m.ClientStaffPage),
           },
           {
+            path: 'billing',
+            title: 'Billing',
+            loadComponent: () => import('./features/clients/client-billing/client-billing').then((m) => m.ClientBilling),
+          },
+          {
             path: 'transactions',
             title: 'Transactions',
             loadComponent: () =>
               import('./features/clients/client-transactions/client-transactions').then((m) => m.ClientTransactionsPage),
+          },
+          {
+            path: 'reports',
+            title: 'Transaction reports',
+            loadComponent: () => import('./features/clients/client-reports/client-reports').then((m) => m.ClientReports),
           },
         ],
       },
