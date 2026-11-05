@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -825,6 +827,8 @@ fun VehicleRecordDetailBottomSheet(
     onWhatsApp: () -> Unit
 ) {
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showWhatsAppDialog by remember { mutableStateOf(false) }
+    var targetWhatsAppPhone by remember { mutableStateOf(record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: "") }
     var paymentAmount by remember { mutableStateOf(record.amountCharged) }
     var paymentReference by remember { mutableStateOf("") }
     var isActionProcessing by remember { mutableStateOf(false) }
@@ -992,7 +996,7 @@ fun VehicleRecordDetailBottomSheet(
                 }
 
                 Button(
-                    onClick = onWhatsApp,
+                    onClick = { showWhatsAppDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
@@ -1007,6 +1011,48 @@ fun VehicleRecordDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+
+    if (showWhatsAppDialog) {
+        AlertDialog(
+            onDismissRequest = { showWhatsAppDialog = false },
+            title = { Text("Share Receipt via WhatsApp", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pre-filled with customer's phone number. You can edit or enter a different phone number below:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    OutlinedTextField(
+                        value = targetWhatsAppPhone,
+                        onValueChange = { targetWhatsAppPhone = it },
+                        label = { Text("WhatsApp Phone Number") },
+                        placeholder = { Text("e.g. +256 700 123 456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showWhatsAppDialog = false
+                        WhatsAppSender.sendTicketToWhatsApp(ctx, record, targetWhatsAppPhone.trim())
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Send PDF to WhatsApp")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWhatsAppDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showPaymentDialog) {

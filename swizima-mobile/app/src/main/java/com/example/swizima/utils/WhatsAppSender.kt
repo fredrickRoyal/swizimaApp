@@ -27,7 +27,7 @@ object WhatsAppSender {
         }
     }
 
-    fun sendTicketToWhatsApp(context: Context, record: VehicleRecord) {
+    fun sendTicketToWhatsApp(context: Context, record: VehicleRecord, customPhone: String? = null) {
         try {
             val file = PdfTicketGenerator.generatePdfFile(context, record)
             val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -36,9 +36,9 @@ object WhatsAppSender {
                 file
             )
 
-            val primaryPhone = record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: ""
-            val formattedPhone = formatPhoneNumberForWhatsApp(primaryPhone, record.nationality)
-            val cleanJidPhone = formattedPhone.replace("+", "").replace(" ", "")
+            val rawPhone = if (!customPhone.isNullOrBlank()) customPhone else (record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: "")
+            val formattedPhone = formatPhoneNumberForWhatsApp(rawPhone, record.nationality)
+            val cleanJidPhone = formattedPhone.replace("+", "").replace(" ", "").trim()
 
             val messageText = "Swizima Automotive Receipt Ticket for ${record.numberPlate}"
 
@@ -53,8 +53,7 @@ object WhatsAppSender {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback to general Intent chooser for WhatsApp or WhatsApp Business
+        } catch (_: Exception) {
             try {
                 val file = PdfTicketGenerator.generatePdfFile(context, record)
                 val uri = androidx.core.content.FileProvider.getUriForFile(
