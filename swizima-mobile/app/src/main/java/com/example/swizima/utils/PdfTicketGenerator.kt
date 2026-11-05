@@ -13,7 +13,7 @@ import java.io.FileOutputStream
 
 object PdfTicketGenerator {
 
-    fun generateAndOpenPdf(context: Context, record: VehicleRecord) {
+    fun generatePdfFile(context: Context, record: VehicleRecord): File {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(350, 620, 1).create()
         val page = pdfDocument.startPage(pageInfo)
@@ -125,13 +125,17 @@ object PdfTicketGenerator {
 
         pdfDocument.finishPage(page)
 
-        // Save PDF
         val file = File(context.cacheDir, "Swizima_Ticket_${record.numberPlate}.pdf")
-        try {
-            pdfDocument.writeTo(FileOutputStream(file))
-            pdfDocument.close()
+        FileOutputStream(file).use { out ->
+            pdfDocument.writeTo(out)
+        }
+        pdfDocument.close()
+        return file
+    }
 
-            // Open or Print Intent
+    fun generateAndOpenPdf(context: Context, record: VehicleRecord) {
+        try {
+            val file = generatePdfFile(context, record)
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
