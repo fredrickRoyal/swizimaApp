@@ -97,12 +97,13 @@ object PdfTicketGenerator {
 
         drawRow("Service Type", record.serviceType, isBoldValue = true)
         drawRow("Number Plate", record.numberPlate, isBoldValue = true)
-        drawRow("Client Name", record.clientName)
-        drawRow("Nationality", record.nationality)
+        if (record.clientName.isNotBlank()) {
+            drawRow("Client Name", record.clientName)
+        }
         if (record.idPassportNumber.isNotBlank()) {
             drawRow(record.idType, record.idPassportNumber)
         }
-        drawRow("Phone", record.clientPhoneNumbers.firstOrNull() ?: "-")
+        drawRow("Phone Number", record.clientPhoneNumbers.firstOrNull() ?: "-")
         drawRow("Date", record.date)
         drawRow("Time In", record.entryTime)
         drawRow("Time Out", record.expectedExitTime.ifBlank { "Pending / Active" })
@@ -110,7 +111,7 @@ object PdfTicketGenerator {
         if (record.assignedToPerson.isNotBlank()) {
             drawRow("Assigned To", record.assignedToPerson)
         }
-        drawRow("Paid (UGX)", "UGX ${record.amountCharged.ifBlank { "0" }}", isBoldValue = true)
+        drawRow("Total Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", isBoldValue = true)
 
         y += 10f
         // Divider Line

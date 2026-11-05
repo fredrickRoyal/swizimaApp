@@ -1150,11 +1150,10 @@ fun ReceiptPreviewDialog(
                     if (record.clientName.isNotBlank()) {
                         ReceiptRow("Client Name", record.clientName, false)
                     }
-                    ReceiptRow("Nationality", record.nationality, false)
                     if (record.idPassportNumber.isNotBlank()) {
                         ReceiptRow(record.idType, record.idPassportNumber, false)
                     }
-                    ReceiptRow("Phone", record.clientPhoneNumbers.firstOrNull() ?: "-", false)
+                    ReceiptRow("Phone Number", record.clientPhoneNumbers.firstOrNull() ?: "-", false)
                     ReceiptRow("Date", record.date, false)
                     ReceiptRow("Time In", record.entryTime, false)
                     ReceiptRow("Time Out", record.expectedExitTime.ifBlank { "Active" }, false)
@@ -1162,7 +1161,7 @@ fun ReceiptPreviewDialog(
                     if (record.assignedToPerson.isNotBlank()) {
                         ReceiptRow("Assigned To", record.assignedToPerson, false)
                     }
-                    ReceiptRow("Paid Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", true)
+                    ReceiptRow("Total Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", true)
 
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = Color.Gray, thickness = 1.dp)
