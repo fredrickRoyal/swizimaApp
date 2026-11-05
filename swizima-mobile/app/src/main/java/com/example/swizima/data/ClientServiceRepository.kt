@@ -38,6 +38,9 @@ data class ApiClientStaff(
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
     var activeClientId: String = "219e77a7-b398-4829-b06f-5978193fe9c5"
+    var activeClientName: String = "Swizima Motors"
+    var activeClientAddress: String = "Kampala, Uganda"
+    var activeClientPhone: String = "+256 700 123 456"
 
     private fun extractContentJson(json: String): String {
         val contentIndex = json.indexOf("\"content\"")
@@ -90,7 +93,11 @@ object ClientServiceRepository {
                     )
                 }
                 if (clients.isNotEmpty()) {
-                    activeClientId = clients.first().id
+                    val first = clients.first()
+                    activeClientId = first.id
+                    activeClientName = first.clientName
+                    activeClientAddress = first.address.ifBlank { "Kampala, Uganda" }
+                    activeClientPhone = if (first.phone.isNotBlank()) first.phone else "+256 700 123 456"
                 }
                 apiErrorMessage = null
                 clients

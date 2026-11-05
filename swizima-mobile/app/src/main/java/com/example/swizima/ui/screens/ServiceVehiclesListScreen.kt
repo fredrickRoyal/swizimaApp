@@ -1111,7 +1111,7 @@ fun ReceiptPreviewDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Swizima Automotive",
+                        text = com.example.swizima.data.ClientServiceRepository.activeClientName,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -1124,7 +1124,7 @@ fun ReceiptPreviewDialog(
                         color = Color.DarkGray
                     )
                     Text(
-                        text = "Kampala, Uganda | Tel: +256 700 123 456",
+                        text = "${com.example.swizima.data.ClientServiceRepository.activeClientAddress} | Tel: ${com.example.swizima.data.ClientServiceRepository.activeClientPhone}",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.DarkGray
                     )

@@ -64,12 +64,16 @@ object PdfTicketGenerator {
 
         var y = 35f
 
+        val headerTitle = com.example.swizima.data.ClientServiceRepository.activeClientName
+        val headerAddr = com.example.swizima.data.ClientServiceRepository.activeClientAddress
+        val headerPhone = com.example.swizima.data.ClientServiceRepository.activeClientPhone
+
         // Business Header
-        canvas.drawText("Swizima Automotive", 175f, y, titlePaint)
+        canvas.drawText(headerTitle, 175f, y, titlePaint)
         y += 18f
         canvas.drawText("Automotive & Parking Services", 175f, y, centerPaint)
         y += 15f
-        canvas.drawText("Kampala, Uganda | Tel: +256 700 123 456", 175f, y, centerPaint)
+        canvas.drawText("$headerAddr | Tel: $headerPhone", 175f, y, centerPaint)
         y += 20f
 
         // Divider Line
