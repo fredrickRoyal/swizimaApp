@@ -71,8 +71,6 @@ object PdfTicketGenerator {
         // Business Header
         canvas.drawText(headerTitle, 175f, y, titlePaint)
         y += 18f
-        canvas.drawText("Automotive & Parking Services", 175f, y, centerPaint)
-        y += 15f
         canvas.drawText("$headerAddr | Tel: $headerPhone", 175f, y, centerPaint)
         y += 20f
 

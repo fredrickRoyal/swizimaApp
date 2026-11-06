@@ -1165,11 +1165,6 @@ fun ReceiptPreviewDialog(
                         color = Color.Black
                     )
                     Text(
-                        text = "Automotive & Parking Services",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.DarkGray
-                    )
-                    Text(
                         text = "${com.example.swizima.data.ClientServiceRepository.activeClientAddress} | Tel: ${com.example.swizima.data.ClientServiceRepository.activeClientPhone}",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.DarkGray
