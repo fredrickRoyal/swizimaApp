@@ -3,7 +3,7 @@ package com.example.swizima.data
 import android.content.Context
 
 object ApiGatewayConfig {
-    var gatewayBaseUrl: String = "http://192.168.100.6:9080/api/v1"
+    var gatewayBaseUrl: String = "http://swizima.com:9080/api/v1"
 
     private const val PREFS_NAME = "swizima_settings"
     private const val KEY_GATEWAY_URL = "gateway_base_url"
