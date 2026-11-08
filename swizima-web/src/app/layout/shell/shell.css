@@ -15,7 +15,8 @@
     inset: 0 auto 0 0;
     width: var(--sidebar-width);
     z-index: 20;
-    box-shadow: 1px 0 0 rgb(255 255 255 / 0.04), 8px 0 32px -16px rgb(15 23 42 / 0.4);
+    border-right: 1px solid var(--sidebar-border);
+    box-shadow: var(--sidebar-shadow);
   }
   .content {
     margin-left: var(--sidebar-width);
@@ -191,9 +192,9 @@
   border: 0;
   border-radius: 10px;
   color: var(--sidebar-text);
-  background: rgb(255 255 255 / 0.06);
+  background: var(--sidebar-hover);
   cursor: pointer;
-  &:hover { background: rgb(255 255 255 / 0.12); color: #fff; }
+  &:hover { background: var(--sidebar-active); color: var(--sidebar-heading); }
   &:focus-visible { outline: none; box-shadow: var(--ring); }
 }
 

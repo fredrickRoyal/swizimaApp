@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { MOBILE_APP_DOWNLOAD_URL } from '../../core/config/api.config';
 import { Icon } from '../../shared/icon/icon';
-import { NAV_GROUPS } from '../nav-items';
+import { CLIENT_PORTAL_NAV_GROUPS, NAV_GROUPS } from '../nav-items';
 
 /**
  * Brand + grouped links + signed-in user. Rendered both in the desktop sidebar
@@ -22,7 +23,16 @@ export class NavMenu {
   readonly navigate = output<void>();
   readonly signOut = output<void>();
 
-  protected readonly groups = NAV_GROUPS;
+  protected readonly groups = computed(() =>
+    this.auth.isClientPortalUser() ? CLIENT_PORTAL_NAV_GROUPS : NAV_GROUPS,
+  );
+  protected readonly roleLabel = computed(() => {
+    const cat = this.auth.accountCategory();
+    if (cat === 'SUPER_ADMIN') return 'Super Admin';
+    if (cat === 'CLIENT_ADMIN') return 'Client Admin';
+    return 'User';
+  });
+  protected readonly mobileAppUrl = inject(MOBILE_APP_DOWNLOAD_URL);
   protected readonly username = this.auth.displayName;
   protected readonly initials = computed(() => initialsOf(this.username()));
 }

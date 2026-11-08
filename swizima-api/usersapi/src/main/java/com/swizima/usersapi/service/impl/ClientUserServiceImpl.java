@@ -7,7 +7,9 @@ import com.swizima.usersapi.dto.CreateUserRequest;
 import com.swizima.usersapi.dto.SystemUserResponse;
 import com.swizima.usersapi.dto.UserCredentialsResponse;
 import com.swizima.usersapi.entity.SystemUser;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.OtpChannel;
+import com.swizima.usersapi.entity.enums.UserRole;
 import com.swizima.usersapi.entity.enums.UsernameType;
 import com.swizima.usersapi.repository.SystemUserRepository;
 import com.swizima.usersapi.service.SystemUserService;
@@ -52,6 +54,7 @@ public class ClientUserServiceImpl implements ClientUserService {
         ClientUser u = new ClientUser();
         u.setClientRef(request.clientRef());
         u.setStaffRef(request.staffRef());
+        u.setAccountCategory(request.staffRef() != null ? AccountCategory.USER : AccountCategory.CLIENT_ADMIN);
         u.setUserPhoneNumber(c.phone());
         u.setUserEmail(c.email());
         u.setActivationStatus(request.activationStatus() != null
@@ -154,8 +157,16 @@ public class ClientUserServiceImpl implements ClientUserService {
         String phone = isPhone ? username.value() : normalizer.normalizePhoneNumber(r.phoneNumber());
         String email = isPhone ? normalizer.normalizeEmail(r.email()) : username.value();
 
-        // 1. System user: reuse when the username already exists, otherwise create one.
-        Optional<SystemUser> existing = systemUserRepository.findByUsernameAndRecordStatusNot(username.value(), RecordStatus.DELETED);
+        AccountCategory category = r.accountCategory() != null
+                ? r.accountCategory()
+                : (r.staffRef() != null ? AccountCategory.USER : AccountCategory.CLIENT_ADMIN);
+        UserRole targetRole = category == AccountCategory.CLIENT_ADMIN ? UserRole.CLIENT_ADMIN : UserRole.USER;
+
+        // 1. System user: reuse when the username, email or phone already exists, otherwise create one.
+        Optional<SystemUser> existing = systemUserRepository
+                .findByAnyContact(username.value(), email, phone, RecordStatus.DELETED)
+                .stream()
+                .findFirst();
         SystemUserResponse user;
         String temporaryPassword = null;
         boolean created = existing.isEmpty();
@@ -163,18 +174,36 @@ public class ClientUserServiceImpl implements ClientUserService {
             OtpChannel channel = r.preferredOtpChannel() != null ? r.preferredOtpChannel()
                     : (email != null ? OtpChannel.EMAIL : OtpChannel.SMS);
             UserCredentialsResponse credentials = systemUserService.createUser(
-                    new CreateUserRequest(username.value(), null, true, email, phone, channel));
+                    new CreateUserRequest(username.value(), null, true, email, phone, channel, category, targetRole));
             user = credentials.user();
             temporaryPassword = credentials.temporaryPassword();
         } else {
-            UUID existingId = existing.get().getId();
+            SystemUser existingUser = existing.get();
+            UUID existingId = existingUser.getId();
             if (email != null && systemUserRepository.contactInUse(email, existingId, RecordStatus.DELETED)) {
                 throw new DuplicateResourceException("Email '" + email + "' is already used by another user");
             }
             if (phone != null && systemUserRepository.contactInUse(phone, existingId, RecordStatus.DELETED)) {
                 throw new DuplicateResourceException("Phone number '" + phone + "' is already used by another user");
             }
-            user = SystemUserResponse.from(existing.get());
+            boolean updatedUser = false;
+            if (existingUser.getEmail() == null && email != null) {
+                existingUser.setEmail(email);
+                updatedUser = true;
+            }
+            if (existingUser.getPhoneNumber() == null && phone != null) {
+                existingUser.setPhoneNumber(phone);
+                updatedUser = true;
+            }
+            if (existingUser.getRole() == UserRole.USER) {
+                existingUser.setRole(targetRole);
+                existingUser.setAccountCategory(category);
+                updatedUser = true;
+            }
+            if (updatedUser) {
+                existingUser = systemUserRepository.save(existingUser);
+            }
+            user = SystemUserResponse.from(existingUser);
         }
 
         // 2. Client user link: update an existing link for this person, or create one.
@@ -189,6 +218,7 @@ public class ClientUserServiceImpl implements ClientUserService {
         boolean first = repository.findByIdentity(phone, email, RecordStatus.DELETED).isEmpty();
         link.setClientRef(r.clientRef());
         if (r.staffRef() != null) link.setStaffRef(r.staffRef());
+        link.setAccountCategory(category);
         link.setSystemUserId(user.id());
         if (phone != null) link.setUserPhoneNumber(phone);
         if (email != null) link.setUserEmail(email);

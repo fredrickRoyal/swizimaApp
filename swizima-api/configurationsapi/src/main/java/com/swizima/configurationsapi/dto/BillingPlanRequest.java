@@ -1,5 +1,6 @@
 package com.swizima.configurationsapi.dto;
 
+import com.swizima.configurationsapi.entity.enums.BillingModel;
 import com.swizima.configurationsapi.entity.enums.BillingPlanStatus;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -20,11 +21,15 @@ public record BillingPlanRequest(
         @NotNull(message = "clientRef is required")
         UUID clientRef,
 
-        @NotNull(message = "percentageRate is required")
+        BillingModel billingModel,
+
         @DecimalMin(value = "0.0", message = "percentageRate cannot be negative")
         @DecimalMax(value = "100.0", message = "percentageRate cannot exceed 100")
         @Digits(integer = 3, fraction = 4, message = "percentageRate allows up to 4 decimal places")
         BigDecimal percentageRate,
+
+        @PositiveOrZero(message = "monthlyAmount cannot be negative")
+        BigDecimal monthlyAmount,
 
         @Pattern(regexp = "^[A-Za-z]{3}$", message = "currency must be a 3-letter ISO code")
         String currency,

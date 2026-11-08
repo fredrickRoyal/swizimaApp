@@ -1,6 +1,7 @@
 package com.swizima.usersapi.dto;
 
 import com.swizima.usersapi.entity.ClientUser;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import com.swizima.usersapi.entity.enums.RecordStatus;
 
@@ -14,6 +15,7 @@ public record ClientUserResponse(
         UUID systemUserId,
         String userPhoneNumber,
         String userEmail,
+        AccountCategory accountCategory,
         ActivationStatus activationStatus,
         boolean isDefaultClient,
         RecordStatus recordStatus,
@@ -23,8 +25,11 @@ public record ClientUserResponse(
         LocalDateTime updatedAt
 ) {
     public static ClientUserResponse from(ClientUser u) {
+        AccountCategory category = u.getAccountCategory() != null
+                ? u.getAccountCategory()
+                : (u.getStaffRef() != null ? AccountCategory.USER : AccountCategory.CLIENT_ADMIN);
         return new ClientUserResponse(u.getId(), u.getClientRef(), u.getStaffRef(), u.getSystemUserId(), u.getUserPhoneNumber(), u.getUserEmail(),
-                u.getActivationStatus(), u.isDefaultClient(), u.getRecordStatus(),
+                category, u.getActivationStatus(), u.isDefaultClient(), u.getRecordStatus(),
                 u.getCreatedBy(), u.getCreatedAt(), u.getUpdatedBy(), u.getUpdatedAt());
     }
 }

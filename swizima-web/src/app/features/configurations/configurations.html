@@ -1,4 +1,4 @@
-<app-page-header heading="Configurations" subtitle="Billing plans: the percentage Swizima charges each client per transaction." />
+<app-page-header heading="Configurations" subtitle="Billing plans: choose per-transaction commission or an agreed end-of-month amount for each client." />
 
 @if (notice(); as n) {
   <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
@@ -13,7 +13,7 @@
 
 <div class="alert alert-info page-enter" id="plans-info">
   <app-icon name="info" />
-  <span>Clients without an active plan can't record transactions. Credit top-ups and balances are managed under
+  <span>Clients can be billed either by <strong>commission per transaction</strong> (deducted from their prepaid wallet) or by an <strong>agreed monthly amount</strong> paid at the end of every month. Credit top-ups and balances are managed under
     <a routerLink="/payments" id="plans-payments-link">Payments</a>.</span>
 </div>
 
@@ -46,7 +46,7 @@
     </div>
   } @else if (state.data && state.data.content.length === 0) {
     <app-empty-state icon="payments" heading="No billing plans yet"
-                     [message]="status() ? 'No plans match this status.' : 'Map a client to a percentage to start charging per transaction.'">
+                     [message]="status() ? 'No plans match this status.' : 'Configure a client with per-transaction commission or an end-of-month agreed fee.'">
       <button type="button" class="btn btn-primary" id="plans-empty-add" (click)="openCreate()"><app-icon name="plus" /> New billing plan</button>
     </app-empty-state>
   } @else if (state.data) {
@@ -55,7 +55,8 @@
         <thead>
           <tr>
             <th scope="col">Client</th>
-            <th scope="col" class="ta-right">Rate / transaction</th>
+            <th scope="col">Billing model</th>
+            <th scope="col" class="ta-right">Rate / Agreed amount</th>
             <th scope="col" class="ta-right">Low-balance alert</th>
             <th scope="col">Status</th>
             <th scope="col">Updated</th>
@@ -65,6 +66,7 @@
         <tbody>
           @for (plan of state.data.content; track plan.id) {
             @let client = names.get(plan.clientRef)();
+            @let monthly = isMonthlyFlat(plan);
             <tr [class.row-busy]="busyId() === plan.id">
               <td data-label="Client">
                 <div class="client-cell">
@@ -74,9 +76,26 @@
                   </a>
                 </div>
               </td>
-              <td data-label="Rate" class="ta-right"><span class="amount">{{ percent(plan.percentageRate) }}</span></td>
+              <td data-label="Billing model">
+                <span [class]="'badge badge-' + (monthly ? 'info' : 'success')">
+                  {{ monthly ? 'Monthly agreed' : 'Commission' }}
+                </span>
+              </td>
+              <td data-label="Rate / Agreed amount" class="ta-right">
+                @if (monthly) {
+                  <div class="cell-stack">
+                    <span class="amount">{{ money(plan.monthlyAmount, plan.currency) }}</span>
+                    <span class="cell-secondary">End of month</span>
+                  </div>
+                } @else {
+                  <div class="cell-stack">
+                    <span class="amount">{{ percent(plan.percentageRate) }}</span>
+                    <span class="cell-secondary">Per transaction</span>
+                  </div>
+                }
+              </td>
               <td data-label="Low-balance alert" class="ta-right num cell-secondary">
-                {{ plan.lowBalanceThreshold != null ? money(plan.lowBalanceThreshold, plan.currency) : '—' }}
+                {{ !monthly && plan.lowBalanceThreshold != null ? money(plan.lowBalanceThreshold, plan.currency) : '—' }}
               </td>
               <td data-label="Status"><app-status-badge [status]="plan.status" /></td>
               <td data-label="Updated" class="cell-secondary">{{ (plan.updatedAt ?? plan.createdAt) | date: 'mediumDate' }}</td>
@@ -131,31 +150,68 @@
             @if (clientTouched() && !pickedClient()) { <p class="field-error">Choose a client.</p> }
           }
         </div>
-        <div class="field">
-          <label for="plan-rate">Percentage per transaction <em aria-hidden="true">*</em></label>
-          <div class="input-suffix">
-            <input id="plan-rate" class="input" type="text" inputmode="decimal" autocomplete="off" formControlName="percentageRate"
-                   placeholder="e.g. 2.5" (input)="updateExample()" [attr.aria-invalid]="invalid('percentageRate')" />
-            <span>%</span>
+
+        <div class="field span-2">
+          <span class="field-label">Billing model <em aria-hidden="true">*</em></span>
+          <div class="segments" role="radiogroup" aria-label="Billing model">
+            <button type="button" id="plan-model-commission"
+                    [class.active]="form.controls.billingModel.value === 'COMMISSION'"
+                    (click)="setBillingModel('COMMISSION')">
+              <app-icon name="receipt" />
+              Commission per transaction
+            </button>
+            <button type="button" id="plan-model-monthly"
+                    [class.active]="form.controls.billingModel.value === 'MONTHLY_FLAT'"
+                    (click)="setBillingModel('MONTHLY_FLAT')">
+              <app-icon name="clock" />
+              End-of-month agreed amount
+            </button>
           </div>
-          @if (invalid('percentageRate')) { <p class="field-error">Enter 0–100 with up to 4 decimals.</p> }
         </div>
+
+        @if (form.controls.billingModel.value === 'MONTHLY_FLAT') {
+          <div class="field">
+            <label for="plan-monthly-amount">Agreed monthly amount <em aria-hidden="true">*</em></label>
+            <div class="input-suffix">
+              <input id="plan-monthly-amount" class="input" type="text" inputmode="decimal" autocomplete="off"
+                     formControlName="monthlyAmount" placeholder="e.g. 150,000" (input)="monthlyAmountInput($event)"
+                     [attr.aria-invalid]="invalid('monthlyAmount')" />
+              <span>{{ form.controls.currency.value }}</span>
+            </div>
+            @if (invalid('monthlyAmount')) { <p class="field-error">Enter an agreed monthly amount greater than 0.</p> }
+          </div>
+        } @else {
+          <div class="field">
+            <label for="plan-rate">Percentage per transaction <em aria-hidden="true">*</em></label>
+            <div class="input-suffix">
+              <input id="plan-rate" class="input" type="text" inputmode="decimal" autocomplete="off" formControlName="percentageRate"
+                     placeholder="e.g. 5" (input)="updateExample()" [attr.aria-invalid]="invalid('percentageRate')" />
+              <span>%</span>
+            </div>
+            @if (invalid('percentageRate')) { <p class="field-error">Enter 0–100 with up to 4 decimals.</p> }
+          </div>
+        }
+
         <div class="field">
           <label for="plan-currency">Currency</label>
           <select id="plan-currency" class="select" formControlName="currency">
             @for (c of currencies; track c) { <option [value]="c">{{ c }}</option> }
           </select>
         </div>
-        <div class="field">
-          <label for="plan-threshold">Low-balance alert at</label>
-          <div class="input-suffix">
-            <input id="plan-threshold" class="input" type="text" inputmode="decimal" autocomplete="off"
-                   formControlName="lowBalanceThreshold" placeholder="Optional" (input)="thresholdInput($event)"
-                   [attr.aria-invalid]="invalid('lowBalanceThreshold')" />
-            <span>{{ form.controls.currency.value }}</span>
+
+        @if (form.controls.billingModel.value === 'COMMISSION') {
+          <div class="field">
+            <label for="plan-threshold">Low-balance alert at</label>
+            <div class="input-suffix">
+              <input id="plan-threshold" class="input" type="text" inputmode="decimal" autocomplete="off"
+                     formControlName="lowBalanceThreshold" placeholder="Optional" (input)="thresholdInput($event)"
+                     [attr.aria-invalid]="invalid('lowBalanceThreshold')" />
+              <span>{{ form.controls.currency.value }}</span>
+            </div>
+            @if (invalid('lowBalanceThreshold')) { <p class="field-error">Enter 0 or more.</p> }
           </div>
-          @if (invalid('lowBalanceThreshold')) { <p class="field-error">Enter 0 or more.</p> }
-        </div>
+        }
+
         <div class="field">
           <label for="plan-status">Status</label>
           <select id="plan-status" class="select" formControlName="status">
@@ -164,17 +220,23 @@
         </div>
         <div class="field span-2">
           <label for="plan-notes">Notes</label>
-          <textarea id="plan-notes" class="input" rows="2" formControlName="notes" placeholder="Optional"></textarea>
+          <textarea id="plan-notes" class="input" rows="2" formControlName="notes" placeholder="Optional (e.g. agreed billing terms or due date)"></textarea>
         </div>
       </div>
+
       @if (example() !== null) {
         <div class="preview" id="plan-example">
-          <span>A 100,000 {{ form.controls.currency.value }} transaction is charged</span>
-          <strong>{{ money(example(), form.controls.currency.value) }}</strong>
+          @if (form.controls.billingModel.value === 'MONTHLY_FLAT') {
+            <span>Client pays at the end of every month (0% per transaction):</span>
+            <strong>{{ money(example(), form.controls.currency.value) }} / month</strong>
+          } @else {
+            <span>A 100,000 {{ form.controls.currency.value }} transaction is charged</span>
+            <strong>{{ money(example(), form.controls.currency.value) }}</strong>
+          }
         </div>
       }
       @if (editing()) {
-        <p class="field-hint">Rate changes apply to new transactions only.</p>
+        <p class="field-hint">Plan changes apply to future transactions only.</p>
       }
     </div>
 

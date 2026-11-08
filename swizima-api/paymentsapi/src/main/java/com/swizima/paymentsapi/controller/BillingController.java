@@ -8,11 +8,16 @@ import com.swizima.paymentsapi.dto.CreditLoadRequest;
 import com.swizima.paymentsapi.dto.CreditLoadResponse;
 import com.swizima.paymentsapi.dto.CreditLoadReversalRequest;
 import com.swizima.paymentsapi.dto.CreditLoadSummaryResponse;
+import com.swizima.paymentsapi.dto.CreditTopUpApprovalRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRejectionRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestCreate;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestResponse;
 import com.swizima.paymentsapi.dto.PageResponse;
 import com.swizima.paymentsapi.dto.TransactionChargeRequest;
 import com.swizima.paymentsapi.entity.enums.BillingActivityType;
 import com.swizima.paymentsapi.entity.enums.CreditLoadStatus;
 import com.swizima.paymentsapi.entity.enums.CreditPaymentMethod;
+import com.swizima.paymentsapi.entity.enums.CreditRequestStatus;
 import com.swizima.paymentsapi.service.BillingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -111,6 +116,44 @@ public class BillingController {
     public ResponseEntity<CreditLoadResponse> reverseCreditLoad(@PathVariable UUID id,
                                                                 @Valid @RequestBody CreditLoadReversalRequest request) {
         return ResponseEntity.ok(billingService.reverseCreditLoad(id, request));
+    }
+
+    // ---------------- Credit top-up requests ----------------
+
+    @PostMapping("/wallets/client/{clientRef}/credit-requests")
+    @Operation(summary = "Submit a client credit top-up request for Super Admin review")
+    public ResponseEntity<CreditTopUpRequestResponse> submitCreditRequest(
+            @PathVariable UUID clientRef,
+            @Valid @RequestBody CreditTopUpRequestCreate request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(billingService.submitCreditRequest(clientRef, request));
+    }
+
+    @GetMapping("/credit-requests")
+    @Operation(summary = "List credit top-up requests (filter by clientRef, status, paymentMethod or search)")
+    public ResponseEntity<PageResponse<CreditTopUpRequestResponse>> getCreditRequests(
+            @RequestParam(required = false) UUID clientRef,
+            @RequestParam(required = false) CreditRequestStatus status,
+            @RequestParam(required = false) CreditPaymentMethod paymentMethod,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(billingService.getCreditRequests(clientRef, status, paymentMethod, search, pageable));
+    }
+
+    @PostMapping("/credit-requests/{id}/approve")
+    @Operation(summary = "Approve a pending credit request and confirm the actual credit amount to load into the wallet")
+    public ResponseEntity<CreditTopUpRequestResponse> approveCreditRequest(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreditTopUpApprovalRequest request) {
+        return ResponseEntity.ok(billingService.approveCreditRequest(id, request));
+    }
+
+    @PostMapping("/credit-requests/{id}/reject")
+    @Operation(summary = "Reject a pending credit request with a reason")
+    public ResponseEntity<CreditTopUpRequestResponse> rejectCreditRequest(
+            @PathVariable UUID id,
+            @Valid @RequestBody CreditTopUpRejectionRequest request) {
+        return ResponseEntity.ok(billingService.rejectCreditRequest(id, request));
     }
 
     // ---------------- Charges ----------------

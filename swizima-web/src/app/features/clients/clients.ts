@@ -136,11 +136,18 @@ export class Clients {
 function consumeCreatedState(navState: unknown): ClientCreatedState | null {
   const state = (navState ?? history.state) as Partial<ClientCreatedState> | null;
   if (!state?.createdClientId) return null;
-  const { createdClientId, createdClientName = '', createdClientCode = '' } = state;
+  const { createdClientId, createdClientName = '', createdClientCode = '', createdClientEmail, createdClientPhone } = state;
   // Let the router finish writing history first, then strip the one-time fields (reload won't re-show it).
   setTimeout(() => {
-    const { createdClientId: _id, createdClientName: _n, createdClientCode: _c, ...rest } = history.state ?? {};
+    const {
+      createdClientId: _id,
+      createdClientName: _n,
+      createdClientCode: _c,
+      createdClientEmail: _e,
+      createdClientPhone: _p,
+      ...rest
+    } = history.state ?? {};
     history.replaceState(rest, '');
   });
-  return { createdClientId, createdClientName, createdClientCode };
+  return { createdClientId, createdClientName, createdClientCode, createdClientEmail, createdClientPhone };
 }

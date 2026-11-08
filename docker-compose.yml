@@ -1,0 +1,143 @@
+# =====================================================================
+# Swizima APIs Stack (All 6 Spring Boot APIs pulled from Docker Hub)
+# Connects to the existing PostgreSQL stack on `swizima-network`.
+#
+#   docker compose pull            # pull latest images from Docker Hub
+#   docker compose up -d           # start all 6 APIs
+#   docker compose ps              # status
+#   docker compose logs -f         # tail logs
+#   docker compose down            # stop API containers
+# =====================================================================
+name: swizima-apis
+
+services:
+  # -------------------------------------------------------------------
+  # Users API (8085)
+  # -------------------------------------------------------------------
+  usersapi:
+    image: fredrickkasoma/swizima-usersapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-usersapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8085
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_users
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      MAIL_USERNAME: ${MAIL_USERNAME:-swizimaapp@gmail.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-oxid ejkk unfp cgfq}
+    ports:
+      - "8085:8085"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # Client API (8081)
+  # -------------------------------------------------------------------
+  clientapi:
+    image: fredrickkasoma/swizima-clientapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-clientapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_client
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      USERS_API_URL: http://usersapi:8085
+    ports:
+      - "8081:8081"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # Configurations API (8082)
+  # -------------------------------------------------------------------
+  configurationsapi:
+    image: fredrickkasoma/swizima-configurationsapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-configurationsapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_configurations
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8082:8082"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # Payments API (8083)
+  # -------------------------------------------------------------------
+  paymentsapi:
+    image: fredrickkasoma/swizima-paymentsapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-paymentsapi
+    restart: unless-stopped
+    depends_on:
+      - configurationsapi
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_payments
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      CONFIGURATIONS_API_URL: http://configurationsapi:8082
+    ports:
+      - "8083:8083"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # Client Transactions API (8084)
+  # -------------------------------------------------------------------
+  clienttransactionsapi:
+    image: fredrickkasoma/swizima-clienttransactionsapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-clienttransactionsapi
+    restart: unless-stopped
+    depends_on:
+      - paymentsapi
+    environment:
+      SERVER_PORT: 8084
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_client_transactions
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PAYMENTS_API_URL: http://paymentsapi:8083
+    ports:
+      - "8084:8084"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # API Gateway (9080)
+  # -------------------------------------------------------------------
+  apigateway:
+    image: fredrickkasoma/swizima-apigateway:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-apigateway
+    restart: unless-stopped
+    depends_on:
+      - usersapi
+      - clientapi
+      - configurationsapi
+      - paymentsapi
+      - clienttransactionsapi
+    environment:
+      SERVER_PORT: 9080
+      CLIENT_API_URL: http://clientapi:8081
+      CONFIGURATIONS_API_URL: http://configurationsapi:8082
+      PAYMENTS_API_URL: http://paymentsapi:8083
+      CLIENT_TRANSACTIONS_API_URL: http://clienttransactionsapi:8084
+      USERS_API_URL: http://usersapi:8085
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+    ports:
+      - "${GATEWAY_PORT:-9080}:9080"
+    networks:
+      - swizima
+
+networks:
+  swizima:
+    name: swizima-network
+    external: true

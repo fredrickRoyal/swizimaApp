@@ -1,5 +1,26 @@
 :host { display: block; }
 
+.signup-page { min-height: 100svh; background: var(--bg); color: var(--text); padding-bottom: 3rem; }
+.signup-nav {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent);
+  backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.signup-nav-inner {
+  width: min(1100px, 100% - 2.5rem); margin-inline: auto; min-height: 64px;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.signup-brand { display: flex; align-items: center; gap: 0.65rem; text-decoration: none; color: inherit; }
+.signup-logo {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+  background: var(--gradient-brand); color: #fff; font-weight: 700;
+}
+.signup-brand-text { display: grid; line-height: 1.2; }
+.signup-brand-text small { font-size: 0.72rem; color: var(--text-muted); }
+.signup-nav-links { display: flex; align-items: center; gap: 0.6rem; }
+.signup-container { width: min(1100px, 100% - 2.5rem); margin-inline: auto; }
+
 /* ---------- Breadcrumb ---------- */
 .crumbs {
   display: flex;

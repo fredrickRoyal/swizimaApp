@@ -110,7 +110,9 @@ export class VerifyOtp implements AfterViewInit {
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: (session) => {
-          const target = safeReturnUrl(this.returnUrl());
+          const target = this.auth.isClientPortalUser()
+            ? '/portal/dashboard'
+            : safeReturnUrl(this.returnUrl(), this.auth.defaultHomeUrl());
           this.router.navigateByUrl(target, {
             state: session.mustChangePassword ? { mustChangePassword: true } : undefined,
           });
@@ -193,6 +195,6 @@ export class VerifyOtp implements AfterViewInit {
 }
 
 /** Only allow in-app relative paths (prevents open redirects via ?returnUrl=). */
-function safeReturnUrl(url: string | undefined): string {
-  return url && url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/auth') ? url : '/dashboard';
+function safeReturnUrl(url: string | undefined, fallback = '/dashboard'): string {
+  return url && url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/auth') ? url : fallback;
 }

@@ -1,5 +1,6 @@
 package com.swizima.configurationsapi.entity;
 
+import com.swizima.configurationsapi.entity.enums.BillingModel;
 import com.swizima.configurationsapi.entity.enums.BillingPlanStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,7 +18,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * Billing rules for a client: the percentage charged per transaction.
+ * Billing rules for a client: either a percentage charged per transaction (COMMISSION)
+ * or an agreed fixed amount paid at the end of every month (MONTHLY_FLAT).
  * The money side (wallet balance, credit loads, charges) lives in the Payments API,
  * which reads this plan when charging a transaction.
  */
@@ -34,9 +36,18 @@ public class ClientBillingPlan extends ParentEntity {
     @Column(name = "client_ref", nullable = false, updatable = false)
     private UUID clientRef;
 
-    /** Fee charged per transaction, as a percentage of the transaction amount (e.g. 2.5 = 2.5%). */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_model", length = 20)
+    private BillingModel billingModel = BillingModel.COMMISSION;
+
+    /** Fee charged per transaction, as a percentage of the transaction amount (e.g. 5 = 5%). 0 for MONTHLY_FLAT. */
     @Column(name = "percentage_rate", nullable = false, precision = 7, scale = 4)
     private BigDecimal percentageRate;
+
+    /** Agreed fixed monthly amount payable at the end of the month (used when billingModel == MONTHLY_FLAT). */
+    @Column(name = "monthly_amount", precision = 15, scale = 2)
+    private BigDecimal monthlyAmount;
 
     @Builder.Default
     @Column(name = "currency", nullable = false, length = 3)

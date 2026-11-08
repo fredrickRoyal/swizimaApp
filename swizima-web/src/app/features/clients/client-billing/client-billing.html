@@ -19,8 +19,10 @@
 } @else if (notConfigured()) {
   <section class="card page-enter">
     <app-empty-state icon="payments" heading="Billing isn't set up for this client"
-                     message="Create a billing plan with the percentage charged per transaction. Until then this client can't record transactions.">
-      <a class="btn btn-primary" routerLink="/configurations" id="client-billing-setup"><app-icon name="settings" /> Set up billing plan</a>
+                     message="A billing plan (5% commission or agreed monthly fee) must be configured before recording transactions.">
+      @if (layout.isAdmin()) {
+        <a class="btn btn-primary" routerLink="/configurations" id="client-billing-setup"><app-icon name="settings" /> Set up billing plan</a>
+      }
     </app-empty-state>
   </section>
 } @else {
@@ -31,16 +33,28 @@
       @if (w) {
         <span class="value">{{ money(w.balance, w.currency) }}</span>
         <span class="hint">
-          @if (w.lowBalance) { Running low — top up soon } @else if (w.lowBalanceThreshold != null) { Alert at {{ money(w.lowBalanceThreshold, w.currency) }} } @else { Prepaid credit }
+          @if (w.lowBalance) { Running low — request a top-up soon } @else if (w.lowBalanceThreshold != null) { Alert at {{ money(w.lowBalanceThreshold, w.currency) }} } @else { Prepaid credit }
         </span>
       } @else {
         <span class="skeleton" style="width: 160px; height: 30px"></span>
       }
     </div>
     <div class="card stat">
-      <span class="label"><app-icon name="receipt" /> Rate per transaction</span>
-      <span class="value">{{ w ? percent(w.percentageRate) : '—' }}</span>
+      <span class="label">
+        <app-icon name="receipt" />
+        {{ w?.billingModel === 'MONTHLY_FLAT' ? 'Agreed monthly fee' : 'Rate per transaction' }}
+      </span>
+      <span class="value">
+        @if (!w) {
+          —
+        } @else if (w.billingModel === 'MONTHLY_FLAT') {
+          {{ money(w.monthlyAmount, w.currency) }}
+        } @else {
+          {{ percent(w.percentageRate) }}
+        }
+      </span>
       <span class="hint">
+        @if (w?.billingModel === 'MONTHLY_FLAT') { Paid end of month · }
         @if (w?.planStatus) { <app-status-badge [status]="w!.planStatus!" /> }
       </span>
     </div>
@@ -58,12 +72,20 @@
 
   @if (w?.planStatus === 'SUSPENDED') {
     <div class="alert alert-warning page-enter" id="client-billing-suspended">
-      <app-icon name="alert" /><span>Billing is suspended — new transactions are blocked until it is reactivated in
-      <a routerLink="/configurations" id="client-billing-config-link">Configurations</a>.</span>
+      <app-icon name="alert" />
+      @if (layout.isAdmin()) {
+        <span>Billing is suspended — new transactions are blocked until it is reactivated in
+        <a routerLink="/configurations" id="client-billing-config-link">Configurations</a>.</span>
+      } @else {
+        <span>Billing is suspended — please contact Swizima support or request a credit top-up to reactivate your account.</span>
+      }
     </div>
-  } @else if (w && w.balance <= 0) {
+  } @else if (w && w.billingModel !== 'MONTHLY_FLAT' && w.balance <= 0) {
     <div class="alert alert-error page-enter" id="client-billing-empty">
-      <app-icon name="alert" /><span>No credit left — new transactions will be blocked until credit is loaded.</span>
+      <app-icon name="alert" />
+      <span>
+        No credit left — new transactions will be blocked until credit is loaded by the administrator.
+      </span>
     </div>
   }
 
@@ -71,9 +93,17 @@
     <div class="toolbar">
       <div class="segments" role="tablist" aria-label="Billing history">
         <button type="button" role="tab" id="client-billing-tab-activity" [class.active]="view() === 'activity'"
-                [attr.aria-selected]="view() === 'activity'" (click)="view.set('activity')"><app-icon name="transfer" /> Activity</button>
+                [attr.aria-selected]="view() === 'activity'" (click)="view.set('activity')">
+          <app-icon name="transfer" /> Activity
+        </button>
         <button type="button" role="tab" id="client-billing-tab-loads" [class.active]="view() === 'loads'"
-                [attr.aria-selected]="view() === 'loads'" (click)="view.set('loads')"><app-icon name="plus" /> Credit loads</button>
+                [attr.aria-selected]="view() === 'loads'" (click)="view.set('loads')">
+          <app-icon name="plus" /> Credit loads
+        </button>
+        <button type="button" role="tab" id="client-billing-tab-requests" [class.active]="view() === 'requests'"
+                [attr.aria-selected]="view() === 'requests'" (click)="view.set('requests')">
+          <app-icon name="clock" /> Credit requests
+        </button>
       </div>
       @if (view() === 'activity') {
         <label class="visually-hidden" for="client-billing-type">Activity type</label>
@@ -81,14 +111,29 @@
           <option value="">All activity</option>
           @for (t of activityTypes; track t) { <option [value]="t">{{ activityMeta[t].label }}</option> }
         </select>
+      } @else if (view() === 'requests') {
+        <label class="visually-hidden" for="client-billing-request-status">Request status</label>
+        <select class="select" id="client-billing-request-status" [value]="requestStatusFilter()"
+                (change)="requestStatusFilter.set($any($event.target).value); requestsPage.set(0)">
+          <option value="">All statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
       }
       <span class="toolbar-spacer"></span>
       <button type="button" class="btn btn-icon" id="client-billing-refresh" (click)="refresh()" aria-label="Refresh" title="Refresh">
         <app-icon name="refresh" />
       </button>
-      <button type="button" class="btn btn-primary" id="client-billing-load" (click)="openLoad()">
-        <app-icon name="plus" /> Load credit
-      </button>
+      @if (layout.isAdmin()) {
+        <button type="button" class="btn btn-primary" id="client-billing-load" (click)="openLoad()">
+          <app-icon name="plus" /> Load credit
+        </button>
+      } @else {
+        <button type="button" class="btn btn-primary" id="client-billing-request" (click)="openRequestCredit()">
+          <app-icon name="payments" /> Request credit
+        </button>
+      }
     </div>
 
     @if (view() === 'activity') {
@@ -104,7 +149,8 @@
           }
         </div>
       } @else if (acts.data && acts.data.content.length === 0) {
-        <app-empty-state icon="transfer" heading="No billing activity yet" message="Load credit to get started; each transaction's charge will appear here." />
+        <app-empty-state icon="transfer" heading="No billing activity yet"
+                         [message]="layout.isAdmin() ? 'Load credit to get started; each transaction\'s charge will appear here.' : 'Your credit top-ups and per-transaction charges will appear here.'" />
       } @else if (acts.data) {
         <div class="table-wrap" [style.opacity]="acts.loading ? 0.6 : 1">
           <table class="table">
@@ -149,7 +195,7 @@
         </div>
         <app-pagination [page]="activityPage()" [size]="pageSize" [total]="acts.data.totalElements" (pageChange)="activityPage.set($event)" />
       }
-    } @else {
+    } @else if (view() === 'loads') {
       @let ls = loads.state();
       @if (ls.error) {
         <app-empty-state icon="alert" tone="error" heading="Couldn't load credit loads" [message]="ls.error">
@@ -174,7 +220,9 @@
                 <th scope="col">Paid by</th>
                 <th scope="col">Received by</th>
                 <th scope="col">Status</th>
-                <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+                @if (layout.isAdmin()) {
+                  <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+                }
               </tr>
             </thead>
             <tbody>
@@ -200,14 +248,16 @@
                       {{ l.status === 'COMPLETED' ? 'Completed' : 'Reversed' }}
                     </span>
                   </td>
-                  <td data-label="Actions" class="col-actions">
-                    @if (l.status === 'COMPLETED') {
-                      <button type="button" class="btn btn-icon btn-ghost" [id]="'client-load-reverse-' + l.id" (click)="reverse(l)"
-                              [disabled]="busyId() === l.id" aria-label="Reverse credit load" title="Reverse">
-                        <app-icon name="refresh" />
-                      </button>
-                    }
-                  </td>
+                  @if (layout.isAdmin()) {
+                    <td data-label="Actions" class="col-actions">
+                      @if (l.status === 'COMPLETED') {
+                        <button type="button" class="btn btn-icon btn-ghost" [id]="'client-load-reverse-' + l.id" (click)="reverse(l)"
+                                [disabled]="busyId() === l.id" aria-label="Reverse credit load" title="Reverse">
+                          <app-icon name="refresh" />
+                        </button>
+                      }
+                    </td>
+                  }
                 </tr>
               }
             </tbody>
@@ -215,8 +265,171 @@
         </div>
         <app-pagination [page]="loadsPage()" [size]="pageSize" [total]="ls.data.totalElements" (pageChange)="loadsPage.set($event)" />
       }
+    } @else {
+      @let rs = creditRequests.state();
+      @if (rs.error) {
+        <app-empty-state icon="alert" tone="error" heading="Couldn't load credit requests" [message]="rs.error">
+          <button type="button" class="btn" id="client-billing-requests-retry" (click)="creditRequests.reload()">Try again</button>
+        </app-empty-state>
+      } @else if (rs.loading && !rs.data) {
+        <div class="skeleton-rows" aria-busy="true" aria-label="Loading credit requests">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+          }
+        </div>
+      } @else if (rs.data && rs.data.content.length === 0) {
+        <app-empty-state icon="clock" heading="No credit requests yet"
+                         [message]="layout.isAdmin() ? 'Credit top-up requests submitted by this client will appear here for your approval.' : 'Submit a credit request when you need your wallet topped up.'" />
+      } @else if (rs.data) {
+        <div class="table-wrap" [style.opacity]="rs.loading ? 0.6 : 1">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Requested on</th>
+                <th scope="col" class="ta-right">Requested amount</th>
+                <th scope="col" class="ta-right">Confirmed top-up</th>
+                <th scope="col">Method / reference</th>
+                <th scope="col">Notes / review</th>
+                <th scope="col">Status</th>
+                @if (layout.isAdmin()) {
+                  <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of rs.data.content; track r.id) {
+                <tr>
+                  <td data-label="Requested on" class="cell-secondary">{{ r.createdAt | date: 'medium' }}</td>
+                  <td data-label="Requested amount" class="ta-right">
+                    <span class="amount">{{ money(r.requestedAmount, r.currency) }}</span>
+                  </td>
+                  <td data-label="Confirmed top-up" class="ta-right">
+                    @if (r.status === 'APPROVED') {
+                      <span class="amount credit">{{ money(r.approvedAmount ?? r.requestedAmount, r.currency) }}</span>
+                    } @else {
+                      <span class="cell-secondary">—</span>
+                    }
+                  </td>
+                  <td data-label="Method">
+                    <div class="cell-stack">
+                      <span>{{ methodLabel(r.paymentMethod) }}</span>
+                      @if (r.paymentReference) { <span class="cell-secondary cell-mono">{{ r.paymentReference }}</span> }
+                    </div>
+                  </td>
+                  <td data-label="Notes / review">
+                    <div class="cell-stack">
+                      <span>{{ r.notes ?? '—' }}</span>
+                      @if (r.reviewNotes) {
+                        <span class="cell-secondary">
+                          {{ r.status === 'REJECTED' ? 'Rejected:' : 'Admin:' }} {{ r.reviewNotes }}
+                        </span>
+                      }
+                    </div>
+                  </td>
+                  <td data-label="Status">
+                    <span [class]="'badge badge-' + (r.status === 'APPROVED' ? 'success' : r.status === 'REJECTED' ? 'danger' : 'warning')">
+                      {{ r.status === 'APPROVED' ? 'Approved' : r.status === 'REJECTED' ? 'Rejected' : 'Pending' }}
+                    </span>
+                  </td>
+                  @if (layout.isAdmin()) {
+                    <td data-label="Actions" class="col-actions">
+                      @if (r.status === 'PENDING') {
+                        <div style="display: inline-flex; gap: 0.4rem">
+                          <button type="button" class="btn btn-primary" [id]="'client-request-approve-' + r.id"
+                                  (click)="openApproveRequest(r)">
+                            <app-icon name="check" /> Approve
+                          </button>
+                          <button type="button" class="btn" [id]="'client-request-reject-' + r.id"
+                                  (click)="openRejectRequest(r)">
+                            Reject
+                          </button>
+                        </div>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <app-pagination [page]="requestsPage()" [size]="pageSize" [total]="rs.data.totalElements" (pageChange)="requestsPage.set($event)" />
+      }
     }
   </section>
 }
 
-<app-load-credit-dialog (loaded)="onLoaded($event)" />
+@if (layout.isAdmin()) {
+  <app-load-credit-dialog (loaded)="onLoaded($event)" />
+  <app-approve-credit-request-dialog (reviewed)="onRequestReviewed($event)" />
+}
+
+<!-- ---------- Request Credit Top-Up Dialog (for non-admin users) ---------- -->
+<dialog #requestDialog class="dialog card" id="request-credit-dialog" aria-labelledby="request-credit-title">
+  <form [formGroup]="requestForm" (ngSubmit)="submitRequestCredit('submit')" novalidate>
+    <header class="dialog-head">
+      <div class="cell-stack">
+        <h2 id="request-credit-title">Request credit top-up</h2>
+        @if (layout.client.state().data; as c) { <span class="cell-secondary">{{ c.clientName }}</span> }
+      </div>
+      <button type="button" class="btn btn-icon btn-ghost" id="request-credit-close" (click)="closeRequestCredit()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (requestError()) {
+        <div class="alert alert-error" role="alert" id="request-credit-error"><app-icon name="alert" /><span>{{ requestError() }}</span></div>
+      }
+
+      <p class="cell-secondary" style="margin: 0">
+        Submit your credit top-up request below. A Swizima administrator will review your request, confirm the actual credit amount, and top up your wallet.
+      </p>
+
+      <div class="quick-amounts" aria-label="Quick amounts">
+        @for (q of quickAmounts; track q) {
+          <button type="button" class="chip" [id]="'request-quick-' + q" (click)="pickRequestAmount(q)">+ {{ money(q, walletData()?.currency ?? 'UGX') }}</button>
+        }
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="request-amount">Amount requested <em aria-hidden="true">*</em></label>
+          <div class="input-suffix">
+            <input id="request-amount" class="input" inputmode="numeric" formControlName="amount"
+                   placeholder="50,000" (input)="onRequestAmountInput($event)" />
+            <span>{{ walletData()?.currency ?? 'UGX' }}</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="request-method">Payment method <em aria-hidden="true">*</em></label>
+          <select id="request-method" class="select" formControlName="paymentMethod">
+            @for (m of methods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label for="request-ref">Payment / MoMo reference</label>
+          <input id="request-ref" class="input" formControlName="paymentReference" placeholder="Receipt or MoMo txn ID" maxlength="100" />
+        </div>
+        <div class="field">
+          <label for="request-phone">Contact phone</label>
+          <input id="request-phone" class="input" formControlName="contactPhone" placeholder="+256700000000" maxlength="30" />
+        </div>
+        <div class="field span-2">
+          <label for="request-notes">Notes</label>
+          <textarea id="request-notes" class="input" rows="2" formControlName="notes" placeholder="Optional details for the billing administrator"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="request-credit-cancel" (click)="closeRequestCredit()" [disabled]="requestSaving()">Cancel</button>
+      <button type="button" class="btn" id="request-credit-whatsapp" (click)="submitRequestCredit('whatsapp')" [disabled]="requestSaving()">
+        <app-icon name="whatsapp" /> Submit &amp; notify via WhatsApp
+      </button>
+      <button type="submit" class="btn btn-primary" id="request-credit-submit" [disabled]="requestSaving()">
+        @if (requestSaving()) { <span class="spinner" aria-hidden="true"></span> }
+        <app-icon name="check" /> Submit request
+      </button>
+    </footer>
+  </form>
+</dialog>

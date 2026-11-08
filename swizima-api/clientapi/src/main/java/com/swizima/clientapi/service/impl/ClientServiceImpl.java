@@ -10,6 +10,7 @@ import com.swizima.clientapi.exception.DuplicateResourceException;
 import com.swizima.clientapi.exception.ResourceNotFoundException;
 import com.swizima.clientapi.repository.ClientRepository;
 import com.swizima.clientapi.service.ClientService;
+import com.swizima.clientapi.service.UsersApiClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class ClientServiceImpl implements ClientService {
 
     private final ClientRepository clientRepository;
+    private final UsersApiClient usersApiClient;
 
     @Override
     @Transactional
@@ -46,7 +48,9 @@ public class ClientServiceImpl implements ClientService {
         }
         client.setRecordStatus(RecordStatus.ACTIVE);
 
-        return ClientResponse.from(clientRepository.save(client));
+        Client saved = clientRepository.save(client);
+        usersApiClient.ensureClientAccount(saved);
+        return ClientResponse.from(saved);
     }
 
     @Override

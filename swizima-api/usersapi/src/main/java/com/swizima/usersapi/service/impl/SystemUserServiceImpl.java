@@ -6,9 +6,11 @@ import com.swizima.usersapi.dto.SystemUserResponse;
 import com.swizima.usersapi.dto.UpdateUserRequest;
 import com.swizima.usersapi.dto.UserCredentialsResponse;
 import com.swizima.usersapi.entity.SystemUser;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import com.swizima.usersapi.entity.enums.OtpChannel;
 import com.swizima.usersapi.entity.enums.RecordStatus;
+import com.swizima.usersapi.entity.enums.UserRole;
 import com.swizima.usersapi.entity.enums.UsernameType;
 import com.swizima.usersapi.exception.DuplicateResourceException;
 import com.swizima.usersapi.exception.ResourceNotFoundException;
@@ -58,6 +60,14 @@ public class SystemUserServiceImpl implements SystemUserService {
         user.setEnabled(request.enabled() == null || request.enabled());
         // A user who chose their own password is active immediately; otherwise they
         // become active after replacing the temporary password.
+        AccountCategory category = request.accountCategory() != null
+                ? request.accountCategory() : AccountCategory.USER;
+        UserRole role = request.role() != null ? request.role()
+                : (category == AccountCategory.SUPER_ADMIN ? UserRole.SUPER_ADMIN
+                : category == AccountCategory.CLIENT_ADMIN ? UserRole.CLIENT_ADMIN : UserRole.USER);
+
+        user.setAccountCategory(category);
+        user.setRole(role);
         user.setActivationStatus(generated ? ActivationStatus.PENDING_ACTIVATION : ActivationStatus.ACTIVE);
         user.setRecordStatus(RecordStatus.ACTIVE);
 
@@ -109,11 +119,11 @@ public class SystemUserServiceImpl implements SystemUserService {
     }
 
     @Override
-    public PageResponse<SystemUserResponse> getUsers(String search, ActivationStatus activationStatus,
-                                                     Boolean enabled, Pageable pageable) {
+    public PageResponse<SystemUserResponse> getUsers(String search, AccountCategory accountCategory,
+                                                     ActivationStatus activationStatus, Boolean enabled, Pageable pageable) {
         String term = (search == null || search.isBlank()) ? null : search.trim();
         return PageResponse.from(
-                userRepository.search(term, activationStatus, enabled, RecordStatus.DELETED, pageable)
+                userRepository.search(term, accountCategory, activationStatus, enabled, RecordStatus.DELETED, pageable)
                         .map(SystemUserResponse::from));
     }
 

@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Mobile app (not needed for API/Web Docker builds)
+swizima-mobile/
+
+# Node / Web build artifacts
+**/node_modules
+**/dist
+**/.angular
+
+# Maven / Java build artifacts
+**/target
+**/.mvn/wrapper/maven-wrapper.jar
+
+# IDE / OS / Env files
+**/.idea
+**/.vscode
+**/*.iml
+**/.DS_Store
+**/.env
+*.log
+

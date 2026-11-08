@@ -5,6 +5,7 @@ import com.swizima.usersapi.dto.PageResponse;
 import com.swizima.usersapi.dto.SystemUserResponse;
 import com.swizima.usersapi.dto.UpdateUserRequest;
 import com.swizima.usersapi.dto.UserCredentialsResponse;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import org.springframework.data.domain.Pageable;
 
@@ -20,8 +21,8 @@ public interface SystemUserService {
 
     SystemUserResponse getUserByUsername(String username);
 
-    PageResponse<SystemUserResponse> getUsers(String search, ActivationStatus activationStatus,
-                                              Boolean enabled, Pageable pageable);
+    PageResponse<SystemUserResponse> getUsers(String search, AccountCategory accountCategory,
+                                              ActivationStatus activationStatus, Boolean enabled, Pageable pageable);
 
     SystemUserResponse updateActivationStatus(UUID id, ActivationStatus activationStatus);
 

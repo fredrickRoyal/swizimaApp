@@ -31,10 +31,12 @@ public record ClientRequest(
 
         String description,
 
+        @NotBlank(message = "Email is required")
         @Email(message = "Email must be valid")
         @Size(max = 150)
         String email,
 
+        @NotBlank(message = "Phone number is required")
         @Size(max = 30)
         String phoneNumber,
 

@@ -27,7 +27,42 @@
   gap: 1.15rem;
 }
 
-.input {
+/* Segmented switch for Email vs Phone sign-in */
+.login-type-switch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+.switch-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color var(--duration) var(--ease), color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease), border-color var(--duration) var(--ease);
+  app-icon { width: 17px; height: 17px; }
+  &:hover:not(.active) { color: var(--text); }
+  &.active {
+    background: var(--bg-elevated);
+    color: light-dark(var(--brand-600), var(--brand-400));
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.input, app-phone-input {
   min-height: 48px;
   font-size: 1rem;
 }
@@ -74,6 +109,55 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
+}
+.category-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.category-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
+  .cat-icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--bg-muted, rgb(127 127 127 / 0.12));
+    color: var(--text-muted);
+    app-icon { width: 16px; height: 16px; }
+  }
+  .cat-text {
+    display: grid;
+    min-width: 0;
+    line-height: 1.2;
+    strong { font-size: 0.82rem; font-weight: 650; }
+    small { font-size: 0.7rem; color: var(--text-muted); }
+  }
+  &:hover { border-color: var(--border-strong); }
+  &.selected {
+    border-color: var(--brand-500);
+    background: color-mix(in srgb, var(--brand-500) 10%, var(--bg-elevated));
+    .cat-icon { background: var(--gradient-brand); color: #fff; }
+  }
+  &:focus-visible { outline: none; box-shadow: var(--ring); }
+}
+@media (max-width: 520px) {
+  .category-options { grid-template-columns: 1fr; }
+  .category-card { flex-direction: row; align-items: center; }
 }
 .channel {
   position: relative;

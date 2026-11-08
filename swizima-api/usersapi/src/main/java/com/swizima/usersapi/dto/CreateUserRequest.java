@@ -1,6 +1,8 @@
 package com.swizima.usersapi.dto;
 
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.OtpChannel;
+import com.swizima.usersapi.entity.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -34,6 +36,16 @@ public record CreateUserRequest(
         String phoneNumber,
 
         @Schema(description = "Default OTP channel. Defaults to EMAIL")
-        OtpChannel preferredOtpChannel
+        OtpChannel preferredOtpChannel,
+
+        @Schema(description = "Account category (SYSTEM, CLIENT, STAFF). Defaults to SYSTEM")
+        AccountCategory accountCategory,
+
+        @Schema(description = "User role. Defaults to USER (or CLIENT/STAFF based on category)")
+        UserRole role
 ) {
+    public CreateUserRequest(String username, String password, Boolean enabled, String email,
+                             String phoneNumber, OtpChannel preferredOtpChannel) {
+        this(username, password, enabled, email, phoneNumber, preferredOtpChannel, null, null);
+    }
 }

@@ -29,12 +29,14 @@ export interface ProblemDetail {
 export type OtpChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 export type UsernameType = 'EMAIL' | 'PHONE';
 export type ActivationStatus = 'PENDING_ACTIVATION' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED' | 'DEACTIVATED';
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
+export type UserRole = 'SUPER_ADMIN' | 'CLIENT_ADMIN' | 'USER' | 'ADMIN';
+export type AccountCategory = 'SUPER_ADMIN' | 'CLIENT_ADMIN' | 'USER';
 
 export interface LoginRequest {
   username: string;
   password: string;
   otpChannel?: OtpChannel;
+  accountCategory?: AccountCategory;
 }
 
 export interface OtpChallengeResponse {
@@ -62,6 +64,12 @@ export interface LoginResponse {
   userId: string;
   username: string;
   usernameType: UsernameType;
+  email?: string;
+  phoneNumber?: string;
+  role?: UserRole;
+  accountCategory?: AccountCategory;
+  defaultClientId?: string;
+  clientIds?: string[];
   activationStatus: ActivationStatus;
   mustChangePassword: boolean;
   lastLoginAt: string;
@@ -78,6 +86,7 @@ export interface SystemUser {
   enabled: boolean;
   activationStatus: ActivationStatus;
   role: UserRole;
+  accountCategory?: AccountCategory;
   passwordSystemGenerated: boolean;
   mustChangePassword: boolean;
   passwordChangedAt?: string;
@@ -347,6 +356,7 @@ export interface ClientUser {
   systemUserId?: string;
   userPhoneNumber?: string;
   userEmail?: string;
+  accountCategory?: AccountCategory;
   activationStatus: ActivationStatus;
   isDefaultClient: boolean;
   recordStatus: RecordStatus;
@@ -362,6 +372,7 @@ export interface AssignAccountRequest {
   phoneNumber?: string;
   email?: string;
   preferredOtpChannel?: OtpChannel;
+  accountCategory?: AccountCategory;
   isDefaultClient?: boolean;
   /** Email the temporary password to the user (defaults to true). */
   sendCredentials?: boolean;
@@ -383,12 +394,15 @@ export interface AssignAccountResponse {
 
 // ---------- Billing plans (configurationsapi) ----------
 export type BillingPlanStatus = 'ACTIVE' | 'SUSPENDED';
+export type BillingModel = 'COMMISSION' | 'MONTHLY_FLAT';
 
-/** Percentage charged on every transaction for a client. */
+/** Billing rules for a client: either per-transaction percentage or end-of-month agreed amount. */
 export interface BillingPlan {
   id: string;
   clientRef: string;
+  billingModel?: BillingModel;
   percentageRate: number;
+  monthlyAmount?: number;
   currency: string;
   lowBalanceThreshold?: number;
   status: BillingPlanStatus;
@@ -401,7 +415,9 @@ export interface BillingPlan {
 
 export interface BillingPlanRequest {
   clientRef: string;
-  percentageRate: number;
+  billingModel?: BillingModel;
+  percentageRate?: number;
+  monthlyAmount?: number;
   currency?: string;
   lowBalanceThreshold?: number;
   status?: BillingPlanStatus;
@@ -411,6 +427,7 @@ export interface BillingPlanRequest {
 // ---------- Billing wallets, credit loads & activity (paymentsapi) ----------
 export type CreditPaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';
 export type CreditLoadStatus = 'COMPLETED' | 'REVERSED';
+export type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BillingActivityType = 'CREDIT_LOAD' | 'CREDIT_LOAD_REVERSAL' | 'TRANSACTION_CHARGE' | 'CHARGE_REVERSAL';
 
 /** Prepaid credit balance. Rate / threshold / planStatus are filled when fetched per client. */
@@ -421,7 +438,9 @@ export interface BillingWallet {
   balance: number;
   totalCredited: number;
   totalCharged: number;
+  billingModel?: BillingModel;
   percentageRate?: number;
+  monthlyAmount?: number;
   lowBalanceThreshold?: number;
   lowBalance?: boolean;
   planStatus?: BillingPlanStatus;
@@ -460,6 +479,48 @@ export interface CreditLoad {
   reversedAt?: string;
   reversedBy?: string;
   reversalReason?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface CreditTopUpRequestCreate {
+  requestedAmount: number;
+  paymentMethod: CreditPaymentMethod;
+  paymentReference?: string;
+  payerName?: string;
+  payerPhone?: string;
+  notes?: string;
+}
+
+export interface CreditTopUpApprovalRequest {
+  approvedAmount: number;
+  paymentMethod?: CreditPaymentMethod;
+  paymentReference?: string;
+  reviewedBy?: string;
+  reviewNotes?: string;
+}
+
+export interface CreditTopUpRejectionRequest {
+  reason: string;
+  reviewedBy?: string;
+}
+
+export interface CreditTopUpRequest {
+  id: string;
+  clientRef: string;
+  requestedAmount: number;
+  approvedAmount?: number;
+  currency: string;
+  paymentMethod: CreditPaymentMethod;
+  paymentReference?: string;
+  payerName?: string;
+  payerPhone?: string;
+  notes?: string;
+  status: CreditRequestStatus;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNotes?: string;
+  creditLoadId?: string;
   createdAt: string;
   createdBy?: string;
 }

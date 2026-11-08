@@ -1,6 +1,7 @@
 package com.swizima.usersapi.dto;
 
 import com.swizima.usersapi.entity.SystemUser;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import com.swizima.usersapi.entity.enums.OtpChannel;
 import com.swizima.usersapi.entity.enums.RecordStatus;
@@ -23,6 +24,7 @@ public record SystemUserResponse(
         boolean enabled,
         ActivationStatus activationStatus,
         UserRole role,
+        AccountCategory accountCategory,
         boolean passwordSystemGenerated,
         boolean mustChangePassword,
         LocalDateTime passwordChangedAt,
@@ -35,6 +37,16 @@ public record SystemUserResponse(
 ) {
 
     public static SystemUserResponse from(SystemUser u) {
+        AccountCategory category = u.getAccountCategory();
+        if (category == null) {
+            if (u.getRole() == UserRole.SUPER_ADMIN || u.getRole() == UserRole.ADMIN) {
+                category = AccountCategory.SUPER_ADMIN;
+            } else if (u.getRole() == UserRole.CLIENT_ADMIN) {
+                category = AccountCategory.CLIENT_ADMIN;
+            } else {
+                category = AccountCategory.USER;
+            }
+        }
         return new SystemUserResponse(
                 u.getId(),
                 u.getUsername(),
@@ -45,6 +57,7 @@ public record SystemUserResponse(
                 u.isEnabled(),
                 u.getActivationStatus(),
                 u.getRole(),
+                category,
                 u.isPasswordSystemGenerated(),
                 u.isPasswordSystemGenerated(),
                 u.getPasswordChangedAt(),

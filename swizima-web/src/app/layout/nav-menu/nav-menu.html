@@ -1,4 +1,4 @@
-<div class="brand">
+<a routerLink="/welcome" class="brand" (click)="navigate.emit()" title="Go to Swizima home page">
   <span class="logo" aria-hidden="true">
     <svg viewBox="0 0 32 32" fill="none">
       <rect width="32" height="32" rx="9" fill="url(#swz-logo)"/>
@@ -12,12 +12,12 @@
   </span>
   <span class="brand-text">
     <strong>Swizima</strong>
-    <small>Automotive services</small>
+    <small>Explore your world for less</small>
   </span>
-</div>
+</a>
 
 <nav class="nav" aria-label="Main">
-  @for (group of groups; track group.heading) {
+  @for (group of groups(); track group.heading) {
     <p class="group-heading">{{ group.heading }}</p>
     <ul>
       @for (item of group.items; track item.path) {
@@ -33,13 +33,33 @@
   }
 </nav>
 
-<div class="user">
-  <span class="avatar" aria-hidden="true">{{ initials() }}</span>
-  <span class="user-text">
-    <strong>{{ username() || 'Signed in' }}</strong>
-    <small>Administrator</small>
-  </span>
-  <button type="button" class="signout" (click)="signOut.emit()" aria-label="Sign out" title="Sign out">
-    <app-icon name="logout" />
-  </button>
+<div class="sidebar-footer">
+  <a
+    [href]="mobileAppUrl"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="mobile-app-link"
+    id="nav-download-mobile-app"
+    (click)="navigate.emit()"
+  >
+    <span class="mobile-app-icon" aria-hidden="true">
+      <app-icon name="sms" />
+    </span>
+    <span class="mobile-app-text">
+      <strong>Mobile App</strong>
+      <small>Download Android APK</small>
+    </span>
+    <app-icon name="download" class="mobile-app-dl" />
+  </a>
+
+  <div class="user">
+    <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+    <span class="user-text">
+      <strong>{{ username() || 'Signed in' }}</strong>
+      <small>{{ roleLabel() }}</small>
+    </span>
+    <button type="button" class="signout" (click)="signOut.emit()" aria-label="Sign out" title="Sign out">
+      <app-icon name="logout" />
+    </button>
+  </div>
 </div>

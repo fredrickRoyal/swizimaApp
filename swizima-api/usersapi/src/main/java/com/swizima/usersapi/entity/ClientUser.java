@@ -1,5 +1,6 @@
 package com.swizima.usersapi.entity;
 
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.util.UUID;
 
@@ -53,6 +55,12 @@ public class ClientUser extends ParentEntity {
     /** Lower-cased. Required when no phone number is given. */
     @Column(name = "user_email", length = 150)
     private String userEmail;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'CLIENT_ADMIN'")
+    @Column(name = "account_category", nullable = false, length = 20)
+    private AccountCategory accountCategory = AccountCategory.CLIENT_ADMIN;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

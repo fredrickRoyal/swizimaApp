@@ -1,3 +1,18 @@
+<div class="tab-bar" role="tablist" aria-label="Staff and user management">
+  <div class="tabs">
+    <button type="button" role="tab" class="tab" id="client-staff-tab-staff" [class.active]="tab() === 'staff'"
+            [attr.aria-selected]="tab() === 'staff'" (click)="tab.set('staff')">
+      <app-icon name="users" /> Staff members
+      @if (staff.state().data; as d) { <span class="tab-count">{{ d.totalElements }}</span> }
+    </button>
+    <button type="button" role="tab" class="tab" id="client-staff-tab-users" [class.active]="tab() === 'users'"
+            [attr.aria-selected]="tab() === 'users'" (click)="tab.set('users')">
+      <app-icon name="shield" /> User accounts
+      @if (accounts.state().data; as d) { <span class="tab-count">{{ d.totalElements }}</span> }
+    </button>
+  </div>
+</div>
+
 @if (notice(); as n) {
   <div class="alert notice page-enter" [class.alert-success]="n.tone === 'success'" [class.alert-error]="n.tone === 'error'"
        role="status" id="client-staff-notice">
@@ -9,6 +24,30 @@
   </div>
 }
 
+@if (issued(); as i) {
+  <div class="alert alert-success issued page-enter" role="status" id="client-staff-issued-banner">
+    <app-icon name="check" />
+    <div class="cell-stack">
+      <span>{{ i.created ? 'Account created.' : 'Account credentials updated.' }} Username: <strong>{{ i.username }}</strong></span>
+      @if (i.password) {
+        <span>Temporary password (shown once): <code class="temp-pass">{{ i.password }}</code>
+          <button type="button" class="btn btn-sm" id="client-staff-issued-copy" (click)="copyPassword(i.password)">{{ copied() ? 'Copied' : 'Copy' }}</button>
+        </span>
+        @if (i.sentTo) {
+          <span>Sign-in details were emailed to <strong>{{ i.sentTo }}</strong>.</span>
+        } @else if (i.note) {
+          <span class="delivery-note">{{ i.note }}</span>
+        }
+        <span class="cell-secondary">They can sign in with OTP (Email/SMS/WhatsApp) or use this temporary password.</span>
+      }
+    </div>
+    <button type="button" class="btn btn-icon btn-ghost" id="client-staff-issued-dismiss" (click)="issued.set(null)" aria-label="Dismiss">
+      <app-icon name="close" />
+    </button>
+  </div>
+}
+
+@if (tab() === 'staff') {
 <section class="card list-card page-enter">
   <div class="toolbar" role="search">
     <label class="search">
@@ -23,7 +62,7 @@
       @for (g of genders; track g) { <option [value]="g">{{ humanize(g) }}</option> }
     </select>
     <span class="toolbar-spacer"></span>
-    <button type="button" class="btn btn-icon" id="client-staff-refresh" (click)="staff.reload()" aria-label="Refresh" title="Refresh">
+    <button type="button" class="btn btn-icon" id="client-staff-refresh" (click)="staff.reload(); accounts.reload()" aria-label="Refresh" title="Refresh">
       <app-icon name="refresh" />
     </button>
     <button type="button" class="btn btn-primary" id="client-staff-add" (click)="openCreate()">
@@ -91,15 +130,20 @@
                   <div class="account-cell">
                     <app-status-badge [status]="acc.activationStatus" />
                     @if (acc.isDefaultClient) { <span class="default-pill" title="Default organisation">Default</span> }
+                    <button type="button" class="btn btn-sm btn-ghost" [id]="'staff-manage-acc-' + m.id" (click)="openDetails(m)">
+                      Manage
+                    </button>
                   </div>
                 } @else {
-                  <span class="cell-secondary">No account</span>
+                  <button type="button" class="btn btn-sm" [id]="'staff-assign-acc-' + m.id" (click)="openDetails(m)">
+                    <app-icon name="shield" /> Assign account
+                  </button>
                 }
               </td>
               <td data-label="Actions" class="col-actions">
                 <div class="row-actions">
                   <button type="button" class="btn btn-icon btn-ghost" [id]="'staff-view-' + m.id" (click)="openDetails(m)"
-                          [attr.aria-label]="'View details for ' + m.fullName" title="View details">
+                          [attr.aria-label]="'View details for ' + m.fullName" title="View details & account">
                     <app-icon name="eye" />
                   </button>
                   <button type="button" class="btn btn-icon btn-ghost" [id]="'staff-edit-' + m.id" (click)="openEdit(m)"
@@ -120,7 +164,152 @@
     <app-pagination [page]="page()" [size]="pageSize" [total]="state.data.totalElements" (pageChange)="page.set($event)" />
   }
 </section>
+}
 
+@if (tab() === 'users') {
+<section class="card list-card page-enter">
+  <div class="toolbar" role="search">
+    <label class="search">
+      <span class="visually-hidden">Search user accounts</span>
+      <app-icon name="search" />
+      <input class="input" type="search" id="client-users-search" placeholder="Search by phone, email or staff name"
+             [value]="userSearch()" (input)="userSearch.set($any($event.target).value)" autocomplete="off" />
+    </label>
+    <label class="visually-hidden" for="client-users-role">Filter by role</label>
+    <select class="select" id="client-users-role" [value]="userRoleFilter()" (change)="userRoleFilter.set($any($event.target).value)">
+      <option value="">All roles</option>
+      <option value="CLIENT_ADMIN">Client admin</option>
+      <option value="USER">User (Staff)</option>
+    </select>
+    <label class="visually-hidden" for="client-users-status">Filter by status</label>
+    <select class="select" id="client-users-status" [value]="userStatus()" (change)="userStatus.set($any($event.target).value)">
+      <option value="">All statuses</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ humanize(s) }}</option> }
+    </select>
+    <span class="toolbar-spacer"></span>
+    <button type="button" class="btn btn-icon" id="client-users-refresh" (click)="accounts.reload(); allStaff.reload()" aria-label="Refresh" title="Refresh">
+      <app-icon name="refresh" />
+    </button>
+    <button type="button" class="btn btn-primary" id="client-users-add" (click)="openAddUser()">
+      <app-icon name="plus" /> Add user account
+    </button>
+  </div>
+
+  @let accState = accounts.state();
+  @if (accState.error) {
+    <app-empty-state icon="alert" tone="error" heading="Couldn't load user accounts" [message]="accState.error">
+      <button type="button" class="btn" id="client-users-retry" (click)="accounts.reload()">Try again</button>
+    </app-empty-state>
+  } @else if (accState.loading && !accState.data) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Loading user accounts">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+      }
+    </div>
+  } @else if (filteredAccounts().length === 0) {
+    <app-empty-state icon="shield" heading="No user accounts found"
+                     [message]="hasUserFilters() ? 'Try a different search or clear the filters.' : 'Create or assign login accounts for your staff and administrators.'">
+      @if (hasUserFilters()) {
+        <button type="button" class="btn" id="client-users-clear" (click)="clearUserFilters()">Clear filters</button>
+      } @else {
+        <button type="button" class="btn btn-primary" id="client-users-empty-add" (click)="openAddUser()">
+          <app-icon name="plus" /> Add user account
+        </button>
+      }
+    </app-empty-state>
+  } @else {
+    <div class="table-wrap" [style.opacity]="accState.loading ? 0.6 : 1">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">User</th>
+            <th scope="col">Person / Staff</th>
+            <th scope="col">Role</th>
+            <th scope="col">Default</th>
+            <th scope="col">Status</th>
+            <th scope="col">Created</th>
+            <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of filteredAccounts(); track u.id) {
+            <tr [class.row-busy]="busyId() === u.id">
+              <td data-label="User">
+                <div class="person">
+                  <span class="avatar" aria-hidden="true">{{ userInitial(u) }}</span>
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ u.userPhoneNumber || u.userEmail }}</span>
+                    @if (u.userPhoneNumber && u.userEmail) { <span class="cell-secondary">{{ u.userEmail }}</span> }
+                  </div>
+                </div>
+              </td>
+              <td data-label="Person / Staff">
+                @if (u.staffRef && staffById().get(u.staffRef); as st) {
+                  <div class="cell-stack">
+                    <span class="cell-primary">{{ st.fullName }}</span>
+                    <span class="cell-secondary">{{ st.position || 'Staff member' }}</span>
+                  </div>
+                } @else {
+                  <span class="cell-secondary">Client Owner / Admin</span>
+                }
+              </td>
+              <td data-label="Role">
+                <app-status-badge [status]="userCategory(u)" />
+              </td>
+              <td data-label="Default">
+                @if (u.isDefaultClient) { <span class="default-pill">Default</span> } @else { <span class="cell-secondary">—</span> }
+              </td>
+              <td data-label="Status">
+                <app-status-badge [status]="u.activationStatus" />
+              </td>
+              <td data-label="Created" class="cell-secondary">
+                {{ u.createdAt | date: 'mediumDate' }}
+              </td>
+              <td data-label="Actions" class="col-actions">
+                <div class="row-actions">
+                  @if (canActivate(u.activationStatus)) {
+                    <button type="button" class="btn btn-sm btn-primary" [id]="'cu-activate-' + u.id"
+                            (click)="activateAccount(u)" [disabled]="busyId() === u.id">
+                      Activate
+                    </button>
+                  }
+                  @if (u.systemUserId) {
+                    <button type="button" class="btn btn-sm" [id]="'cu-reset-pw-' + u.id"
+                            (click)="resetPasswordForAccount(u)" [disabled]="busyId() === u.id"
+                            title="Generate a new temporary password">
+                      Reset password
+                    </button>
+                  }
+                  @if (!u.isDefaultClient) {
+                    <button type="button" class="btn btn-icon btn-ghost" [id]="'cu-default-' + u.id"
+                            (click)="makeDefault(u)" [disabled]="busyId() === u.id"
+                            aria-label="Set as default organisation" title="Set as default organisation">
+                      <app-icon name="check" />
+                    </button>
+                  }
+                  <button type="button" class="btn btn-icon btn-ghost" [id]="'cu-suspend-' + u.id"
+                          (click)="toggleAccess(u)" [disabled]="busyId() === u.id"
+                          [attr.aria-label]="u.activationStatus === 'SUSPENDED' ? 'Restore access' : 'Suspend access'"
+                          [title]="u.activationStatus === 'SUSPENDED' ? 'Restore access' : 'Suspend access'">
+                    <app-icon name="power" />
+                  </button>
+                  <button type="button" class="btn btn-icon btn-ghost danger" [id]="'cu-remove-' + u.id"
+                          (click)="removeAccess(u)" [disabled]="busyId() === u.id"
+                          aria-label="Remove access" title="Remove access">
+                    <app-icon name="trash" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+}
+
+<!-- ---------- Add / Edit Staff Dialog ---------- -->
 <dialog #dialog class="dialog card" id="client-staff-dialog" aria-labelledby="staff-dialog-title" (cancel)="saving() && $event.preventDefault()">
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <header class="dialog-head">
@@ -190,6 +379,12 @@
           <textarea id="staff-summary" class="input" rows="3" formControlName="summary"
                     placeholder="Role, experience, notes…"></textarea>
         </div>
+        @if (!editing()) {
+          <label class="check span-2" for="staff-create-account">
+            <input id="staff-create-account" type="checkbox" formControlName="createAccount" />
+            <span>Automatically create a sign-in user account (<strong>User</strong>) using their phone or email</span>
+          </label>
+        }
       </div>
     </div>
 
@@ -198,6 +393,93 @@
       <button type="submit" class="btn btn-primary" id="staff-save" [disabled]="saving()">
         @if (saving()) { <span class="spinner" aria-hidden="true"></span> }
         {{ editing() ? 'Save changes' : 'Add staff' }}
+      </button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ---------- Add / Assign User Account Dialog ---------- -->
+<dialog #addUserDialog class="dialog card" id="client-add-user-dialog" aria-labelledby="add-user-dialog-title"
+        (cancel)="addUserSaving() && $event.preventDefault()">
+  <form [formGroup]="addUserForm" (ngSubmit)="submitAddUser()" novalidate>
+    <header class="dialog-head">
+      <h2 id="add-user-dialog-title">Add user account</h2>
+      <button type="button" class="btn btn-icon btn-ghost" id="add-user-dialog-close" (click)="closeAddUser()" aria-label="Close">
+        <app-icon name="close" />
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      @if (addUserError()) {
+        <div class="alert alert-error" role="alert" id="add-user-error"><app-icon name="alert" /><span>{{ addUserError() }}</span></div>
+      }
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="add-user-source">Account for</label>
+          <select id="add-user-source" class="select" formControlName="source">
+            <option value="staff" [disabled]="unassignedStaff().length === 0">
+              Existing staff member ({{ unassignedStaff().length }} without account)
+            </option>
+            <option value="custom">New / custom contact (Phone or Email)</option>
+          </select>
+        </div>
+
+        @if (addUserForm.controls.source.value === 'staff') {
+          <div class="field span-2">
+            <label for="add-user-staff">Select staff member <em aria-hidden="true">*</em></label>
+            <select id="add-user-staff" class="select" formControlName="staffId">
+              @for (s of unassignedStaff(); track s.id) {
+                <option [value]="s.id">
+                  {{ s.fullName }} ({{ s.phoneNumber || s.email }})
+                </option>
+              }
+            </select>
+          </div>
+        } @else {
+          <div class="field">
+            <label for="add-user-phone">Phone number</label>
+            <app-phone-input formControlName="phoneNumber" inputId="add-user-phone"
+                             [defaultCountry]="clientCountry()" />
+          </div>
+          <div class="field">
+            <label for="add-user-email">Email address</label>
+            <input id="add-user-email" class="input" type="email" formControlName="email"
+                   placeholder="user@company.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="add-user-role">Account role</label>
+            <select id="add-user-role" class="select" formControlName="role">
+              <option value="USER">User (Staff)</option>
+              <option value="CLIENT_ADMIN">Client Admin</option>
+            </select>
+          </div>
+        }
+
+        <div class="field">
+          <label for="add-user-otp">Preferred OTP channel</label>
+          <select id="add-user-otp" class="select" formControlName="otpChannel">
+            <option value="EMAIL">Email</option>
+            <option value="SMS">SMS</option>
+            <option value="WHATSAPP">WhatsApp</option>
+          </select>
+        </div>
+
+        <label class="check span-2" for="add-user-default">
+          <input id="add-user-default" type="checkbox" formControlName="isDefaultClient" />
+          <span>Make {{ layout.client.state().data?.clientName || 'this client' }} their default organisation</span>
+        </label>
+        <label class="check span-2" for="add-user-send">
+          <input id="add-user-send" type="checkbox" formControlName="sendCredentials" />
+          <span>Email sign-in credentials to the user</span>
+        </label>
+      </div>
+    </div>
+
+    <footer class="dialog-foot">
+      <button type="button" class="btn" id="add-user-cancel" (click)="closeAddUser()" [disabled]="addUserSaving()">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="add-user-save" [disabled]="addUserSaving()">
+        @if (addUserSaving()) { <span class="spinner" aria-hidden="true"></span> }
+        <app-icon name="shield" /> Create user account
       </button>
     </footer>
   </form>
@@ -270,9 +552,19 @@
               <dd>@if (acc.isDefaultClient) { <span class="default-pill">Yes — opens this client</span> } @else { No }</dd></div>
           </dl>
           <div class="account-actions">
+            @if (canActivate(acc.activationStatus)) {
+              <button type="button" class="btn btn-primary" id="staff-account-activate" (click)="activateAccount(acc)" [disabled]="accountBusy()">
+                <app-icon name="check" /> Activate account
+              </button>
+            }
             @if (!acc.isDefaultClient) {
-              <button type="button" class="btn btn-primary" id="staff-account-default" (click)="makeDefault(acc)" [disabled]="accountBusy()">
+              <button type="button" class="btn" id="staff-account-default" (click)="makeDefault(acc)" [disabled]="accountBusy()">
                 <app-icon name="check" /> Set as default organisation
+              </button>
+            }
+            @if (acc.systemUserId) {
+              <button type="button" class="btn" id="staff-account-reset-pw" (click)="resetPasswordForAccount(acc)" [disabled]="accountBusy()">
+                Reset password
               </button>
             }
             <button type="button" class="btn" id="staff-account-toggle" (click)="toggleAccess(acc)" [disabled]="accountBusy()">

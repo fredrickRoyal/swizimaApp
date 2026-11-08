@@ -6,6 +6,7 @@ import com.swizima.usersapi.dto.PageResponse;
 import com.swizima.usersapi.dto.SystemUserResponse;
 import com.swizima.usersapi.dto.UpdateUserRequest;
 import com.swizima.usersapi.dto.UserCredentialsResponse;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import com.swizima.usersapi.service.SystemUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,10 +57,11 @@ public class SystemUserController {
     @Operation(summary = "List users (paginated, filterable)")
     public ResponseEntity<PageResponse<SystemUserResponse>> getUsers(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) AccountCategory accountCategory,
             @RequestParam(required = false) ActivationStatus activationStatus,
             @RequestParam(required = false) Boolean enabled,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(userService.getUsers(search, activationStatus, enabled, pageable));
+        return ResponseEntity.ok(userService.getUsers(search, accountCategory, activationStatus, enabled, pageable));
     }
 
     @GetMapping("/{id}")

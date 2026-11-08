@@ -9,14 +9,20 @@ import com.swizima.paymentsapi.dto.CreditLoadRequest;
 import com.swizima.paymentsapi.dto.CreditLoadResponse;
 import com.swizima.paymentsapi.dto.CreditLoadReversalRequest;
 import com.swizima.paymentsapi.dto.CreditLoadSummaryResponse;
+import com.swizima.paymentsapi.dto.CreditTopUpApprovalRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRejectionRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestCreate;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestResponse;
 import com.swizima.paymentsapi.dto.PageResponse;
 import com.swizima.paymentsapi.dto.TransactionChargeRequest;
 import com.swizima.paymentsapi.entity.BillingActivity;
 import com.swizima.paymentsapi.entity.BillingWallet;
 import com.swizima.paymentsapi.entity.CreditLoad;
+import com.swizima.paymentsapi.entity.CreditTopUpRequest;
 import com.swizima.paymentsapi.entity.enums.BillingActivityType;
 import com.swizima.paymentsapi.entity.enums.CreditLoadStatus;
 import com.swizima.paymentsapi.entity.enums.CreditPaymentMethod;
+import com.swizima.paymentsapi.entity.enums.CreditRequestStatus;
 import com.swizima.paymentsapi.entity.enums.RecordStatus;
 import com.swizima.paymentsapi.exception.BusinessRuleException;
 import com.swizima.paymentsapi.exception.DuplicateResourceException;
@@ -25,7 +31,9 @@ import com.swizima.paymentsapi.exception.ResourceNotFoundException;
 import com.swizima.paymentsapi.repository.BillingActivityRepository;
 import com.swizima.paymentsapi.repository.BillingWalletRepository;
 import com.swizima.paymentsapi.repository.CreditLoadRepository;
+import com.swizima.paymentsapi.repository.CreditTopUpRequestRepository;
 import com.swizima.paymentsapi.service.BillingService;
+import com.swizima.paymentsapi.service.notify.CreditRequestEmailNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -48,7 +56,9 @@ public class BillingServiceImpl implements BillingService {
     private final BillingWalletRepository walletRepository;
     private final BillingActivityRepository activityRepository;
     private final CreditLoadRepository creditLoadRepository;
+    private final CreditTopUpRequestRepository creditRequestRepository;
     private final BillingPlanClient planClient;
+    private final CreditRequestEmailNotifier emailNotifier;
 
     // =====================================================================
     // Wallets
@@ -174,6 +184,116 @@ public class BillingServiceImpl implements BillingService {
     }
 
     // =====================================================================
+    // Credit top-up requests (client request -> Super Admin approve / reject)
+    // =====================================================================
+
+    @Override
+    @Transactional
+    public CreditTopUpRequestResponse submitCreditRequest(UUID clientRef, CreditTopUpRequestCreate request) {
+        String currency = walletRepository.findByClientRefAndRecordStatusNot(clientRef, RecordStatus.DELETED)
+                .map(BillingWallet::getCurrency)
+                .orElseGet(() -> {
+                    try {
+                        return planClient.getPlan(clientRef).currency();
+                    } catch (Exception ignored) {
+                        return "UGX";
+                    }
+                });
+
+        String reference = blankToNull(request.paymentReference());
+        if (reference != null) {
+            reference = reference.toUpperCase(Locale.ROOT);
+        }
+
+        CreditTopUpRequest entity = new CreditTopUpRequest();
+        entity.setClientRef(clientRef);
+        entity.setRequestedAmount(money(request.requestedAmount()));
+        entity.setCurrency(currency != null ? currency : "UGX");
+        entity.setPaymentMethod(request.paymentMethod());
+        entity.setPaymentReference(reference);
+        entity.setPayerName(blankToNull(request.payerName()));
+        entity.setPayerPhone(blankToNull(request.payerPhone()));
+        entity.setNotes(blankToNull(request.notes()));
+        entity.setStatus(CreditRequestStatus.PENDING);
+        entity.setRecordStatus(RecordStatus.ACTIVE);
+
+        CreditTopUpRequest saved = creditRequestRepository.save(entity);
+        emailNotifier.notifyNewRequest(saved);
+        return CreditTopUpRequestResponse.from(saved);
+    }
+
+    @Override
+    public PageResponse<CreditTopUpRequestResponse> getCreditRequests(UUID clientRef, CreditRequestStatus status,
+                                                                      CreditPaymentMethod method, String search,
+                                                                      Pageable pageable) {
+        return PageResponse.from(creditRequestRepository
+                .search(clientRef, status, method, blankToNull(search), pageable)
+                .map(CreditTopUpRequestResponse::from));
+    }
+
+    @Override
+    @Transactional
+    public CreditTopUpRequestResponse approveCreditRequest(UUID requestId, CreditTopUpApprovalRequest request) {
+        CreditTopUpRequest req = creditRequestRepository.lockById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Credit request with id '" + requestId + "' not found"));
+        if (req.getStatus() != CreditRequestStatus.PENDING) {
+            throw new BusinessRuleException("Credit request has already been " + req.getStatus().name().toLowerCase(Locale.ROOT));
+        }
+
+        BigDecimal confirmedAmount = money(request.approvedAmount());
+        CreditPaymentMethod method = request.paymentMethod() != null ? request.paymentMethod() : req.getPaymentMethod();
+        String reference = blankToNull(request.paymentReference()) != null
+                ? blankToNull(request.paymentReference())
+                : req.getPaymentReference();
+        String reviewer = blankToNull(request.reviewedBy());
+        String reviewNotes = blankToNull(request.reviewNotes());
+
+        String combinedNotes = req.getNotes();
+        if (reviewNotes != null) {
+            combinedNotes = combinedNotes != null ? combinedNotes + " | Approved: " + reviewNotes : reviewNotes;
+        }
+
+        CreditLoadResponse loaded = loadCredit(req.getClientRef(), new CreditLoadRequest(
+                confirmedAmount,
+                method,
+                reference,
+                req.getPayerName(),
+                req.getPayerPhone(),
+                reviewer,
+                LocalDateTime.now(),
+                combinedNotes
+        ));
+
+        req.setApprovedAmount(confirmedAmount);
+        req.setPaymentMethod(method);
+        req.setPaymentReference(loaded.paymentReference());
+        req.setStatus(CreditRequestStatus.APPROVED);
+        req.setReviewedAt(LocalDateTime.now());
+        req.setReviewedBy(reviewer);
+        req.setReviewNotes(reviewNotes);
+        req.setCreditLoadId(loaded.id());
+
+        return CreditTopUpRequestResponse.from(creditRequestRepository.save(req));
+    }
+
+    @Override
+    @Transactional
+    public CreditTopUpRequestResponse rejectCreditRequest(UUID requestId, CreditTopUpRejectionRequest request) {
+        CreditTopUpRequest req = creditRequestRepository.lockById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Credit request with id '" + requestId + "' not found"));
+        if (req.getStatus() != CreditRequestStatus.PENDING) {
+            throw new BusinessRuleException("Credit request has already been " + req.getStatus().name().toLowerCase(Locale.ROOT));
+        }
+
+        req.setStatus(CreditRequestStatus.REJECTED);
+        req.setReviewedAt(LocalDateTime.now());
+        req.setReviewedBy(blankToNull(request.reviewedBy()));
+        req.setReviewNotes(request.reason().trim());
+
+        return CreditTopUpRequestResponse.from(creditRequestRepository.save(req));
+    }
+
+    // =====================================================================
     // Charges
     // =====================================================================
 
@@ -202,9 +322,10 @@ public class BillingServiceImpl implements BillingService {
 
         BillingWallet wallet = lockOrCreateWallet(request.clientRef(), plan.currency());
         BigDecimal transactionAmount = money(request.transactionAmount());
-        BigDecimal charge = computeCharge(transactionAmount, plan.percentageRate());
+        BigDecimal effectiveRate = plan.isMonthlyFlat() ? BigDecimal.ZERO : plan.percentageRate();
+        BigDecimal charge = computeCharge(transactionAmount, effectiveRate);
 
-        if (wallet.getBalance().compareTo(charge) < 0) {
+        if (!plan.isMonthlyFlat() && charge.compareTo(BigDecimal.ZERO) > 0 && wallet.getBalance().compareTo(charge) < 0) {
             throw new InsufficientCreditException(charge, wallet.getBalance(), wallet.getCurrency());
         }
 
@@ -212,9 +333,11 @@ public class BillingServiceImpl implements BillingService {
         BillingActivity activity = applyMovement(wallet, BillingActivityType.TRANSACTION_CHARGE, charge.negate());
         activity.setTransactionRef(txnRef);
         activity.setTransactionAmount(transactionAmount);
-        activity.setPercentageApplied(plan.percentageRate());
+        activity.setPercentageApplied(effectiveRate);
         activity.setDescription(request.description() != null ? request.description()
-                : plan.percentageRate().stripTrailingZeros().toPlainString() + "% of " + transactionAmount);
+                : (plan.isMonthlyFlat()
+                        ? "Monthly flat plan (0% per-transaction charge)"
+                        : effectiveRate.stripTrailingZeros().toPlainString() + "% of " + transactionAmount));
 
         return BillingActivityResponse.from(activityRepository.save(activity));
     }
@@ -250,9 +373,11 @@ public class BillingServiceImpl implements BillingService {
         BigDecimal balance = walletRepository.findByClientRefAndRecordStatusNot(clientRef, RecordStatus.DELETED)
                 .map(BillingWallet::getBalance).orElse(BigDecimal.ZERO.setScale(MONEY_SCALE));
         BigDecimal amount = money(transactionAmount);
-        BigDecimal charge = computeCharge(amount, plan.percentageRate());
-        return new ChargeQuoteResponse(clientRef, amount, plan.percentageRate(), charge,
-                plan.currency(), balance, balance.compareTo(charge) >= 0);
+        BigDecimal effectiveRate = plan.isMonthlyFlat() ? BigDecimal.ZERO : plan.percentageRate();
+        BigDecimal charge = computeCharge(amount, effectiveRate);
+        boolean sufficient = plan.isMonthlyFlat() || charge.compareTo(BigDecimal.ZERO) == 0 || balance.compareTo(charge) >= 0;
+        return new ChargeQuoteResponse(clientRef, amount, effectiveRate, charge,
+                plan.currency(), balance, sufficient);
     }
 
     // =====================================================================

@@ -44,12 +44,23 @@
     --text-muted: light-dark(#5b6479, #94a0bf);
     --text-subtle: light-dark(#8a93a8, #6b7799);
 
-    /* Sidebar is always dark for a consistent brand frame */
-    --sidebar-bg: #0e1430;
-    --sidebar-bg-2: #141b3d;
-    --sidebar-text: #c7cdec;
-    --sidebar-text-muted: #7f88b5;
-    --sidebar-active: rgba(129, 140, 248, 0.16);
+    /* Navigation menu / sidebar (theme-aware soft slate-indigo in light mode, deep slate-indigo in dark mode) */
+    --sidebar-bg: light-dark(#f8faff, #0d1326);
+    --sidebar-bg-2: light-dark(#f0f4fd, #121b36);
+    --sidebar-glow: light-dark(rgb(99 102 241 / 0.10), rgb(99 102 241 / 0.20));
+    --sidebar-border: light-dark(#dfe5f2, #1f2b4d);
+    --sidebar-heading: light-dark(#0f172a, #f8fafc);
+    --sidebar-text: light-dark(#334155, #cbd5e1);
+    --sidebar-text-muted: light-dark(#64748b, #7f8db3);
+    --sidebar-hover: light-dark(rgb(79 70 229 / 0.07), rgb(255 255 255 / 0.06));
+    --sidebar-active: light-dark(rgb(79 70 229 / 0.12), rgb(129 140 248 / 0.16));
+    --sidebar-active-text: light-dark(#4338ca, #ffffff);
+    --sidebar-active-icon: light-dark(#4f46e5, #818cf8);
+    --sidebar-card-bg: light-dark(#ffffff, rgb(255 255 255 / 0.04));
+    --sidebar-shadow: light-dark(
+      1px 0 0 #dfe5f2, 8px 0 24px -16px rgb(15 23 42 / 0.10),
+      1px 0 0 rgb(255 255 255 / 0.05), 8px 0 32px -16px rgb(0 0 0 / 0.45)
+    );
 
     /* Status */
     --success: light-dark(#059669, #34d399);
@@ -79,6 +90,14 @@
 
     --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --font-mono: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
   }
 }
 

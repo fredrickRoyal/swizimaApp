@@ -10,7 +10,14 @@
 @if (justCreated(); as c) {
   <div class="alert alert-success created-notice page-enter" role="status" id="clients-created-notice">
     <app-icon name="check" />
-    <span><strong>{{ c.createdClientName }}</strong> was registered with code <code>{{ c.createdClientCode }}</code>.</span>
+    <span>
+      <strong>{{ c.createdClientName }}</strong> was registered with code <code>{{ c.createdClientCode }}</code>
+      @if (c.createdClientEmail || c.createdClientPhone) {
+        and an OTP sign-in account was created for <code>{{ c.createdClientPhone || c.createdClientEmail }}</code> ({{ c.createdClientEmail }}).
+      } @else {
+        .
+      }
+    </span>
     <button type="button" class="btn btn-icon btn-ghost" id="clients-created-dismiss"
             (click)="justCreated.set(null)" aria-label="Dismiss">
       <app-icon name="close" />

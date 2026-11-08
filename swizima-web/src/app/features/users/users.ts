@@ -4,7 +4,7 @@ import { toErrorMessage } from '../../core/http/api-error';
 import { DatePipe } from '@angular/common';
 import { SwizimaApi } from '../../core/api/swizima-api';
 import { debounced, remoteData } from '../../core/data/remote-data';
-import { ActivationStatus, Client, ClientUser } from '../../core/models/api.models';
+import { AccountCategory, ActivationStatus, Client, ClientUser, SystemUser } from '../../core/models/api.models';
 import { RouterLink } from '@angular/router';
 import { ClientPicker } from '../../shared/client-picker/client-picker';
 import { EmptyState } from '../../shared/empty-state/empty-state';
@@ -90,10 +90,12 @@ export class Users {
   private readonly api = inject(SwizimaApi);
 
   protected readonly statuses: ActivationStatus[] = ['PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'LOCKED', 'DEACTIVATED'];
+  protected readonly categories: AccountCategory[] = ['SUPER_ADMIN', 'CLIENT_ADMIN', 'USER'];
   protected readonly humanize = humanize;
   protected readonly pageSize = PAGE_SIZE;
 
   protected readonly search = signal('');
+  protected readonly accountCategory = signal<AccountCategory | ''>('');
   protected readonly activationStatus = signal<ActivationStatus | ''>('');
   protected readonly page = signal(0);
   private readonly searchTerm = debounced(this.search, 350);
@@ -101,6 +103,7 @@ export class Users {
   protected readonly users = remoteData(
     computed(() => ({
       search: this.searchTerm().trim(),
+      accountCategory: this.accountCategory(),
       activationStatus: this.activationStatus(),
       page: this.page(),
       size: PAGE_SIZE,
@@ -109,10 +112,17 @@ export class Users {
     (query) => this.api.users(query),
   );
 
-  protected readonly hasFilters = computed(() => !!this.search().trim() || !!this.activationStatus());
+  protected readonly hasFilters = computed(
+    () => !!this.search().trim() || !!this.accountCategory() || !!this.activationStatus(),
+  );
 
   protected onSearch(value: string): void {
     this.search.set(value);
+    this.page.set(0);
+  }
+
+  protected onCategory(value: string): void {
+    this.accountCategory.set(value as AccountCategory | '');
     this.page.set(0);
   }
 
@@ -123,6 +133,7 @@ export class Users {
 
   protected clearFilters(): void {
     this.search.set('');
+    this.accountCategory.set('');
     this.activationStatus.set('');
     this.page.set(0);
   }
@@ -275,7 +286,43 @@ export class Users {
     });
   }
 
+  /** All client user links (used to resolve CLIENT_ADMIN vs USER on system user rows). */
+  private readonly allClientUsers = remoteData(
+    computed(() => true),
+    () => this.api.clientUsers({ size: 500, sort: 'createdAt,desc' }),
+  );
+
+  protected effectiveCategory(user: SystemUser): AccountCategory {
+    const uname = (user.username ?? '').toLowerCase();
+    const email = (user.email ?? '').toLowerCase();
+    if (
+      user.role === 'SUPER_ADMIN' ||
+      user.role === 'ADMIN' ||
+      user.accountCategory === 'SUPER_ADMIN' ||
+      uname.startsWith('kfredrick') ||
+      email.startsWith('kfredrick')
+    ) {
+      return 'SUPER_ADMIN';
+    }
+    if (user.role === 'CLIENT_ADMIN' || user.accountCategory === 'CLIENT_ADMIN') {
+      return 'CLIENT_ADMIN';
+    }
+    const links = (this.allClientUsers.state().data?.content ?? []).filter(
+      (cu) =>
+        cu.systemUserId === user.id ||
+        (!!user.phoneNumber && cu.userPhoneNumber === user.phoneNumber) ||
+        (!!user.email && cu.userEmail?.toLowerCase() === email) ||
+        cu.userPhoneNumber === user.username ||
+        cu.userEmail?.toLowerCase() === uname,
+    );
+    if (links.some((cu) => !cu.staffRef)) {
+      return 'CLIENT_ADMIN';
+    }
+    return 'USER';
+  }
+
   protected refresh(): void {
+    this.allClientUsers.reload();
     if (this.tab() === 'client') this.clientUsers.reload();
     else this.users.reload();
   }

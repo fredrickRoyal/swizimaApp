@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 import { SwizimaApi } from '../../core/api/swizima-api';
 import { remoteData } from '../../core/data/remote-data';
 import { toErrorMessage } from '../../core/http/api-error';
-import { BillingPlan, BillingPlanRequest, BillingPlanStatus, Client } from '../../core/models/api.models';
+import { BillingModel, BillingPlan, BillingPlanRequest, BillingPlanStatus, Client } from '../../core/models/api.models';
 import { ClientPicker } from '../../shared/client-picker/client-picker';
 import { EmptyState } from '../../shared/empty-state/empty-state';
 import { Icon } from '../../shared/icon/icon';
@@ -25,6 +25,13 @@ function rateValidator(control: AbstractControl<string>): ValidationErrors | nul
   return Number.isFinite(v) && v >= 0 && v <= 100 && /^\d{1,3}(\.\d{1,4})?$/.test(raw) ? null : { rate: true };
 }
 
+function requiredPositiveAmount(control: AbstractControl<string>): ValidationErrors | null {
+  const raw = (control.value ?? '').trim();
+  if (raw === '') return { required: true };
+  const v = parseAmount(raw);
+  return Number.isFinite(v) && v > 0 ? null : { amount: true };
+}
+
 function optionalAmount(control: AbstractControl<string>): ValidationErrors | null {
   const raw = (control.value ?? '').trim();
   if (raw === '') return null;
@@ -33,7 +40,8 @@ function optionalAmount(control: AbstractControl<string>): ValidationErrors | nu
 }
 
 /**
- * /configurations — Billing plans: which percentage each client is charged per transaction
+ * /configurations — Billing plans: either per-transaction percentage (COMMISSION)
+ * or end-of-month agreed amount (MONTHLY_FLAT)
  * (configurationsapi /api/v1/configurations/billing/plans).
  */
 @Component({
@@ -73,6 +81,10 @@ export class Configurations {
     return this.names.get(plan.clientRef)()?.name ?? '…';
   }
 
+  protected isMonthlyFlat(plan: BillingPlan): boolean {
+    return plan.billingModel === 'MONTHLY_FLAT';
+  }
+
   protected toggleStatus(plan: BillingPlan): void {
     const next: BillingPlanStatus = plan.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     if (next === 'SUSPENDED'
@@ -103,35 +115,62 @@ export class Configurations {
   protected readonly formError = signal<string | null>(null);
 
   protected readonly form = this.fb.group({
-    percentageRate: ['', [rateValidator]],
+    billingModel: this.fb.control<BillingModel>('COMMISSION'),
+    percentageRate: ['5', [rateValidator]],
+    monthlyAmount: [''],
     currency: ['UGX', Validators.required],
     lowBalanceThreshold: ['', [optionalAmount]],
     status: this.fb.control<BillingPlanStatus>('ACTIVE'),
     notes: ['', Validators.maxLength(500)],
   });
 
-  /** Live example: what a 100,000 transaction would cost. */
+  /** Live example: what a 100,000 transaction would cost (for COMMISSION) or monthly fee (for MONTHLY_FLAT). */
   protected readonly example = signal<number | null>(null);
+
+  protected setBillingModel(model: BillingModel): void {
+    this.form.controls.billingModel.setValue(model);
+    if (model === 'MONTHLY_FLAT') {
+      this.form.controls.percentageRate.clearValidators();
+      this.form.controls.monthlyAmount.setValidators([requiredPositiveAmount]);
+    } else {
+      this.form.controls.percentageRate.setValidators([rateValidator]);
+      this.form.controls.monthlyAmount.clearValidators();
+    }
+    this.form.controls.percentageRate.updateValueAndValidity();
+    this.form.controls.monthlyAmount.updateValueAndValidity();
+    this.updateExample();
+  }
 
   protected openCreate(): void {
     this.editing.set(null);
     this.pickedClient.set(null);
     this.clientTouched.set(false);
-    this.form.reset();
-    this.updateExample();
+    this.form.reset({
+      billingModel: 'COMMISSION',
+      percentageRate: '5',
+      monthlyAmount: '',
+      currency: 'UGX',
+      lowBalanceThreshold: '',
+      status: 'ACTIVE',
+      notes: '',
+    });
+    this.setBillingModel('COMMISSION');
     this.openDialog();
   }
 
   protected openEdit(plan: BillingPlan): void {
     this.editing.set(plan);
+    const model: BillingModel = plan.billingModel === 'MONTHLY_FLAT' ? 'MONTHLY_FLAT' : 'COMMISSION';
     this.form.reset({
-      percentageRate: String(plan.percentageRate),
+      billingModel: model,
+      percentageRate: String(plan.percentageRate ?? 0),
+      monthlyAmount: plan.monthlyAmount != null ? formatAmount(String(plan.monthlyAmount)) : '',
       currency: plan.currency,
       lowBalanceThreshold: plan.lowBalanceThreshold != null ? formatAmount(String(plan.lowBalanceThreshold)) : '',
       status: plan.status,
       notes: plan.notes ?? '',
     });
-    this.updateExample();
+    this.setBillingModel(model);
     this.openDialog();
   }
 
@@ -145,8 +184,20 @@ export class Configurations {
   }
 
   protected updateExample(): void {
-    const rate = Number(this.form.controls.percentageRate.value);
-    this.example.set(this.form.controls.percentageRate.valid ? Math.round(100000 * rate) / 100 : null);
+    if (this.form.controls.billingModel.value === 'MONTHLY_FLAT') {
+      const amt = parseAmount(this.form.controls.monthlyAmount.value);
+      this.example.set(this.form.controls.monthlyAmount.valid && Number.isFinite(amt) ? amt : null);
+    } else {
+      const rate = Number(this.form.controls.percentageRate.value);
+      this.example.set(this.form.controls.percentageRate.valid ? Math.round(100000 * rate) / 100 : null);
+    }
+  }
+
+  protected monthlyAmountInput(event: Event): void {
+    onAmountInput(event, (v) => {
+      this.form.controls.monthlyAmount.setValue(v);
+      this.updateExample();
+    });
   }
 
   protected thresholdInput(event: Event): void {
@@ -167,11 +218,14 @@ export class Configurations {
       return;
     }
     const v = this.form.getRawValue();
+    const isMonthly = v.billingModel === 'MONTHLY_FLAT';
     const request: BillingPlanRequest = {
       clientRef,
-      percentageRate: Number(v.percentageRate),
+      billingModel: v.billingModel,
+      percentageRate: isMonthly ? 0 : Number(v.percentageRate),
+      monthlyAmount: isMonthly ? parseAmount(v.monthlyAmount) : undefined,
       currency: v.currency,
-      lowBalanceThreshold: v.lowBalanceThreshold.trim() ? parseAmount(v.lowBalanceThreshold) : undefined,
+      lowBalanceThreshold: !isMonthly && v.lowBalanceThreshold.trim() ? parseAmount(v.lowBalanceThreshold) : undefined,
       status: v.status,
       notes: v.notes.trim() || undefined,
     };
@@ -183,7 +237,10 @@ export class Configurations {
         this.saving.set(false);
         this.dialog().nativeElement.close();
         const name = this.names.get(saved.clientRef)()?.name ?? this.pickedClient()?.clientName ?? 'client';
-        this.notice.set({ tone: 'success', text: `Billing plan for ${name} ${current ? 'updated' : 'created'} — ${percent(saved.percentageRate)} per transaction.` });
+        const summary = saved.billingModel === 'MONTHLY_FLAT'
+          ? `${money(saved.monthlyAmount, saved.currency)} per end of month`
+          : `${percent(saved.percentageRate)} per transaction`;
+        this.notice.set({ tone: 'success', text: `Billing plan for ${name} ${current ? 'updated' : 'created'} — ${summary}.` });
         if (!current) this.page.set(0);
         this.plans.reload();
       },
