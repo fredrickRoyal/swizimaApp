@@ -13,7 +13,7 @@ import java.io.FileOutputStream
 
 object PdfTicketGenerator {
 
-    fun generateAndOpenPdf(context: Context, record: VehicleRecord) {
+    fun generatePdfFile(context: Context, record: VehicleRecord): File {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(350, 620, 1).create()
         val page = pdfDocument.startPage(pageInfo)
@@ -64,12 +64,14 @@ object PdfTicketGenerator {
 
         var y = 35f
 
+        val headerTitle = com.example.swizima.data.ClientServiceRepository.activeClientName
+        val headerAddr = com.example.swizima.data.ClientServiceRepository.activeClientAddress
+        val headerPhone = com.example.swizima.data.ClientServiceRepository.activeClientPhone
+
         // Business Header
-        canvas.drawText("Swizima Automotive", 175f, y, titlePaint)
+        canvas.drawText(headerTitle, 175f, y, titlePaint)
         y += 18f
-        canvas.drawText("Automotive & Parking Services", 175f, y, centerPaint)
-        y += 15f
-        canvas.drawText("Kampala, Uganda | Tel: +256 700 123 456", 175f, y, centerPaint)
+        canvas.drawText("$headerAddr | Tel: $headerPhone", 175f, y, centerPaint)
         y += 20f
 
         // Divider Line
@@ -93,12 +95,13 @@ object PdfTicketGenerator {
 
         drawRow("Service Type", record.serviceType, isBoldValue = true)
         drawRow("Number Plate", record.numberPlate, isBoldValue = true)
-        drawRow("Client Name", record.clientName)
-        drawRow("Nationality", record.nationality)
+        if (record.clientName.isNotBlank()) {
+            drawRow("Client Name", record.clientName)
+        }
         if (record.idPassportNumber.isNotBlank()) {
             drawRow(record.idType, record.idPassportNumber)
         }
-        drawRow("Phone", record.clientPhoneNumbers.firstOrNull() ?: "-")
+        drawRow("Phone Number", record.clientPhoneNumbers.firstOrNull() ?: "-")
         drawRow("Date", record.date)
         drawRow("Time In", record.entryTime)
         drawRow("Time Out", record.expectedExitTime.ifBlank { "Pending / Active" })
@@ -106,7 +109,7 @@ object PdfTicketGenerator {
         if (record.assignedToPerson.isNotBlank()) {
             drawRow("Assigned To", record.assignedToPerson)
         }
-        drawRow("Paid (UGX)", "UGX ${record.amountCharged.ifBlank { "0" }}", isBoldValue = true)
+        drawRow("Total Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", isBoldValue = true)
 
         y += 10f
         // Divider Line
@@ -125,13 +128,17 @@ object PdfTicketGenerator {
 
         pdfDocument.finishPage(page)
 
-        // Save PDF
         val file = File(context.cacheDir, "Swizima_Ticket_${record.numberPlate}.pdf")
-        try {
-            pdfDocument.writeTo(FileOutputStream(file))
-            pdfDocument.close()
+        FileOutputStream(file).use { out ->
+            pdfDocument.writeTo(out)
+        }
+        pdfDocument.close()
+        return file
+    }
 
-            // Open or Print Intent
+    fun generateAndOpenPdf(context: Context, record: VehicleRecord) {
+        try {
+            val file = generatePdfFile(context, record)
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

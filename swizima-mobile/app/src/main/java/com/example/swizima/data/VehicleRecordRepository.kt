@@ -77,6 +77,12 @@ object VehicleRecordRepository {
                 val paymentStatusMatches = Regex("\"paymentStatus\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val clearanceMatches = Regex("\"vehicleClearanceStatus\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
 
+                val entryDateMatches = Regex("\"entryDate\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val entryTimeMatches = Regex("\"entryTime\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val entryDateTimeMatches = Regex("\"entryDateTime\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val expectedExitMatches = Regex("\"expectedExitTime\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val actualExitMatches = Regex("\"actualExitDateTime\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
                 val ids = idMatches.map { it.groupValues[1] }
                 val plates = plateMatches.map { it.groupValues[1] }
                 val services = serviceMatches.map { it.groupValues[1] }
@@ -88,6 +94,12 @@ object VehicleRecordRepository {
                 val paymentStatuses = paymentStatusMatches.map { it.groupValues[1] }
                 val clearances = clearanceMatches.map { it.groupValues[1] }
 
+                val entryDates = entryDateMatches.map { it.groupValues[1] }
+                val entryTimes = entryTimeMatches.map { it.groupValues[1] }
+                val entryDateTimes = entryDateTimeMatches.map { it.groupValues[1] }
+                val expectedExits = expectedExitMatches.map { it.groupValues[1] }
+                val actualExits = actualExitMatches.map { it.groupValues[1] }
+
                 for (i in plates.indices) {
                     val rawAmount = amounts.getOrElse(i) { "0" }.toDoubleOrNull() ?: 0.0
                     val formattedAmount = java.text.NumberFormat.getNumberInstance(Locale.US).format(rawAmount.toLong())
@@ -95,13 +107,34 @@ object VehicleRecordRepository {
                     val clearStatus = clearances.getOrElse(i) { "IN_SERVICE" }
                     val displayStatus = clearStatus.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
 
+                    val rawEntryDateTime = entryDateTimes.getOrNull(i) ?: ""
+                    val parsedDate = if (i < entryDates.size) {
+                        entryDates[i]
+                    } else if (rawEntryDateTime.length >= 10) {
+                        rawEntryDateTime.substring(0, 10)
+                    } else {
+                        currentDateFormatted
+                    }
+
+                    val parsedTime = if (i < entryTimes.size) {
+                        entryTimes[i].take(5)
+                    } else if (rawEntryDateTime.length >= 16) {
+                        rawEntryDateTime.substring(11, 16)
+                    } else {
+                        "08:30"
+                    }
+
+                    val rawExit = actualExits.getOrNull(i) ?: expectedExits.getOrNull(i) ?: ""
+                    val parsedExit = if (rawExit.length >= 16) rawExit.substring(11, 16) else if (rawExit.length >= 5) rawExit.take(5) else ""
+
                     fetchedRecords.add(
                         VehicleRecord(
                             id = ids.getOrElse(i) { java.util.UUID.randomUUID().toString() },
                             numberPlate = plates[i],
                             serviceType = services.getOrElse(i) { "Parking" },
-                            date = currentDateFormatted,
-                            entryTime = "08:30",
+                            date = parsedDate,
+                            entryTime = parsedTime,
+                            expectedExitTime = parsedExit,
                             clientName = clients.getOrElse(i) { "CLIENT" },
                             clientPhoneNumbers = listOf(phones.getOrElse(i) { "+256 700 000 000" }),
                             isLeavingKey = true,
@@ -219,7 +252,6 @@ object VehicleRecordRepository {
             val responseCode = connection.responseCode
             val success = responseCode in 200..299
             if (success) {
-                // Auto-clear vehicle upon full payment
                 try {
                     clearVehicle(transactionId, "Auto System", "Auto-cleared upon payment")
                 } catch (_: Exception) {}

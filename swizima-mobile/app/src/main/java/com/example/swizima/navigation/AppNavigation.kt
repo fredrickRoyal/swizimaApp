@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.swizima.ui.screens.DashboardScreen
+import com.example.swizima.ui.screens.MainScreen
 import com.example.swizima.ui.screens.LoginScreen
 import com.example.swizima.ui.screens.OtpScreen
 import com.example.swizima.ui.screens.ServiceFormScreen
@@ -98,7 +99,7 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val userContact = backStackEntry.arguments?.getString("userContact") ?: ""
-            DashboardScreen(
+            MainScreen(
                 userContact = userContact,
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
@@ -109,6 +110,12 @@ fun AppNavigation() {
                 },
                 onNavigateToVehiclesList = { serviceType ->
                     navController.navigate(Screen.VehiclesList.createRoute(serviceType))
+                },
+                onNavigateToAddVehicleForm = { selectedService ->
+                    navController.navigate(Screen.ServiceForm.createRoute(selectedService))
+                },
+                onNavigateToEditForm = { serviceTitle, recordId ->
+                    navController.navigate(Screen.ServiceForm.createRoute(serviceTitle, recordId))
                 }
             )
         }

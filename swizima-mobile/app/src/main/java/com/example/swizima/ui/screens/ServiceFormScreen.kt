@@ -518,10 +518,37 @@ fun ServiceFormScreen(
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(selectedClientId) {
-        val catalogs = com.example.swizima.data.ClientServiceRepository.fetchServiceCatalogs(selectedClientId)
-        serviceCatalogItems = catalogs
-        clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(selectedClientId)
+    val filteredCatalogItems = remember(serviceCatalogItems, initialService) {
+        if (initialService.isBlank() || initialService.equals("All", ignoreCase = true)) {
+            serviceCatalogItems
+        } else {
+            val keyword = when {
+                initialService.contains("park", ignoreCase = true) -> "PARK"
+                initialService.contains("wash", ignoreCase = true) -> "WASH"
+                initialService.contains("repair", ignoreCase = true) -> "REPAIR"
+                else -> "MAINT"
+            }
+            val matched = serviceCatalogItems.filter { item ->
+                item.category.uppercase().contains(keyword) ||
+                item.serviceName.contains(initialService, ignoreCase = true) ||
+                initialService.contains(item.serviceName, ignoreCase = true) ||
+                (keyword == "PARK" && (item.category.uppercase().contains("PARK") || item.serviceName.contains("park", ignoreCase = true))) ||
+                (keyword == "WASH" && (item.category.uppercase().contains("WASH") || item.serviceName.contains("wash", ignoreCase = true))) ||
+                (keyword == "REPAIR" && (item.category.uppercase().contains("REPAIR") || item.serviceName.contains("repair", ignoreCase = true))) ||
+                (keyword == "MAINT" && (item.category.uppercase().contains("MAINT") || item.category.uppercase().contains("CHECK") || item.category.uppercase().contains("REVIEW") || item.serviceName.contains("review", ignoreCase = true) || item.serviceName.contains("check", ignoreCase = true)))
+            }
+            if (matched.isNotEmpty()) matched else serviceCatalogItems
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(filteredCatalogItems) {
+        if (filteredCatalogItems.isNotEmpty()) {
+            val matched = filteredCatalogItems.find { it.serviceName.equals(selectedService, ignoreCase = true) }
+            if (matched == null) {
+                selectedService = filteredCatalogItems.first().serviceName
+                amountCharged = filteredCatalogItems.first().price.toLong().toString()
+            }
+        }
     }
 
     androidx.compose.runtime.LaunchedEffect(selectedService) {
@@ -881,8 +908,8 @@ fun ServiceFormScreen(
 
 
 
-                // 3. Service Type Dropdown (Strictly Loaded from API Service Catalog)
-                val displayServices = serviceCatalogItems.map { it.serviceName }
+                // 3. Service Type Dropdown (Filtered by Dashboard Category)
+                val displayServices = filteredCatalogItems.map { it.serviceName }
                 ExposedDropdownMenuBox(
                     expanded = serviceDropdownExpanded,
                     onExpandedChange = { serviceDropdownExpanded = !serviceDropdownExpanded }
@@ -904,12 +931,12 @@ fun ServiceFormScreen(
                     ) {
                         if (displayServices.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("No services found in catalog", color = MaterialTheme.colorScheme.error) },
+                                text = { Text("No services found for $initialService", color = MaterialTheme.colorScheme.error) },
                                 onClick = { serviceDropdownExpanded = false }
                             )
                         } else {
                             displayServices.forEach { serviceName ->
-                                val matchedItem = serviceCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
+                                val matchedItem = filteredCatalogItems.find { it.serviceName.equals(serviceName, ignoreCase = true) }
                                 DropdownMenuItem(
                                     text = {
                                         Column {
@@ -952,7 +979,7 @@ fun ServiceFormScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Person Assigned To Dropdown (Loaded from Client Staff API)
+                // Person Assigned To Dropdown (Optional)
                 ExposedDropdownMenuBox(
                     expanded = staffDropdownExpanded,
                     onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
@@ -960,8 +987,8 @@ fun ServiceFormScreen(
                     OutlinedTextField(
                         value = assignedToPerson,
                         onValueChange = { assignedToPerson = it.uppercase() },
-                        label = { Text("Person Assigned To (Staff)") },
-                        placeholder = { Text("Select or type staff name...") },
+                        label = { Text("Person Assigned To (Staff) (Optional)") },
+                        placeholder = { Text("Select or type staff name (Optional)...") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
                         singleLine = true,
@@ -974,6 +1001,13 @@ fun ServiceFormScreen(
                         expanded = staffDropdownExpanded,
                         onDismissRequest = { staffDropdownExpanded = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("None / Unassigned (Optional)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            onClick = {
+                                assignedToPerson = ""
+                                staffDropdownExpanded = false
+                            }
+                        )
                         clientStaffList.forEach { staff ->
                             DropdownMenuItem(
                                 text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },

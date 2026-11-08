@@ -55,7 +55,7 @@ fun SettingsDialog(
                     value = urlInput,
                     onValueChange = { urlInput = it },
                     label = { Text("Gateway Base URL") },
-                    placeholder = { Text("http://192.168.100.6:9080/api/v1") },
+                    placeholder = { Text("http://swizima.com:9080/api/v1") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()

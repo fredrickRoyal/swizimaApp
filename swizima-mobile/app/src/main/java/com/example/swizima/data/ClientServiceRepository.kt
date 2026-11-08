@@ -11,7 +11,9 @@ import java.net.URL
 data class ApiClient(
     val id: String,
     val clientName: String,
-    val clientCode: String
+    val clientCode: String,
+    val address: String,
+    val phone: String
 )
 
 data class ApiServiceCatalogItem(
@@ -36,6 +38,9 @@ data class ApiClientStaff(
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
     var activeClientId: String = "219e77a7-b398-4829-b06f-5978193fe9c5"
+    var activeClientName: String = "Swizima Motors"
+    var activeClientAddress: String = "Kampala, Uganda"
+    var activeClientPhone: String = "+256 700 123 456"
 
     private fun extractContentJson(json: String): String {
         val contentIndex = json.indexOf("\"content\"")
@@ -64,22 +69,35 @@ object ClientServiceRepository {
                 val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val nameMatches = Regex("\"clientName\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
                 val codeMatches = Regex("\"clientCode\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val addressMatches = Regex("\"address\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val cityMatches = Regex("\"city\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val phoneMatches = Regex("\"phoneNumber\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
 
                 val ids = idMatches.map { it.groupValues[1] }
                 val names = nameMatches.map { it.groupValues[1] }
                 val codes = codeMatches.map { it.groupValues[1] }
+                val addresses = addressMatches.map { it.groupValues[1] }
+                val cities = cityMatches.map { it.groupValues[1] }
+                val phones = phoneMatches.map { it.groupValues[1] }
 
                 for (i in names.indices) {
+                    val addr = addresses.getOrNull(i) ?: cities.getOrNull(i) ?: "Kampala, Uganda"
                     clients.add(
                         ApiClient(
                             id = ids.getOrElse(i) { "id_$i" },
                             clientName = names[i],
-                            clientCode = codes.getOrElse(i) { "SWZ-0$i" }
+                            clientCode = codes.getOrElse(i) { "SWZ-0$i" },
+                            address = addr,
+                            phone = phones.getOrNull(i) ?: ""
                         )
                     )
                 }
                 if (clients.isNotEmpty()) {
-                    activeClientId = clients.first().id
+                    val first = clients.first()
+                    activeClientId = first.id
+                    activeClientName = first.clientName
+                    activeClientAddress = first.address.ifBlank { "Kampala, Uganda" }
+                    activeClientPhone = if (first.phone.isNotBlank()) first.phone else "+256 700 123 456"
                 }
                 apiErrorMessage = null
                 clients
