@@ -37,6 +37,13 @@
       <input class="input" type="search" id="users-search" placeholder="Search by username, email or phone"
              [value]="search()" (input)="onSearch($any($event.target).value)" autocomplete="off" />
     </label>
+    <label class="visually-hidden" for="users-category">Filter by account category</label>
+    <select class="select" id="users-category" [value]="accountCategory()" (change)="onCategory($any($event.target).value)">
+      <option value="">All categories</option>
+      @for (cat of categories; track cat) {
+        <option [value]="cat">{{ humanize(cat) }}</option>
+      }
+    </select>
     <label class="visually-hidden" for="users-status">Filter by activation status</label>
     <select class="select" id="users-status" [value]="activationStatus()" (change)="onStatus($any($event.target).value)">
       <option value="">All statuses</option>
@@ -72,7 +79,7 @@
         <thead>
           <tr>
             <th scope="col">User</th>
-            <th scope="col">Role</th>
+            <th scope="col">Role / Category</th>
             <th scope="col">OTP channel</th>
             <th scope="col">Status</th>
             <th scope="col">Access</th>
@@ -92,7 +99,7 @@
                   </div>
                 </div>
               </td>
-              <td data-label="Role"><app-status-badge [status]="user.role" /></td>
+              <td data-label="Role / Category"><app-status-badge [status]="effectiveCategory(user)" /></td>
               <td data-label="OTP channel">
                 <span class="channel">
                   <app-icon [name]="user.preferredOtpChannel === 'EMAIL' ? 'mail' : user.preferredOtpChannel === 'SMS' ? 'sms' : 'whatsapp'" />
@@ -169,6 +176,7 @@
         <thead>
           <tr>
             <th scope="col">User</th>
+            <th scope="col">Category</th>
             <th scope="col">Client</th>
             <th scope="col">Default</th>
             <th scope="col">Status</th>
@@ -188,6 +196,9 @@
                     @if (!u.systemUserId) { <span class="cell-secondary">No sign-in account</span> }
                   </div>
                 </div>
+              </td>
+              <td data-label="Category">
+                <app-status-badge [status]="u.accountCategory || (u.staffRef ? 'USER' : 'CLIENT_ADMIN')" />
               </td>
               <td data-label="Client">
                 @if (clientNames().get(u.clientRef); as c) {
@@ -256,6 +267,7 @@
       <dl class="details-grid">
         <div><dt>Phone</dt><dd>{{ v.userPhoneNumber || '—' }}</dd></div>
         <div><dt>Email</dt><dd>{{ v.userEmail || '—' }}</dd></div>
+        <div><dt>Account category</dt><dd><app-status-badge [status]="v.accountCategory || (v.staffRef ? 'USER' : 'CLIENT_ADMIN')" /></dd></div>
         <div><dt>Client</dt><dd>{{ clientName(v.clientRef) }}</dd></div>
         <div><dt>Status</dt><dd><app-status-badge [status]="v.activationStatus" /></dd></div>
         <div><dt>Linked</dt><dd>{{ v.createdAt | date: 'medium' }}</dd></div>

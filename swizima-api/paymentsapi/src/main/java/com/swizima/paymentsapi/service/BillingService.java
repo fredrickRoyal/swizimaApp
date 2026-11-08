@@ -7,11 +7,16 @@ import com.swizima.paymentsapi.dto.CreditLoadRequest;
 import com.swizima.paymentsapi.dto.CreditLoadResponse;
 import com.swizima.paymentsapi.dto.CreditLoadReversalRequest;
 import com.swizima.paymentsapi.dto.CreditLoadSummaryResponse;
+import com.swizima.paymentsapi.dto.CreditTopUpApprovalRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRejectionRequest;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestCreate;
+import com.swizima.paymentsapi.dto.CreditTopUpRequestResponse;
 import com.swizima.paymentsapi.dto.PageResponse;
 import com.swizima.paymentsapi.dto.TransactionChargeRequest;
 import com.swizima.paymentsapi.entity.enums.BillingActivityType;
 import com.swizima.paymentsapi.entity.enums.CreditLoadStatus;
 import com.swizima.paymentsapi.entity.enums.CreditPaymentMethod;
+import com.swizima.paymentsapi.entity.enums.CreditRequestStatus;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
@@ -37,6 +42,17 @@ public interface BillingService {
                                                     LocalDateTime to, String search, Pageable pageable);
 
     CreditLoadSummaryResponse getCreditLoadSummary(UUID clientRef, LocalDateTime from, LocalDateTime to);
+
+    // ---- Credit top-up requests ----
+    CreditTopUpRequestResponse submitCreditRequest(UUID clientRef, CreditTopUpRequestCreate request);
+
+    PageResponse<CreditTopUpRequestResponse> getCreditRequests(UUID clientRef, CreditRequestStatus status,
+                                                               CreditPaymentMethod method, String search,
+                                                               Pageable pageable);
+
+    CreditTopUpRequestResponse approveCreditRequest(UUID requestId, CreditTopUpApprovalRequest request);
+
+    CreditTopUpRequestResponse rejectCreditRequest(UUID requestId, CreditTopUpRejectionRequest request);
 
     // ---- Charges ----
     /** Deducts plan percentage x transactionAmount from the client's wallet (idempotent per transactionRef). */

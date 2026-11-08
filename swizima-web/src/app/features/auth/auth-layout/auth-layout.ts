@@ -1,21 +1,23 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink, RouterOutlet } from '@angular/router';
+import { MOBILE_APP_DOWNLOAD_URL } from '../../../core/config/api.config';
 import { Icon } from '../../../shared/icon/icon';
+import { ThemeToggle } from '../../../shared/theme-toggle/theme-toggle';
 
 /** Split-screen frame for login / OTP: brand hero on large screens, form card everywhere. */
 @Component({
   selector: 'app-auth-layout',
-  imports: [RouterOutlet, Icon],
+  imports: [RouterLink, RouterOutlet, Icon, ThemeToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="hero" aria-hidden="true">
+    <section class="hero">
       <img src="images/auth-hero.webp" alt="" class="hero-img" fetchpriority="high" />
       <div class="hero-shade"></div>
       <div class="hero-content">
-        <div class="brand">
+        <a routerLink="/welcome" class="brand" id="auth-hero-home">
           <span class="logo">S</span>
           <strong>Swizima</strong>
-        </div>
+        </a>
         <div class="pitch">
           <span class="eyebrow"><app-icon name="sparkles" /> Admin portal</span>
           <p class="headline">Run every car park, wash bay and workshop from one place.</p>
@@ -30,14 +32,49 @@ import { Icon } from '../../../shared/icon/icon';
     </section>
 
     <section class="panel">
+      <div class="panel-top">
+        <a routerLink="/welcome" class="btn btn-ghost home-link" id="auth-back-home">
+          <app-icon name="arrowLeft" />
+          <span>Home</span>
+        </a>
+        <app-theme-toggle />
+      </div>
       <div class="panel-inner">
-        <div class="mobile-brand">
+        <a routerLink="/welcome" class="mobile-brand" id="auth-mobile-home">
           <span class="logo">S</span>
           <strong>Swizima</strong>
-        </div>
+        </a>
         <router-outlet />
       </div>
-      <p class="secure"><app-icon name="shield" /> Protected with two-step verification</p>
+      <div class="panel-footer">
+        <a routerLink="/welcome" class="app-download" id="auth-view-pricing">
+          <span class="app-download-icon" aria-hidden="true">
+            <app-icon name="wallet" />
+          </span>
+          <span class="app-download-text">
+            <strong>About Swizima &amp; Pricing Model</strong>
+            <small>UGX 50k / 200k onboarding · UGX 10k free wallet · 5% per car</small>
+          </span>
+          <app-icon name="chevronRight" class="app-download-action" />
+        </a>
+        <a
+          class="app-download"
+          [href]="mobileAppUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          id="auth-download-mobile-app"
+        >
+          <span class="app-download-icon" aria-hidden="true">
+            <app-icon name="sms" />
+          </span>
+          <span class="app-download-text">
+            <strong>Get the Swizima Mobile App</strong>
+            <small>Download Android APK for field &amp; station staff</small>
+          </span>
+          <app-icon name="download" class="app-download-action" />
+        </a>
+        <p class="secure"><app-icon name="shield" /> Protected with two-step verification</p>
+      </div>
     </section>
   `,
   styles: `
@@ -119,9 +156,11 @@ import { Icon } from '../../../shared/icon/icon';
     .copyright { color: rgb(255 255 255 / 0.6); }
 
     .brand, .mobile-brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.65rem;
+      width: fit-content;
+      text-decoration: none;
       strong { font-size: 1.25rem; letter-spacing: -0.01em; }
     }
     .logo {
@@ -142,9 +181,9 @@ import { Icon } from '../../../shared/icon/icon';
     .panel {
       position: relative;
       display: grid;
-      grid-template-rows: 1fr auto;
+      grid-template-rows: auto 1fr auto;
       justify-items: center;
-      padding: clamp(1.5rem, 5vw, 3rem) clamp(1.25rem, 5vw, 3rem);
+      padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1.25rem, 5vw, 3rem);
       overflow: hidden;
       &::before {
         content: '';
@@ -158,17 +197,81 @@ import { Icon } from '../../../shared/icon/icon';
         pointer-events: none;
       }
     }
+    .panel-top {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .home-link {
+      min-height: 40px;
+      padding: 0.45rem 0.75rem;
+      margin-inline-start: -0.5rem;
+      color: var(--text-muted);
+      &:hover { color: var(--text); }
+    }
     .panel-inner {
       position: relative;
       align-self: center;
       width: 100%;
       max-width: 420px;
     }
+    .panel-footer {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 0.9rem;
+      width: 100%;
+      max-width: 420px;
+      margin-top: 2rem;
+    }
+    .app-download {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.75rem 0.95rem;
+      border-radius: 12px;
+      background: var(--surface-subtle, rgb(99 102 241 / 0.06));
+      border: 1px solid var(--border, rgb(99 102 241 / 0.18));
+      color: var(--text);
+      text-decoration: none;
+      transition: transform var(--duration) var(--ease), border-color var(--duration), background-color var(--duration);
+      &:hover {
+        transform: translateY(-1px);
+        border-color: var(--brand-500, #6366f1);
+        background: rgb(99 102 241 / 0.1);
+      }
+    }
+    .app-download-icon {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--gradient-brand);
+      color: #fff;
+    }
+    .app-download-text {
+      display: grid;
+      min-width: 0;
+      line-height: 1.25;
+      strong { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+      small { font-size: 0.75rem; color: var(--text-subtle); }
+    }
+    .app-download-action {
+      margin-inline-start: auto;
+      color: var(--brand-500, #6366f1);
+    }
     .secure {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      margin-top: 2rem;
       color: var(--text-subtle);
       font-size: 0.8rem;
       app-icon { width: 16px; height: 16px; color: var(--success); }
@@ -182,4 +285,5 @@ import { Icon } from '../../../shared/icon/icon';
 })
 export class AuthLayout {
   protected readonly year = new Date().getFullYear();
+  protected readonly mobileAppUrl = inject(MOBILE_APP_DOWNLOAD_URL);
 }

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SwizimaApi } from '../../core/api/swizima-api';
 import { debounced, remoteData } from '../../core/data/remote-data';
@@ -11,32 +11,38 @@ import {
   CreditLoad,
   CreditLoadStatus,
   CreditPaymentMethod,
+  CreditRequestStatus,
+  CreditTopUpRequest,
 } from '../../core/models/api.models';
 import { ClientPicker } from '../../shared/client-picker/client-picker';
 import { EmptyState } from '../../shared/empty-state/empty-state';
 import { Icon, IconName } from '../../shared/icon/icon';
 import { PageHeader } from '../../shared/page-header/page-header';
 import { Pagination } from '../../shared/pagination/pagination';
+import { ApproveCreditRequestDialog } from '../billing/approve-credit-request-dialog';
 import { ACTIVITY_META, ClientNames, PAYMENT_METHODS, money, paymentMethodLabel, percent } from '../billing/billing-ui';
 import { LoadCreditDialog } from '../billing/load-credit-dialog';
 
-type Section = 'wallets' | 'credit-loads' | 'activity';
+type Section = 'wallets' | 'credit-requests' | 'credit-loads' | 'activity';
 const PAGE_SIZE = 10;
 
 /**
  * /payments — client billing (paymentsapi /api/v1/payments/billing):
- * prepaid wallets, credit top-ups and the activity ledger.
+ * prepaid wallets, credit top-up requests, credit top-ups and the activity ledger.
  */
 @Component({
   selector: 'app-payments',
-  imports: [DatePipe, RouterLink, ClientPicker, EmptyState, Icon, LoadCreditDialog, PageHeader, Pagination],
+  imports: [DatePipe, RouterLink, ClientPicker, EmptyState, Icon, LoadCreditDialog, ApproveCreditRequestDialog, PageHeader, Pagination],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './payments.html',
   styleUrl: '../billing/billing.css',
 })
-export class Payments {
+export class Payments implements OnInit {
   private readonly api = inject(SwizimaApi);
   protected readonly names = inject(ClientNames);
+
+  /** Route data when mounted at /topup-requests. */
+  readonly defaultSection = input<Section>();
 
   protected readonly money = money;
   protected readonly percent = percent;
@@ -48,17 +54,31 @@ export class Payments {
 
   protected readonly sections: { id: Section; label: string; icon: IconName }[] = [
     { id: 'wallets', label: 'Wallets', icon: 'payments' },
+    { id: 'credit-requests', label: 'Top-up requests', icon: 'clock' },
     { id: 'credit-loads', label: 'Credit loads', icon: 'plus' },
     { id: 'activity', label: 'Activity', icon: 'transfer' },
   ];
   protected readonly section = signal<Section>('wallets');
 
+  ngOnInit(): void {
+    const initial = this.defaultSection();
+    if (initial) {
+      this.section.set(initial);
+    }
+  }
+
   protected readonly notice = signal<{ tone: 'success' | 'error'; text: string } | null>(null);
   private readonly loadDialog = viewChild.required(LoadCreditDialog);
+  private readonly reviewDialog = viewChild.required(ApproveCreditRequestDialog);
 
-  // Shared client filter for loads / activity
+  // Shared client filter for requests / loads / activity
   protected readonly client = signal<Client | null>(null);
-  protected onClient(c: Client | null): void { this.client.set(c); this.loadsPage.set(0); this.activityPage.set(0); }
+  protected onClient(c: Client | null): void {
+    this.client.set(c);
+    this.requestsPage.set(0);
+    this.loadsPage.set(0);
+    this.activityPage.set(0);
+  }
 
   // ---------- Wallets ----------
   protected readonly lowOnly = signal(false);
@@ -90,6 +110,57 @@ export class Payments {
   protected onLoaded(load: CreditLoad): void {
     const name = this.names.get(load.clientRef)()?.name ?? 'client';
     this.notice.set({ tone: 'success', text: `${money(load.amount, load.currency)} loaded for ${name}. New balance ${money(load.balanceAfter, load.currency)}.` });
+    this.wallets.reload();
+    this.creditRequests.reload();
+    this.loads.reload();
+    this.activity.reload();
+  }
+
+  // ---------- Credit requests ----------
+  protected readonly requestSearch = signal('');
+  private readonly requestSearchTerm = debounced(this.requestSearch, 350);
+  protected readonly requestMethod = signal<CreditPaymentMethod | ''>('');
+  protected readonly requestStatus = signal<CreditRequestStatus | ''>('');
+  protected readonly requestsPage = signal(0);
+  protected readonly creditRequests = remoteData(
+    computed(() => ({
+      clientRef: this.client()?.id,
+      search: this.requestSearchTerm().trim(),
+      paymentMethod: this.requestMethod(),
+      status: this.requestStatus(),
+      page: this.requestsPage(),
+      size: PAGE_SIZE,
+      sort: 'createdAt,desc',
+    })),
+    (q) => this.api.creditRequests(q),
+  );
+
+  protected openApproveRequest(req: CreditTopUpRequest): void {
+    this.reviewDialog().openApprove(req, {
+      clientName: this.names.get(req.clientRef)()?.name,
+    });
+  }
+
+  protected openRejectRequest(req: CreditTopUpRequest): void {
+    this.reviewDialog().openReject(req, {
+      clientName: this.names.get(req.clientRef)()?.name,
+    });
+  }
+
+  protected onRequestReviewed(req: CreditTopUpRequest): void {
+    const name = this.names.get(req.clientRef)()?.name ?? 'client';
+    if (req.status === 'APPROVED') {
+      this.notice.set({
+        tone: 'success',
+        text: `Approved credit request for ${name} — ${money(req.approvedAmount ?? req.requestedAmount, req.currency)} loaded into wallet.`,
+      });
+    } else {
+      this.notice.set({
+        tone: 'success',
+        text: `Rejected credit request for ${name} (${money(req.requestedAmount, req.currency)}).`,
+      });
+    }
+    this.creditRequests.reload();
     this.wallets.reload();
     this.loads.reload();
     this.activity.reload();

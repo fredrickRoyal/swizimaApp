@@ -1,4 +1,11 @@
-<app-page-header heading="Payments" subtitle="Client prepaid credit, top-ups and per-transaction billing charges.">
+<app-page-header
+  [heading]="defaultSection() === 'credit-requests' ? 'Top-up requests' : 'Payments'"
+  [subtitle]="
+    defaultSection() === 'credit-requests'
+      ? 'Review client top-up requests, approve and confirm the actual credit amount to load, or reject.'
+      : 'Client prepaid credit, top-ups and per-transaction billing charges.'
+  "
+>
   <button type="button" class="btn btn-primary" id="payments-load-credit" (click)="openLoadForPicked()" [disabled]="!client()"
           [title]="client() ? 'Load credit for ' + client()!.clientName : 'Pick a client first'">
     <app-icon name="plus" /> Load credit
@@ -98,6 +105,123 @@
         </table>
       </div>
       <app-pagination [page]="walletsPage()" [size]="pageSize" [total]="ws.data.totalElements" (pageChange)="walletsPage.set($event)" />
+    }
+  </section>
+}
+
+<!-- ================= Credit requests ================= -->
+@if (section() === 'credit-requests') {
+  <section class="card list-card page-enter">
+    <div class="toolbar" role="search">
+      <label class="search">
+        <span class="visually-hidden">Search credit requests</span>
+        <app-icon name="search" />
+        <input class="input" type="search" id="requests-search" placeholder="Reference, payer name or phone"
+               [value]="requestSearch()" (input)="requestSearch.set($any($event.target).value); requestsPage.set(0)" autocomplete="off" />
+      </label>
+      <label class="visually-hidden" for="requests-method">Payment method</label>
+      <select class="select" id="requests-method" [value]="requestMethod()" (change)="requestMethod.set($any($event.target).value); requestsPage.set(0)">
+        <option value="">All methods</option>
+        @for (m of methods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+      </select>
+      <label class="visually-hidden" for="requests-status">Status</label>
+      <select class="select" id="requests-status" [value]="requestStatus()" (change)="requestStatus.set($any($event.target).value); requestsPage.set(0)">
+        <option value="">All statuses</option>
+        <option value="PENDING">Pending</option>
+        <option value="APPROVED">Approved</option>
+        <option value="REJECTED">Rejected</option>
+      </select>
+      <span class="toolbar-spacer"></span>
+      <button type="button" class="btn btn-icon" id="requests-refresh" (click)="creditRequests.reload()" aria-label="Refresh" title="Refresh">
+        <app-icon name="refresh" />
+      </button>
+    </div>
+    @let rs = creditRequests.state();
+    @if (rs.error) {
+      <app-empty-state icon="alert" tone="error" heading="Couldn't load credit requests" [message]="rs.error">
+        <button type="button" class="btn" id="requests-retry" (click)="creditRequests.reload()">Try again</button>
+      </app-empty-state>
+    } @else if (rs.loading && !rs.data) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Loading credit requests">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="skeleton-row"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div>
+        }
+      </div>
+    } @else if (rs.data && rs.data.content.length === 0) {
+      <app-empty-state icon="clock" heading="No credit requests found" message="Client credit top-up requests will appear here for your review and approval." />
+    } @else if (rs.data) {
+      <div class="table-wrap" [style.opacity]="rs.loading ? 0.6 : 1">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Requested on</th>
+              <th scope="col">Client</th>
+              <th scope="col" class="ta-right">Requested amount</th>
+              <th scope="col" class="ta-right">Confirmed top-up</th>
+              <th scope="col">Method / reference</th>
+              <th scope="col">Notes / review</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="col-actions"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rs.data.content; track r.id) {
+              <tr>
+                <td data-label="Requested on" class="cell-secondary">{{ r.createdAt | date: 'medium' }}</td>
+                <td data-label="Client">
+                  <a class="client-cell" [routerLink]="['/clients', r.clientRef, 'billing']" [id]="'request-client-' + r.id">
+                    <span class="cell-primary">{{ names.get(r.clientRef)()?.name ?? '…' }}</span>
+                  </a>
+                </td>
+                <td data-label="Requested amount" class="ta-right">
+                  <span class="amount">{{ money(r.requestedAmount, r.currency) }}</span>
+                </td>
+                <td data-label="Confirmed top-up" class="ta-right">
+                  @if (r.status === 'APPROVED') {
+                    <span class="amount credit">{{ money(r.approvedAmount ?? r.requestedAmount, r.currency) }}</span>
+                  } @else {
+                    <span class="cell-secondary">—</span>
+                  }
+                </td>
+                <td data-label="Method">
+                  <div class="cell-stack">
+                    <span>{{ methodLabel(r.paymentMethod) }}</span>
+                    @if (r.paymentReference) { <span class="cell-secondary cell-mono">{{ r.paymentReference }}</span> }
+                  </div>
+                </td>
+                <td data-label="Notes / review">
+                  <div class="cell-stack">
+                    <span>{{ r.notes ?? '—' }}</span>
+                    @if (r.reviewNotes) {
+                      <span class="cell-secondary">{{ r.status === 'REJECTED' ? 'Rejected:' : 'Admin:' }} {{ r.reviewNotes }}</span>
+                    }
+                  </div>
+                </td>
+                <td data-label="Status">
+                  <span [class]="'badge badge-' + (r.status === 'APPROVED' ? 'success' : r.status === 'REJECTED' ? 'danger' : 'warning')">
+                    {{ r.status === 'APPROVED' ? 'Approved' : r.status === 'REJECTED' ? 'Rejected' : 'Pending' }}
+                  </span>
+                </td>
+                <td data-label="Actions" class="col-actions">
+                  @if (r.status === 'PENDING') {
+                    <div style="display: inline-flex; gap: 0.4rem">
+                      <button type="button" class="btn btn-primary" [id]="'request-approve-' + r.id"
+                              (click)="openApproveRequest(r)">
+                        <app-icon name="check" /> Approve
+                      </button>
+                      <button type="button" class="btn" [id]="'request-reject-' + r.id"
+                              (click)="openRejectRequest(r)">
+                        Reject
+                      </button>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="requestsPage()" [size]="pageSize" [total]="rs.data.totalElements" (pageChange)="requestsPage.set($event)" />
     }
   </section>
 }
@@ -284,3 +408,4 @@
 }
 
 <app-load-credit-dialog (loaded)="onLoaded($event)" />
+<app-approve-credit-request-dialog (reviewed)="onRequestReviewed($event)" />

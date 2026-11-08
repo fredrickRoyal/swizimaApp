@@ -12,6 +12,8 @@ const TONE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral'
   DISABLED: 'neutral',
   SUPER_ADMIN: 'info',
   ADMIN: 'info',
+  CLIENT_ADMIN: 'success',
+  USER: 'neutral',
   PAID: 'success',
   PARTIALLY_PAID: 'warning',
   CANCELLED: 'danger',

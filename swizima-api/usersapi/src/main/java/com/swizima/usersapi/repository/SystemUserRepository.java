@@ -1,6 +1,7 @@
 package com.swizima.usersapi.repository;
 
 import com.swizima.usersapi.entity.SystemUser;
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.ActivationStatus;
 import com.swizima.usersapi.entity.enums.RecordStatus;
 import com.swizima.usersapi.entity.enums.UserRole;
@@ -20,6 +21,29 @@ public interface SystemUserRepository extends JpaRepository<SystemUser, UUID> {
     Optional<SystemUser> findByIdAndRecordStatusNot(UUID id, RecordStatus recordStatus);
 
     Optional<SystemUser> findByUsernameAndRecordStatusNot(String username, RecordStatus recordStatus);
+
+    /** Finds a user by normalized username, email (case-insensitive) or E.164 phone number. */
+    @Query("""
+            SELECT u FROM SystemUser u
+            WHERE u.recordStatus <> :excluded
+              AND (u.username = :value OR LOWER(u.email) = LOWER(:value) OR u.phoneNumber = :value)
+            """)
+    Optional<SystemUser> findByIdentityAndRecordStatusNot(@Param("value") String value,
+                                                          @Param("excluded") RecordStatus excluded);
+
+    /** Finds an existing user matching any of the supplied username, email or phone number. */
+    @Query("""
+            SELECT u FROM SystemUser u
+            WHERE u.recordStatus <> :excluded
+              AND (u.username = :username
+                OR (:email IS NOT NULL AND LOWER(u.email) = LOWER(:email))
+                OR (:phone IS NOT NULL AND u.phoneNumber = :phone))
+            ORDER BY u.createdAt ASC
+            """)
+    java.util.List<SystemUser> findByAnyContact(@Param("username") String username,
+                                                @Param("email") String email,
+                                                @Param("phone") String phone,
+                                                @Param("excluded") RecordStatus excluded);
 
     boolean existsByUsername(String username);
 
@@ -43,11 +67,13 @@ public interface SystemUserRepository extends JpaRepository<SystemUser, UUID> {
     @Query("""
             SELECT u FROM SystemUser u
             WHERE u.recordStatus <> :excluded
+              AND (:accountCategory IS NULL OR u.accountCategory = :accountCategory OR CAST(u.role AS string) = CAST(:accountCategory AS string))
               AND (:activationStatus IS NULL OR u.activationStatus = :activationStatus)
               AND (:enabled IS NULL OR u.enabled = :enabled)
               AND (:search IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<SystemUser> search(@Param("search") String search,
+                            @Param("accountCategory") AccountCategory accountCategory,
                             @Param("activationStatus") ActivationStatus activationStatus,
                             @Param("enabled") Boolean enabled,
                             @Param("excluded") RecordStatus excluded,

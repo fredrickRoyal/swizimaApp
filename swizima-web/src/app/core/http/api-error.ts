@@ -7,6 +7,7 @@ import { ProblemDetail } from '../models/api.models';
  */
 export function toErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (!(error instanceof HttpErrorResponse)) {
+    console.error('[Swizima] Unexpected error before/during request:', error);
     return fallback;
   }
   if (error.status === 0) {

@@ -1,8 +1,27 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, otpChallengeGuard } from './core/auth/auth.guards';
+import { adminGuard, authGuard, clientPortalGuard, guestGuard, otpChallengeGuard } from './core/auth/auth.guards';
 import { unsavedChangesGuard } from './core/forms/unsaved-changes.guard';
 
 export const routes: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'welcome' },
+  {
+    path: 'welcome',
+    title: 'About & Pricing',
+    loadComponent: () => import('./features/landing/landing').then((m) => m.Landing),
+  },
+  {
+    path: 'pricing',
+    redirectTo: 'welcome',
+    pathMatch: 'full',
+  },
+  {
+    path: 'signup',
+    title: 'Sign up · Register client',
+    canActivate: [guestGuard],
+    canDeactivate: [unsavedChangesGuard],
+    data: { signupMode: true },
+    loadComponent: () => import('./features/clients/client-form/client-form').then((m) => m.ClientForm),
+  },
   {
     path: 'auth',
     loadComponent: () => import('./features/auth/auth-layout/auth-layout').then((m) => m.AuthLayout),
@@ -13,6 +32,11 @@ export const routes: Routes = [
         title: 'Sign in',
         canActivate: [guestGuard],
         loadComponent: () => import('./features/auth/login/login').then((m) => m.Login),
+      },
+      {
+        path: 'signup',
+        redirectTo: '/signup',
+        pathMatch: 'full',
       },
       {
         path: 'verify-otp',
@@ -27,25 +51,75 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./layout/shell/shell').then((m) => m.Shell),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      // ---------- Client Login Only Module (/portal) ----------
+      {
+        path: 'portal',
+        canActivate: [clientPortalGuard],
+        loadComponent: () => import('./features/clients/client-layout/client-layout').then((m) => m.ClientLayout),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+          {
+            path: 'details',
+            title: 'View details',
+            loadComponent: () => import('./features/clients/client-details/client-details').then((m) => m.ClientDetails),
+          },
+          {
+            path: 'dashboard',
+            title: 'Dashboard',
+            loadComponent: () => import('./features/clients/client-dashboard/client-dashboard').then((m) => m.ClientDashboard),
+          },
+          {
+            path: 'services',
+            title: 'Service catalog',
+            loadComponent: () => import('./features/clients/client-services/client-services').then((m) => m.ClientServices),
+          },
+          {
+            path: 'staff',
+            title: 'Staff',
+            loadComponent: () => import('./features/clients/client-staff/client-staff').then((m) => m.ClientStaffPage),
+          },
+          {
+            path: 'transactions',
+            title: 'Transactions',
+            loadComponent: () =>
+              import('./features/clients/client-transactions/client-transactions').then((m) => m.ClientTransactionsPage),
+          },
+          {
+            path: 'topup-requests',
+            title: 'Top-up requests',
+            data: { defaultView: 'requests' },
+            loadComponent: () => import('./features/clients/client-billing/client-billing').then((m) => m.ClientBilling),
+          },
+          {
+            path: 'billing',
+            title: 'Billing',
+            loadComponent: () => import('./features/clients/client-billing/client-billing').then((m) => m.ClientBilling),
+          },
+        ],
+      },
+      // ---------- Platform Admin Module ----------
       {
         path: 'dashboard',
         title: 'Dashboard',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
       },
       {
         path: 'clients',
         title: 'Clients',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/clients/clients').then((m) => m.Clients),
       },
       {
         path: 'clients/new',
         title: 'Register client',
+        canActivate: [adminGuard],
         canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/clients/client-form/client-form').then((m) => m.ClientForm),
       },
       {
         path: 'clients/:id',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/clients/client-layout/client-layout').then((m) => m.ClientLayout),
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'details' },
@@ -70,6 +144,12 @@ export const routes: Routes = [
             loadComponent: () => import('./features/clients/client-staff/client-staff').then((m) => m.ClientStaffPage),
           },
           {
+            path: 'topup-requests',
+            title: 'Top-up requests',
+            data: { defaultView: 'requests' },
+            loadComponent: () => import('./features/clients/client-billing/client-billing').then((m) => m.ClientBilling),
+          },
+          {
             path: 'billing',
             title: 'Billing',
             loadComponent: () => import('./features/clients/client-billing/client-billing').then((m) => m.ClientBilling),
@@ -90,21 +170,32 @@ export const routes: Routes = [
       {
         path: 'services',
         title: 'Services offered',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/services/services').then((m) => m.Services),
+      },
+      {
+        path: 'topup-requests',
+        title: 'Top-up requests',
+        canActivate: [adminGuard],
+        data: { defaultSection: 'credit-requests' },
+        loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
       },
       {
         path: 'payments',
         title: 'Payments',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
       },
       {
         path: 'users',
         title: 'Users',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/users/users').then((m) => m.Users),
       },
       {
         path: 'configurations',
         title: 'Configurations',
+        canActivate: [adminGuard],
         loadComponent: () => import('./features/configurations/configurations').then((m) => m.Configurations),
       },
     ],

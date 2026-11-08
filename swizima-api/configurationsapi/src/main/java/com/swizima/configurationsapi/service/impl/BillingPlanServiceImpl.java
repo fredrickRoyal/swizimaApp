@@ -5,8 +5,10 @@ import com.swizima.configurationsapi.dto.BillingPlanRequest;
 import com.swizima.configurationsapi.dto.BillingPlanResponse;
 import com.swizima.configurationsapi.dto.PageResponse;
 import com.swizima.configurationsapi.entity.ClientBillingPlan;
+import com.swizima.configurationsapi.entity.enums.BillingModel;
 import com.swizima.configurationsapi.entity.enums.BillingPlanStatus;
 import com.swizima.configurationsapi.entity.enums.RecordStatus;
+import com.swizima.configurationsapi.exception.BusinessRuleException;
 import com.swizima.configurationsapi.exception.DuplicateResourceException;
 import com.swizima.configurationsapi.exception.ResourceNotFoundException;
 import com.swizima.configurationsapi.repository.ClientBillingPlanRepository;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.UUID;
@@ -125,7 +128,23 @@ public class BillingPlanServiceImpl implements BillingPlanService {
     }
 
     private void applyRequest(ClientBillingPlan plan, BillingPlanRequest r) {
-        plan.setPercentageRate(r.percentageRate());
+        BillingModel model = r.billingModel() != null ? r.billingModel() : BillingModel.COMMISSION;
+        plan.setBillingModel(model);
+
+        if (model == BillingModel.MONTHLY_FLAT) {
+            if (r.monthlyAmount() == null || r.monthlyAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessRuleException("monthlyAmount is required and must be greater than 0 for MONTHLY_FLAT plans");
+            }
+            plan.setMonthlyAmount(r.monthlyAmount().setScale(2, RoundingMode.HALF_UP));
+            plan.setPercentageRate(r.percentageRate() != null ? r.percentageRate() : BigDecimal.ZERO);
+        } else {
+            if (r.percentageRate() == null) {
+                throw new BusinessRuleException("percentageRate is required for COMMISSION plans");
+            }
+            plan.setPercentageRate(r.percentageRate());
+            plan.setMonthlyAmount(null);
+        }
+
         plan.setCurrency(r.currency() == null || r.currency().isBlank()
                 ? (plan.getCurrency() != null ? plan.getCurrency() : DEFAULT_CURRENCY)
                 : r.currency().trim().toUpperCase(Locale.ROOT));

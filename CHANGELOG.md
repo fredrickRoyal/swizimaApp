@@ -14,6 +14,26 @@ Entries are grouped by version, then by type of change, and prefixed with the af
 
 ## [Unreleased]
 
+### Added
+- **[configurationsapi] [paymentsapi] [web]** Client billing models (`BillingModel`):
+  - `COMMISSION`: Per-transaction percentage rate (default `5%`) deducted from the client's prepaid Swizima wallet on every car parked or washed.
+  - `MONTHLY_FLAT`: Fixed agreed end-of-month amount (`monthlyAmount`, e.g. `UGX 150,000 / month`) where `0%` commission is deducted per transaction and transactions are never blocked by wallet balance.
+  - Added `billingModel` and `monthlyAmount` to `ClientBillingPlan`, `BillingPlanRequest`, `BillingPlanResponse` (`configurationsapi`), `BillingPlan`, `BillingWalletResponse` (`paymentsapi`), and the Configurations & Client Billing pages in `swizima-web`.
+- **[web]** Public landing & pricing page at `/welcome` (also aliased at `/pricing`), accessible without sign-in and linked from `/auth/login`:
+  - Tagline *"Explore your world for less"*.
+  - Onboarding packages: **With Bluetooth Printer** (`UGX 200,000` one-off, includes portable 58mm Bluetooth thermal printer + `UGX 10,000` free starter wallet credit) and **Without Printer** (`UGX 50,000` one-off, includes `UGX 10,000` free starter wallet credit).
+  - **Ongoing Billing Options (`5% Commission` vs `Custom End-of-Month Fee`)** with an interactive **Pricing & Billing Calculator modal** allowing visitors to compare and calculate both the **5% per-transaction wallet commission** (ticket price + top-up coverage) and the **Custom Agreed End-of-Month Fee** (custom monthly fee + daily cars → `0%` per-car deduction and effective cost per car).
+  - **Customer Benefits & Trust** section highlighting verified vehicle handover receipts, boosted customer confidence, and instant vehicle owner contact via recorded phone numbers, plus a customer testimony from **Abija Manfred**.
+- **[web]** Mobile APK download button across the public landing page (`/welcome`), sign-in layout (`auth-layout`), and authenticated sidebar/drawer (`nav-menu`), configurable at container startup via the `MOBILE_APP_DOWNLOAD_URL` environment variable (injected into `/env.js` via `/docker-entrypoint.d/30-generate-env-js.sh`, defaulting to the official Google Drive folder).
+- **[infra]** Three-tier Docker Compose & Buildx Bake deployment setup sharing the external `swizima-network` bridge:
+  - Database stack (`swizima-api/docker-compose.yml` — PostgreSQL 18.6 creating `swizima-network`).
+  - APIs stack (`Dockerfile`, `docker-bake.hcl`, and root `docker-compose.yml` building/pulling `fredrickkasoma/swizima-<service>:${TAG:-latest}` for all 6 Spring Boot microservices).
+  - Web stack (`swizima-web/Dockerfile` and `swizima-web/docker-compose.yml` building/pulling `fredrickkasoma/swizima-web:${TAG:-latest}`, serving Angular 22 on Nginx port `4200` and proxying `/api/` to `http://swizima-apigateway:9080`).
+
+### Fixed
+- **[web]** Fixed `swizima-web/Dockerfile` failing on `/etc/nginx/templates/default.conf.template: nonexistent directory` by creating `/etc/nginx/templates` and scoping `NGINX_ENVSUBST_FILTER=API_GATEWAY_URL`.
+- **[web]** Fixed login & API requests failing silently without network calls when accessed over plain HTTP on a remote IP (`window.isSecureContext === false`, where `crypto.randomUUID()` is undefined) by adding a `crypto.getRandomValues()` UUID v4 fallback in `api.interceptor.ts` and logging non-HTTP exceptions in `api-error.ts`.
+
 ### Changed
 - **[clienttransactionsapi]** Renamed `serviceapi` → `clienttransactionsapi` (folder, Maven artifact, package `com.swizima.clienttransactionsapi`, main class `ClienttransactionsapiApplication`, `spring.application.name`). Port stays 8084.
 - **[apigateway]** Route renamed: `/api/v1/services/**` → `/api/v1/client-transactions/**`; docs path `/docs/serviceapi` → `/docs/clienttransactionsapi`; env var `SERVICE_API_URL` → `CLIENT_TRANSACTIONS_API_URL`.

@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, inject, input, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { catchError, finalize, of, switchMap } from 'rxjs';
 import { SwizimaApi } from '../../../core/api/swizima-api';
+import { AuthService } from '../../../core/auth/auth.service';
 import { HasUnsavedChanges } from '../../../core/forms/unsaved-changes.guard';
 import { toErrorMessage } from '../../../core/http/api-error';
 import { ClientRequest, ClientStatus, ClientType, ProblemDetail } from '../../../core/models/api.models';
@@ -11,6 +12,7 @@ import { Icon } from '../../../shared/icon/icon';
 import { PageHeader } from '../../../shared/page-header/page-header';
 import { PhoneInput } from '../../../shared/phone-input/phone-input';
 import { humanize } from '../../../shared/status-badge/status-badge';
+import { ThemeToggle } from '../../../shared/theme-toggle/theme-toggle';
 import {
   ALL_DISTRICTS,
   UGANDA_DISTRICTS,
@@ -49,23 +51,29 @@ export interface ClientCreatedState {
   createdClientId: string;
   createdClientName: string;
   createdClientCode: string;
+  createdClientEmail?: string;
+  createdClientPhone?: string;
 }
 
 /**
- * /clients/new – register a client (POST /api/v1/clients via the gateway).
- * 400 field errors and 409 duplicate code are mapped back onto the form.
+ * /clients/new (Admin) and /signup (Public Client Sign-Up) – register a client
+ * (POST /api/v1/clients) and automatically create their OTP sign-in account.
  */
 @Component({
   selector: 'app-client-form',
-  imports: [ReactiveFormsModule, RouterLink, Icon, PageHeader, PhoneInput],
+  imports: [ReactiveFormsModule, RouterLink, Icon, PageHeader, PhoneInput, ThemeToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './client-form.html',
   styleUrl: './client-form.css',
 })
 export class ClientForm implements HasUnsavedChanges {
   private readonly api = inject(SwizimaApi);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** True when mounted at /signup or /auth/signup (public self-registration). */
+  readonly signupMode = input<boolean>(false);
 
   protected readonly types: ClientType[] = ['COMPANY', 'INDIVIDUAL', 'GOVERNMENT', 'NGO', 'OTHER'];
   protected readonly statuses: ClientStatus[] = ['PENDING', 'ACTIVE'];
@@ -82,11 +90,11 @@ export class ClientForm implements HasUnsavedChanges {
     clientType: ['COMPANY' as ClientType],
     industrySectors: [[] as string[]],
     industrySectorOther: [''],
-    status: ['PENDING' as ClientStatus],
+    status: ['ACTIVE' as ClientStatus],
     description: [''],
-    // Contact
-    email: ['', [Validators.email, Validators.maxLength(150)]],
-    phoneNumber: ['', [Validators.pattern(PHONE), Validators.maxLength(30)]],
+    // Contact (Phone number and Email are required for automatic OTP account creation)
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(150)]],
+    phoneNumber: ['', [Validators.required, Validators.pattern(PHONE), Validators.maxLength(30)]],
     alternativePhone: ['', [Validators.pattern(PHONE), Validators.maxLength(30)]],
     // Location (Uganda: district/city are dropdown values or OTHER + free text)
     address: ['', Validators.maxLength(255)],
@@ -298,16 +306,53 @@ export class ClientForm implements HasUnsavedChanges {
     if (raw.district === OTHER) raw.district = districtOther;
     if (raw.city === OTHER) raw.city = cityOther;
 
+    const phone = raw.phoneNumber.replace(/[\s()-]/g, '').trim();
+    const email = raw.email.trim();
+
     this.api
       .createClient({ ...toRequest(raw), industrySectors })
-      .pipe(finalize(() => this.submitting.set(false)))
+      .pipe(
+        switchMap((client) =>
+          this.api
+            .assignAccount({
+              clientRef: client.id,
+              username: phone || email,
+              phoneNumber: phone,
+              email,
+              preferredOtpChannel: 'EMAIL',
+              isDefaultClient: true,
+              sendCredentials: true,
+              organisationName: client.clientName,
+            })
+            .pipe(
+              catchError(() => of(null)),
+              switchMap(() => of(client)),
+            ),
+        ),
+        finalize(() => this.submitting.set(false)),
+      )
       .subscribe({
         next: (client) => {
           this.saved = true;
+          if (this.signupMode()) {
+            this.auth.loginWithOtp({ username: email, otpChannel: 'EMAIL' }).subscribe({
+              next: () =>
+                this.router.navigate(['/auth/verify-otp'], {
+                  queryParams: { returnUrl: '/portal/dashboard' },
+                }),
+              error: () =>
+                this.router.navigate(['/auth/login'], {
+                  queryParams: { registered: client.clientCode, email },
+                }),
+            });
+            return;
+          }
           const state: ClientCreatedState = {
             createdClientId: client.id,
             createdClientName: client.clientName,
             createdClientCode: client.clientCode,
+            createdClientEmail: email,
+            createdClientPhone: phone,
           };
           this.router.navigate(['/clients'], { state });
         },

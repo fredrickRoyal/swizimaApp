@@ -13,6 +13,7 @@ import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppTitleStrategy } from '../../core/title/app-title.strategy';
 import { Icon } from '../../shared/icon/icon';
+import { ThemeToggle } from '../../shared/theme-toggle/theme-toggle';
 import { NavMenu } from '../nav-menu/nav-menu';
 
 /**
@@ -23,7 +24,7 @@ import { NavMenu } from '../nav-menu/nav-menu';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, NavMenu, Icon],
+  imports: [RouterOutlet, NavMenu, Icon, ThemeToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.html',
   styleUrl: './shell.css',

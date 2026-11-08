@@ -60,6 +60,20 @@ public interface ClientUserRepository extends JpaRepository<ClientUser, UUID> {
                                     @Param("email") String email,
                                     @Param("excluded") RecordStatus excluded);
 
+    /** All client links for a signed-in user (matched on systemUserId, phone, or email), default client first. */
+    @Query("""
+            SELECT u FROM ClientUser u
+            WHERE u.recordStatus <> :excluded
+              AND ((:systemUserId IS NOT NULL AND u.systemUserId = :systemUserId)
+                OR (:phone IS NOT NULL AND u.userPhoneNumber = :phone)
+                OR (:email IS NOT NULL AND u.userEmail = :email))
+            ORDER BY u.defaultClient DESC, u.createdAt ASC
+            """)
+    List<ClientUser> findByUser(@Param("systemUserId") UUID systemUserId,
+                                @Param("phone") String phone,
+                                @Param("email") String email,
+                                @Param("excluded") RecordStatus excluded);
+
     /** Clears the default flag on the person's other client links. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

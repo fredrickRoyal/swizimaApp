@@ -1,6 +1,7 @@
 package com.swizima.configurationsapi.dto;
 
 import com.swizima.configurationsapi.entity.ClientBillingPlan;
+import com.swizima.configurationsapi.entity.enums.BillingModel;
 import com.swizima.configurationsapi.entity.enums.BillingPlanStatus;
 
 import java.math.BigDecimal;
@@ -11,7 +12,9 @@ import java.util.UUID;
 public record BillingPlanResponse(
         UUID id,
         UUID clientRef,
+        BillingModel billingModel,
         BigDecimal percentageRate,
+        BigDecimal monthlyAmount,
         String currency,
         BigDecimal lowBalanceThreshold,
         BillingPlanStatus status,
@@ -23,8 +26,21 @@ public record BillingPlanResponse(
 ) {
 
     public static BillingPlanResponse from(ClientBillingPlan p) {
-        return new BillingPlanResponse(p.getId(), p.getClientRef(), p.getPercentageRate(), p.getCurrency(),
-                p.getLowBalanceThreshold(), p.getStatus(), p.getNotes(),
-                p.getCreatedAt(), p.getCreatedBy(), p.getUpdatedAt(), p.getUpdatedBy());
+        BillingModel model = p.getBillingModel() != null ? p.getBillingModel() : BillingModel.COMMISSION;
+        return new BillingPlanResponse(
+                p.getId(),
+                p.getClientRef(),
+                model,
+                p.getPercentageRate(),
+                p.getMonthlyAmount(),
+                p.getCurrency(),
+                p.getLowBalanceThreshold(),
+                p.getStatus(),
+                p.getNotes(),
+                p.getCreatedAt(),
+                p.getCreatedBy(),
+                p.getUpdatedAt(),
+                p.getUpdatedBy()
+        );
     }
 }

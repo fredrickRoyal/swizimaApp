@@ -1,5 +1,6 @@
 package com.swizima.usersapi.dto;
 
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.OtpChannel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +19,7 @@ public record AssignAccountRequest(
         @Size(max = 30) String phoneNumber,
         @Size(max = 150) String email,
         OtpChannel preferredOtpChannel,
+        AccountCategory accountCategory,
         Boolean isDefaultClient,
         /** Email the temporary password to the user (default true). */
         Boolean sendCredentials,

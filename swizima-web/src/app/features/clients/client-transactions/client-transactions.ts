@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, NonNullableFormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { SwizimaApi } from '../../../core/api/swizima-api';
 import { DIAL_COUNTRIES } from '../../../core/data/dial-codes';
 import { debounced, remoteData } from '../../../core/data/remote-data';
@@ -57,7 +58,7 @@ function toLocalInput(value?: string | Date | null): string {
 /** /clients/:id/transactions — vehicle service transactions for the selected client (clienttransactionsapi). */
 @Component({
   selector: 'app-client-transactions',
-  imports: [ReactiveFormsModule, EmptyState, Icon, LoadCreditDialog, Pagination, PhoneInput, StatusBadge],
+  imports: [ReactiveFormsModule, RouterLink, EmptyState, Icon, LoadCreditDialog, Pagination, PhoneInput, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './client-transactions.html',
   styleUrl: './client-transactions.css',
@@ -173,11 +174,12 @@ export class ClientTransactionsPage {
   /** Set when billing blocked the save (e.g. INSUFFICIENT_CREDIT) so the form can offer a top-up. */
   protected readonly billingBlock = signal<BillingProblem | null>(null);
   protected readonly money = money;
-  private readonly loadDialog = viewChild.required(LoadCreditDialog);
+  private readonly loadDialog = viewChild(LoadCreditDialog);
 
   protected openTopUp(): void {
+    if (!this.layout.isAdmin()) return;
     const b = this.billingBlock();
-    this.loadDialog().open(this.layout.id(), {
+    this.loadDialog()?.open(this.layout.id(), {
       clientName: this.layout.client.state().data?.clientName,
       currency: b?.currency,
       balance: b?.balance,

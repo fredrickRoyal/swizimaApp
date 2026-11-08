@@ -1,37 +1,29 @@
 # Configurations API (`configurationsapi`)
 
-Spring Boot service for managing Swizima system configurations and settings.
+Spring Boot service for managing Swizima system configurations and client billing plans.
 
+- **Port:** `8082`
 - **Base package:** `com.swizima.configurationsapi`
-- **Tech stack:** Java, Spring Boot 4.1.2 (Web MVC, Data JPA), PostgreSQL, Maven
-- **Status:** 🚧 Scaffolded — entities and endpoints not yet implemented
+- **Tech stack:** Java 21, Spring Boot 4.1.2 (Web MVC, Data JPA, Validation), PostgreSQL (`swizima_configurations`), Maven
+- **Swagger UI:** http://localhost:8082/swagger-ui.html
 
-## Package structure
+## Billing Models (`BillingModel`)
 
-```text
-com.swizima.configurationsapi/
-├── config/        # Spring configuration (e.g. JPA auditing)
-├── controller/    # REST controllers
-├── dto/           # Request/response objects
-├── entity/        # JPA entities (extend ParentEntity for audit columns)
-├── exception/     # Custom exceptions & global handler
-├── repository/    # Spring Data JPA repositories
-├── service/       # Service interfaces (+ impl/)
-└── ConfigurationsapiApplication.java
-```
+Each client (and the system default plan) can be configured with one of two billing models in `ClientBillingPlan`:
 
-## Conventions
+| Model | Description | Commission Rate | Monthly Amount |
+|---|---|---|---|
+| `COMMISSION` *(default)* | Per-transaction percentage deducted from the client's prepaid Swizima wallet on every car parked or washed. | `0% – 100%` (default `5%`) | `0` |
+| `MONTHLY_FLAT` | Client pays an agreed fixed amount at the end of every month instead of per-transaction commission. | Forced to `0%` | `> 0` (e.g. `UGX 150,000`) |
 
-Follow the same patterns as [`clientapi`](../clientapi/README.md):
+## Endpoints (`/api/v1/configurations`)
 
-- Entities extend a `ParentEntity` with `created_by`, `created_at`, `updated_by`, `updated_at`, `record_status`.
-- Deletes are soft deletes (`record_status = DELETED`).
-- Endpoints are versioned under `/api/v1/...`.
-- Errors are returned as RFC 9457 `ProblemDetail` responses.
-
-## Endpoints
-
-_To be documented as they are implemented._
+- `GET /api/v1/configurations/billing-plans/default` — Get the system-wide default billing plan.
+- `PUT /api/v1/configurations/billing-plans/default` — Update the system-wide default billing plan (`billingModel`, `commissionRatePercent`, `monthlyAmount`, `currency`, `allowNegativeBalance`, `minimumTopUpAmount`).
+- `GET /api/v1/configurations/billing-plans` — List all custom client billing plans.
+- `GET /api/v1/configurations/billing-plans/client/{clientId}` — Get the effective billing plan for a client (returns custom plan if present, otherwise falls back to the default plan).
+- `PUT /api/v1/configurations/billing-plans/client/{clientId}` — Create or update a custom billing plan for a specific client (`COMMISSION` or `MONTHLY_FLAT`).
+- `DELETE /api/v1/configurations/billing-plans/client/{clientId}` — Remove a client's custom plan (reverts client to the system default plan).
 
 ## Running locally
 

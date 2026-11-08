@@ -1,7 +1,8 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, catchError, map, of, throwError } from 'rxjs';
 import {
+  AccountCategory,
   ActivationStatus,
   BillingActivity,
   BillingActivityType,
@@ -13,6 +14,11 @@ import {
   CreditLoadRequest,
   CreditLoadStatus,
   CreditPaymentMethod,
+  CreditRequestStatus,
+  CreditTopUpApprovalRequest,
+  CreditTopUpRejectionRequest,
+  CreditTopUpRequest,
+  CreditTopUpRequestCreate,
   AssignAccountRequest,
   AssignAccountResponse,
   ClientUser,
@@ -199,13 +205,25 @@ export class SwizimaApi {
   }
 
   users(
-    query: PageQuery & { search?: string; activationStatus?: ActivationStatus | ''; enabled?: boolean | '' } = {},
+    query: PageQuery & {
+      search?: string;
+      accountCategory?: AccountCategory | '';
+      activationStatus?: ActivationStatus | '';
+      enabled?: boolean | '';
+    } = {},
   ): Observable<PageResponse<SystemUser>> {
     return this.http.get<PageResponse<SystemUser>>('/api/v1/users', { params: toParams(query) });
   }
 
   updateUserStatus(userId: string, activationStatus: ActivationStatus): Observable<SystemUser> {
     return this.http.patch<SystemUser>(`/api/v1/users/${encodeURIComponent(userId)}/activation-status`, { activationStatus });
+  }
+
+  resetUserPassword(userId: string): Observable<{ user: SystemUser; temporaryPassword?: string }> {
+    return this.http.post<{ user: SystemUser; temporaryPassword?: string }>(
+      `/api/v1/users/${encodeURIComponent(userId)}/reset-password`,
+      {},
+    );
   }
 
   // ---------- Billing plans (configurationsapi) ----------
@@ -267,6 +285,99 @@ export class SwizimaApi {
     return this.http.post<CreditLoad>(`${BILLING}/credit-loads/${encodeURIComponent(id)}/reversal`, { reason, reversedBy });
   }
 
+  submitCreditRequest(clientRef: string, request: CreditTopUpRequestCreate): Observable<CreditTopUpRequest> {
+    return this.http
+      .post<CreditTopUpRequest>(`${BILLING}/wallets/client/${encodeURIComponent(clientRef)}/credit-requests`, request)
+      .pipe(
+        catchError((err) => {
+          if (err instanceof HttpErrorResponse && err.status === 404) {
+            return of(saveLocalCreditRequest(clientRef, request));
+          }
+          return throwError(() => err);
+        }),
+      );
+  }
+
+  creditRequests(
+    query: PageQuery & {
+      clientRef?: string;
+      status?: CreditRequestStatus | '';
+      paymentMethod?: CreditPaymentMethod | '';
+      search?: string;
+    } = {},
+  ): Observable<PageResponse<CreditTopUpRequest>> {
+    return this.http
+      .get<PageResponse<CreditTopUpRequest>>(`${BILLING}/credit-requests`, { params: toParams(query) })
+      .pipe(
+        catchError((err) => {
+          if (err instanceof HttpErrorResponse && err.status === 404) {
+            return of(queryLocalCreditRequests(query));
+          }
+          return throwError(() => err);
+        }),
+      );
+  }
+
+  approveCreditRequest(id: string, request: CreditTopUpApprovalRequest): Observable<CreditTopUpRequest> {
+    return this.http
+      .post<CreditTopUpRequest>(`${BILLING}/credit-requests/${encodeURIComponent(id)}/approve`, request)
+      .pipe(
+        catchError((err) => {
+          if (err instanceof HttpErrorResponse && err.status === 404) {
+            const local = findLocalCreditRequest(id);
+            if (!local) return throwError(() => err);
+            const method = request.paymentMethod ?? local.paymentMethod;
+            const reference = request.paymentReference?.trim() || local.paymentReference;
+            const notes = [local.notes, request.reviewNotes ? `Approved: ${request.reviewNotes}` : null]
+              .filter(Boolean)
+              .join(' | ');
+            return this.loadCredit(local.clientRef, {
+              amount: request.approvedAmount,
+              paymentMethod: method,
+              paymentReference: reference,
+              payerName: local.payerName,
+              payerPhone: local.payerPhone,
+              receivedBy: request.reviewedBy,
+              notes: notes || undefined,
+            }).pipe(
+              map((loaded) =>
+                updateLocalCreditRequest(id, {
+                  status: 'APPROVED',
+                  approvedAmount: request.approvedAmount,
+                  paymentMethod: method,
+                  paymentReference: loaded.paymentReference ?? reference,
+                  reviewedAt: new Date().toISOString(),
+                  reviewedBy: request.reviewedBy,
+                  reviewNotes: request.reviewNotes,
+                  creditLoadId: loaded.id,
+                }),
+              ),
+            );
+          }
+          return throwError(() => err);
+        }),
+      );
+  }
+
+  rejectCreditRequest(id: string, request: CreditTopUpRejectionRequest): Observable<CreditTopUpRequest> {
+    return this.http
+      .post<CreditTopUpRequest>(`${BILLING}/credit-requests/${encodeURIComponent(id)}/reject`, request)
+      .pipe(
+        catchError((err) => {
+          if (err instanceof HttpErrorResponse && err.status === 404) {
+            const updated = updateLocalCreditRequest(id, {
+              status: 'REJECTED',
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: request.reviewedBy,
+              reviewNotes: request.reason,
+            });
+            return of(updated);
+          }
+          return throwError(() => err);
+        }),
+      );
+  }
+
   billingActivities(
     query: PageQuery & {
       clientRef?: string;
@@ -300,4 +411,100 @@ function toParams(query: object): HttpParams {
     }
   }
   return params;
+}
+
+const LOCAL_CREDIT_REQUESTS_KEY = 'swz.creditTopUpRequests';
+
+function readLocalCreditRequests(): CreditTopUpRequest[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_CREDIT_REQUESTS_KEY);
+    return raw ? (JSON.parse(raw) as CreditTopUpRequest[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalCreditRequests(list: CreditTopUpRequest[]): void {
+  try {
+    localStorage.setItem(LOCAL_CREDIT_REQUESTS_KEY, JSON.stringify(list));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function saveLocalCreditRequest(clientRef: string, req: CreditTopUpRequestCreate): CreditTopUpRequest {
+  const item: CreditTopUpRequest = {
+    id: `${Date.now()}`,
+    clientRef,
+    requestedAmount: req.requestedAmount,
+    currency: 'UGX',
+    paymentMethod: req.paymentMethod,
+    paymentReference: req.paymentReference?.trim() ? req.paymentReference.trim().toUpperCase() : undefined,
+    payerName: req.payerName?.trim() || undefined,
+    payerPhone: req.payerPhone?.trim() || undefined,
+    notes: req.notes?.trim() || undefined,
+    status: 'PENDING',
+    createdAt: new Date().toISOString(),
+  };
+  const updated = [item, ...readLocalCreditRequests()].slice(0, 100);
+  writeLocalCreditRequests(updated);
+  return item;
+}
+
+function findLocalCreditRequest(id: string): CreditTopUpRequest | undefined {
+  return readLocalCreditRequests().find((r) => r.id === id);
+}
+
+function updateLocalCreditRequest(id: string, patch: Partial<CreditTopUpRequest>): CreditTopUpRequest {
+  const list = readLocalCreditRequests();
+  const idx = list.findIndex((r) => r.id === id);
+  if (idx === -1) {
+    throw new Error('Credit request not found');
+  }
+  const updated: CreditTopUpRequest = { ...list[idx]!, ...patch };
+  list[idx] = updated;
+  writeLocalCreditRequests(list);
+  return updated;
+}
+
+function queryLocalCreditRequests(
+  query: PageQuery & {
+    clientRef?: string;
+    status?: CreditRequestStatus | '';
+    paymentMethod?: CreditPaymentMethod | '';
+    search?: string;
+  },
+): PageResponse<CreditTopUpRequest> {
+  let list = readLocalCreditRequests();
+  if (query.clientRef) {
+    list = list.filter((r) => r.clientRef === query.clientRef);
+  }
+  if (query.status) {
+    list = list.filter((r) => r.status === query.status);
+  }
+  if (query.paymentMethod) {
+    list = list.filter((r) => r.paymentMethod === query.paymentMethod);
+  }
+  if (query.search?.trim()) {
+    const q = query.search.trim().toLowerCase();
+    list = list.filter(
+      (r) =>
+        r.paymentReference?.toLowerCase().includes(q) ||
+        r.payerName?.toLowerCase().includes(q) ||
+        r.payerPhone?.toLowerCase().includes(q),
+    );
+  }
+  const page = query.page ?? 0;
+  const size = query.size ?? 10;
+  const start = page * size;
+  const content = list.slice(start, start + size);
+  const totalPages = Math.max(1, Math.ceil(list.length / size));
+  return {
+    content,
+    page,
+    size,
+    totalElements: list.length,
+    totalPages,
+    last: page >= totalPages - 1,
+  };
 }

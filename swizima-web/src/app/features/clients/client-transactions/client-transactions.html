@@ -196,9 +196,15 @@
             }
           </div>
           @if (b.code === 'INSUFFICIENT_CREDIT') {
-            <button type="button" class="btn btn-primary" id="client-tx-top-up" (click)="openTopUp()">
-              <app-icon name="plus" /> Top up now
-            </button>
+            @if (layout.isAdmin()) {
+              <button type="button" class="btn btn-primary" id="client-tx-top-up" (click)="openTopUp()">
+                <app-icon name="plus" /> Top up now
+              </button>
+            } @else {
+              <a routerLink="/portal/billing" class="btn btn-primary" id="client-tx-request-credit" (click)="closeDialog()">
+                <app-icon name="payments" /> Request credit
+              </a>
+            }
           }
         </div>
       }
@@ -510,4 +516,6 @@
   }
 </dialog>
 
-<app-load-credit-dialog (loaded)="onToppedUp($event)" />
+@if (layout.isAdmin()) {
+  <app-load-credit-dialog (loaded)="onToppedUp($event)" />
+}

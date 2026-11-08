@@ -6,7 +6,9 @@ import java.util.UUID;
 /** Client billing plan as returned by the Configurations API (only the fields Payments needs). */
 public record BillingPlan(
         UUID clientRef,
+        String billingModel,
         BigDecimal percentageRate,
+        BigDecimal monthlyAmount,
         String currency,
         BigDecimal lowBalanceThreshold,
         String status
@@ -14,5 +16,9 @@ public record BillingPlan(
 
     public boolean isActive() {
         return "ACTIVE".equals(status);
+    }
+
+    public boolean isMonthlyFlat() {
+        return "MONTHLY_FLAT".equals(billingModel);
     }
 }

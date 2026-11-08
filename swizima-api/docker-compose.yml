@@ -1,5 +1,5 @@
 # =====================================================================
-# Swizima API - local infrastructure
+# Swizima API - local infrastructure (PostgreSQL stack)
 #
 #   docker compose up -d        # start
 #   docker compose ps           # status / health
@@ -59,3 +59,4 @@ volumes:
 networks:
   swizima:
     name: swizima-network
+    driver: bridge

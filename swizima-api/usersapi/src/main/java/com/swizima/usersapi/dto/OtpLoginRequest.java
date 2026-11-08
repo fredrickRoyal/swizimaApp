@@ -1,5 +1,6 @@
 package com.swizima.usersapi.dto;
 
+import com.swizima.usersapi.entity.enums.AccountCategory;
 import com.swizima.usersapi.entity.enums.OtpChannel;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +14,9 @@ public record OtpLoginRequest(
         String username,
 
         @Schema(description = "Where to receive the OTP. Optional - defaults to the user's preferred channel")
-        OtpChannel otpChannel
+        OtpChannel otpChannel,
+
+        @Schema(description = "Optional login account category filter (SYSTEM, CLIENT, STAFF)")
+        AccountCategory accountCategory
 ) {
 }

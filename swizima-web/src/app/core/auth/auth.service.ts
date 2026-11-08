@@ -1,7 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 import {
+  AccountCategory,
+  ClientUser,
   LoginRequest,
   LoginResponse,
   OtpChallengeResponse,
@@ -38,6 +40,45 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this._session() !== null);
   readonly displayName = computed(() => this._session()?.username ?? '');
 
+  /** Active client ID when the signed-in user belongs to a client (Client Portal user). */
+  readonly clientId = computed(
+    () => this._session()?.defaultClientId ?? this._session()?.clientIds?.[0] ?? null,
+  );
+
+  /** Account category of the signed-in user: SUPER_ADMIN, CLIENT_ADMIN, or USER. */
+  readonly accountCategory = computed<AccountCategory>(() => {
+    const s = this._session();
+    if (!s) return 'USER';
+    if (isDefaultSuperAdmin(s.username, s.email) || s.role === 'SUPER_ADMIN' || s.role === 'ADMIN' || s.accountCategory === 'SUPER_ADMIN') {
+      return 'SUPER_ADMIN';
+    }
+    if (s.accountCategory === 'CLIENT_ADMIN' || s.role === 'CLIENT_ADMIN' || this.clientId()) {
+      return 'CLIENT_ADMIN';
+    }
+    return 'USER';
+  });
+
+  /** True when the user is a platform administrator (SUPER_ADMIN / ADMIN, or no client link). */
+  readonly isAdmin = computed(() => {
+    const s = this._session();
+    if (!s) return false;
+    if (isDefaultSuperAdmin(s.username, s.email) || s.role === 'SUPER_ADMIN' || s.role === 'ADMIN' || s.accountCategory === 'SUPER_ADMIN') {
+      return true;
+    }
+    if (s.accountCategory === 'CLIENT_ADMIN' || s.role === 'CLIENT_ADMIN') {
+      return false;
+    }
+    return !this.clientId();
+  });
+
+  /** True when the signed-in user is a client admin/user accessing the Client Portal module. */
+  readonly isClientPortalUser = computed(() => this.isAuthenticated() && !this.isAdmin() && !!this.clientId());
+
+  /** Default landing path after sign-in. */
+  defaultHomeUrl(): string {
+    return this.isClientPortalUser() ? '/portal/dashboard' : '/dashboard';
+  }
+
   /** Step 1: verify username/password; the API sends an OTP and returns a challenge. */
   login(request: LoginRequest): Observable<OtpChallengeResponse> {
     return this.http
@@ -46,24 +87,77 @@ export class AuthService {
   }
 
   /** Passwordless alternative to step 1: just email/phone; the API sends an OTP. */
-  loginWithOtp(request: { username: string; otpChannel?: OtpChannel }): Observable<OtpChallengeResponse> {
+  loginWithOtp(request: {
+    username: string;
+    otpChannel?: OtpChannel;
+    accountCategory?: AccountCategory;
+  }): Observable<OtpChallengeResponse> {
     return this.http
       .post<OtpChallengeResponse>('/api/v1/auth/login/otp', request)
       .pipe(tap((challenge) => this.storeChallenge(challenge, request.username)));
   }
 
-  /** Step 2: verify the OTP; on success the user is signed in. */
+  /** Step 2: verify the OTP; on success the user is signed in (resolving client links if needed). */
   verifyOtp(code: string): Observable<LoginResponse> {
     const challenge = this.requireChallenge();
     return this.http
       .post<LoginResponse>('/api/v1/auth/verify-otp', { otpReference: challenge.otpReference, code })
       .pipe(
+        switchMap((session) => this.enrichClientLinks(session)),
         tap((session) => {
           this._session.set(session);
           write(SESSION_KEY, session);
           this.clearChallenge();
         }),
       );
+  }
+
+  /**
+   * If the backend response did not already include defaultClientId (e.g. older usersapi container),
+   * look up the user's client links via /api/v1/users/client-users/by-identity.
+   */
+  private enrichClientLinks(session: LoginResponse): Observable<LoginResponse> {
+    if (isDefaultSuperAdmin(session.username, session.email) || session.role === 'SUPER_ADMIN' || session.role === 'ADMIN') {
+      return of({
+        ...session,
+        role: 'SUPER_ADMIN',
+        accountCategory: 'SUPER_ADMIN',
+      });
+    }
+    if (session.defaultClientId || (session.clientIds && session.clientIds.length > 0)) {
+      return of({
+        ...session,
+        role: session.role === 'USER' || !session.role ? 'CLIENT_ADMIN' : session.role,
+        accountCategory: session.accountCategory ?? 'CLIENT_ADMIN',
+      });
+    }
+    const isEmail = session.usernameType === 'EMAIL' || session.username.includes('@');
+    const email = session.email ?? (isEmail ? session.username : undefined);
+    const phoneNumber = session.phoneNumber ?? (!isEmail ? session.username : undefined);
+    if (!email && !phoneNumber) {
+      return of(session);
+    }
+    const params: Record<string, string> = {};
+    if (email) params['email'] = email;
+    if (phoneNumber) params['phoneNumber'] = phoneNumber;
+
+    return this.http.get<ClientUser[]>('/api/v1/users/client-users/by-identity', { params }).pipe(
+      map((links) => {
+        if (!links || links.length === 0) return session;
+        const clientIds = [...new Set(links.map((l) => l.clientRef))];
+        const defaultLink = links.find((l) => l.isDefaultClient) ?? links[0];
+        const isStaff = links.every((l) => !!l.staffRef);
+        const category: AccountCategory = isStaff ? 'USER' : 'CLIENT_ADMIN';
+        return {
+          ...session,
+          accountCategory: session.accountCategory ?? category,
+          role: session.role === 'USER' || !session.role ? category : session.role,
+          defaultClientId: defaultLink?.clientRef ?? clientIds[0],
+          clientIds,
+        };
+      }),
+      catchError(() => of(session)),
+    );
   }
 
   /** Request a fresh code, optionally on a different channel. */
@@ -104,6 +198,12 @@ export class AuthService {
     }
     return challenge;
   }
+}
+
+function isDefaultSuperAdmin(username?: string, email?: string): boolean {
+  const u = (username ?? '').trim().toLowerCase();
+  const e = (email ?? '').trim().toLowerCase();
+  return u.startsWith('kfredrick') || e.startsWith('kfredrick');
 }
 
 function read<T>(key: string): T | null {

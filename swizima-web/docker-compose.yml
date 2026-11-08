@@ -1,0 +1,28 @@
+# =====================================================================
+# Swizima Web Stack (Angular 22 + Nginx pulled from Docker Hub)
+# Connects to `swizima-apigateway:9080` over the `swizima-network` bridge.
+#
+#   docker compose pull            # pull latest image from Docker Hub
+#   docker compose up -d           # start web portal
+#   docker compose down            # stop web container
+# =====================================================================
+name: swizima-web
+
+services:
+  swizima-web:
+    image: fredrickkasoma/swizima-web:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-web
+    restart: unless-stopped
+    environment:
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://swizima-apigateway:9080}
+      MOBILE_APP_DOWNLOAD_URL: ${MOBILE_APP_DOWNLOAD_URL:-https://drive.google.com/drive/folders/1cLdYhVLrO4Oyh1xLOhFIJIWCW-99WSg4?usp=sharing}
+    ports:
+      - "${WEB_PORT:-4200}:80"
+    networks:
+      - swizima
+
+networks:
+  swizima:
+    name: swizima-network
+    external: true
