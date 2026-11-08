@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,13 +36,17 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -87,9 +93,15 @@ fun ServiceVehiclesListScreen(
     serviceType: String,
     onBackToDashboard: () -> Unit,
     onNavigateToAddVehicleForm: (selectedService: String) -> Unit,
-    onNavigateToEditForm: (serviceTitle: String, recordId: String) -> Unit = { _, _ -> }
+    onNavigateToEditForm: (serviceTitle: String, recordId: String) -> Unit = { _, _ -> },
+    isGlobalList: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var fromDateFilter by remember { mutableStateOf("") }
+    var toDateFilter by remember { mutableStateOf("") }
+    var staffFilter by remember { mutableStateOf("") }
+    var showAdvancedSearchDialog by remember { mutableStateOf(false) }
+
     var selectedRecordForDetail by remember { mutableStateOf<VehicleRecord?>(null) }
     var showReceiptPreview by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
@@ -98,22 +110,31 @@ fun ServiceVehiclesListScreen(
         VehicleRecordRepository.fetchRecordsFromApi()
     }
 
-    val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType) {
-        VehicleRecordRepository.getRecordsForService(serviceType)
-    }
-
-    val filteredRecords = remember(searchQuery, allRecordsForService) {
-        if (searchQuery.isBlank()) {
-            allRecordsForService
+    val allRecordsForService = remember(VehicleRecordRepository.records.size, serviceType, isGlobalList) {
+        if (isGlobalList) {
+            VehicleRecordRepository.records
         } else {
-            allRecordsForService.filter { record ->
-                record.numberPlate.contains(searchQuery, ignoreCase = true) ||
-                        record.clientName.contains(searchQuery, ignoreCase = true) ||
-                        record.clientPhoneNumbers.any { it.contains(searchQuery) } ||
-                        record.assignedToPerson.contains(searchQuery, ignoreCase = true)
-            }
+            VehicleRecordRepository.getRecordsForService(serviceType)
         }
     }
+
+    val filteredRecords = remember(searchQuery, fromDateFilter, toDateFilter, staffFilter, allRecordsForService) {
+        allRecordsForService.filter { record ->
+            val matchesQuery = searchQuery.isBlank() ||
+                    record.numberPlate.contains(searchQuery, ignoreCase = true) ||
+                    record.clientName.contains(searchQuery, ignoreCase = true) ||
+                    record.clientPhoneNumbers.any { it.contains(searchQuery) } ||
+                    record.assignedToPerson.contains(searchQuery, ignoreCase = true)
+
+            val matchesFrom = fromDateFilter.isBlank() || record.date >= fromDateFilter
+            val matchesTo = toDateFilter.isBlank() || record.date <= toDateFilter
+            val matchesStaff = staffFilter.isBlank() || record.assignedToPerson.contains(staffFilter, ignoreCase = true)
+
+            matchesQuery && matchesFrom && matchesTo && matchesStaff
+        }
+    }
+
+    val hasActiveFilters = fromDateFilter.isNotBlank() || toDateFilter.isNotBlank() || staffFilter.isNotBlank()
 
     Scaffold(
         topBar = {
@@ -121,7 +142,7 @@ fun ServiceVehiclesListScreen(
                 title = {
                     Column {
                         Text(
-                            text = "$serviceType Vehicles",
+                            text = if (isGlobalList) "All Transactions" else "$serviceType Vehicles",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
@@ -132,11 +153,13 @@ fun ServiceVehiclesListScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackToDashboard) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Dashboard"
-                        )
+                    if (!isGlobalList) {
+                        IconButton(onClick = onBackToDashboard) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to Dashboard"
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -199,27 +222,199 @@ fun ServiceVehiclesListScreen(
                 }
             }
 
-            // Search Bar & Stats Header
+            // Search Bar & Advanced Filter Icon
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search by Number Plate, Client Name or Phone...") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search") },
+                        placeholder = { Text("Search") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
                     )
+
+                    IconButton(
+                        onClick = { showAdvancedSearchDialog = true },
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(
+                                color = if (hasActiveFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Advanced Filters",
+                            tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (hasActiveFilters) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Filters active: ${listOfNotNull(fromDateFilter.ifBlank { null }, toDateFilter.ifBlank { null }, staffFilter.ifBlank { null }).joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Reset",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.clickable {
+                                fromDateFilter = ""
+                                toDateFilter = ""
+                                staffFilter = ""
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (showAdvancedSearchDialog) {
+                var tempFrom by remember { mutableStateOf(fromDateFilter) }
+                var tempTo by remember { mutableStateOf(toDateFilter) }
+                var tempStaff by remember { mutableStateOf(staffFilter) }
+                var staffDropdownExpanded by remember { mutableStateOf(false) }
+                var clientStaffList by remember { mutableStateOf<List<com.example.swizima.data.ApiClientStaff>>(emptyList()) }
+
+                LaunchedEffect(Unit) {
+                    clientStaffList = com.example.swizima.data.ClientServiceRepository.fetchClientStaff(com.example.swizima.data.ClientServiceRepository.activeClientId)
+                }
+
+                AlertDialog(
+                    onDismissRequest = { showAdvancedSearchDialog = false },
+                    title = { Text("Advanced Search & Filters", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Filter transactions by date range & staff member:", style = MaterialTheme.typography.bodyMedium)
+
+                            OutlinedTextField(
+                                value = tempFrom,
+                                onValueChange = { tempFrom = it },
+                                readOnly = true,
+                                label = { Text("Start Date (yyyy-MM-dd)") },
+                                placeholder = { Text("Tap to select date") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showNativeDatePicker(ctx, tempFrom) { tempFrom = it } }) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date")
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showNativeDatePicker(ctx, tempFrom) { tempFrom = it } }
+                            )
+
+                            OutlinedTextField(
+                                value = tempTo,
+                                onValueChange = { tempTo = it },
+                                readOnly = true,
+                                label = { Text("End Date (yyyy-MM-dd)") },
+                                placeholder = { Text("Tap to select date") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showNativeDatePicker(ctx, tempTo) { tempTo = it } }) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date")
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showNativeDatePicker(ctx, tempTo) { tempTo = it } }
+                            )
+
+                            ExposedDropdownMenuBox(
+                                expanded = staffDropdownExpanded,
+                                onExpandedChange = { staffDropdownExpanded = !staffDropdownExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = tempStaff,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Assigned Staff Member") },
+                                    placeholder = { Text("All Staff Members") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = staffDropdownExpanded) },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = staffDropdownExpanded,
+                                    onDismissRequest = { staffDropdownExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("All Staff Members", fontWeight = FontWeight.Bold) },
+                                        onClick = {
+                                            tempStaff = ""
+                                            staffDropdownExpanded = false
+                                        }
+                                    )
+                                    clientStaffList.forEach { staff ->
+                                        DropdownMenuItem(
+                                            text = { Text("${staff.fullName} (${staff.position ?: "Staff"})") },
+                                            onClick = {
+                                                tempStaff = staff.fullName.uppercase()
+                                                staffDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                fromDateFilter = tempFrom.trim()
+                                toDateFilter = tempTo.trim()
+                                staffFilter = tempStaff.trim()
+                                showAdvancedSearchDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Apply Filters")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                tempFrom = ""
+                                tempTo = ""
+                                tempStaff = ""
+                                fromDateFilter = ""
+                                toDateFilter = ""
+                                staffFilter = ""
+                                showAdvancedSearchDialog = false
+                            }
+                        ) {
+                            Text("Clear All")
+                        }
+                    }
                 )
             }
 
@@ -632,6 +827,8 @@ fun VehicleRecordDetailBottomSheet(
     onWhatsApp: () -> Unit
 ) {
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showWhatsAppDialog by remember { mutableStateOf(false) }
+    var targetWhatsAppPhone by remember { mutableStateOf(record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: "") }
     var paymentAmount by remember { mutableStateOf(record.amountCharged) }
     var paymentReference by remember { mutableStateOf("") }
     var isActionProcessing by remember { mutableStateOf(false) }
@@ -799,7 +996,7 @@ fun VehicleRecordDetailBottomSheet(
                 }
 
                 Button(
-                    onClick = onWhatsApp,
+                    onClick = { showWhatsAppDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
@@ -814,6 +1011,48 @@ fun VehicleRecordDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+
+    if (showWhatsAppDialog) {
+        AlertDialog(
+            onDismissRequest = { showWhatsAppDialog = false },
+            title = { Text("Share Receipt via WhatsApp", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pre-filled with customer's phone number. You can edit or enter a different phone number below:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    OutlinedTextField(
+                        value = targetWhatsAppPhone,
+                        onValueChange = { targetWhatsAppPhone = it },
+                        label = { Text("WhatsApp Phone Number") },
+                        placeholder = { Text("e.g. +256 700 123 456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showWhatsAppDialog = false
+                        WhatsAppSender.sendTicketToWhatsApp(ctx, record, targetWhatsAppPhone.trim())
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Send PDF to WhatsApp")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWhatsAppDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showPaymentDialog) {
@@ -918,7 +1157,7 @@ fun ReceiptPreviewDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Swizima Automotive",
+                        text = com.example.swizima.data.ClientServiceRepository.activeClientName,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -926,12 +1165,7 @@ fun ReceiptPreviewDialog(
                         color = Color.Black
                     )
                     Text(
-                        text = "Automotive & Parking Services",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.DarkGray
-                    )
-                    Text(
-                        text = "Kampala, Uganda | Tel: +256 700 123 456",
+                        text = "${com.example.swizima.data.ClientServiceRepository.activeClientAddress} | Tel: ${com.example.swizima.data.ClientServiceRepository.activeClientPhone}",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.DarkGray
                     )
@@ -957,11 +1191,10 @@ fun ReceiptPreviewDialog(
                     if (record.clientName.isNotBlank()) {
                         ReceiptRow("Client Name", record.clientName, false)
                     }
-                    ReceiptRow("Nationality", record.nationality, false)
                     if (record.idPassportNumber.isNotBlank()) {
                         ReceiptRow(record.idType, record.idPassportNumber, false)
                     }
-                    ReceiptRow("Phone", record.clientPhoneNumbers.firstOrNull() ?: "-", false)
+                    ReceiptRow("Phone Number", record.clientPhoneNumbers.firstOrNull() ?: "-", false)
                     ReceiptRow("Date", record.date, false)
                     ReceiptRow("Time In", record.entryTime, false)
                     ReceiptRow("Time Out", record.expectedExitTime.ifBlank { "Active" }, false)
@@ -969,7 +1202,7 @@ fun ReceiptPreviewDialog(
                     if (record.assignedToPerson.isNotBlank()) {
                         ReceiptRow("Assigned To", record.assignedToPerson, false)
                     }
-                    ReceiptRow("Paid Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", true)
+                    ReceiptRow("Total Amount", "UGX ${record.amountCharged.ifBlank { "0" }}", true)
 
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = Color.Gray, thickness = 1.dp)

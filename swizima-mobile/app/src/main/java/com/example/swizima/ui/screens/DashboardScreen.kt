@@ -81,11 +81,10 @@ data class DashboardTaskTile(
 
 fun mapTileToServiceType(tileTitle: String): String {
     return when {
-        tileTitle.contains("park", ignoreCase = true) -> "Parking"
-        tileTitle.contains("wash", ignoreCase = true) -> "General washing"
+        tileTitle.contains("park", ignoreCase = true) -> "Car park"
+        tileTitle.contains("wash", ignoreCase = true) -> "Car wash"
         tileTitle.contains("repair", ignoreCase = true) -> "Repair"
-        tileTitle.contains("review", ignoreCase = true) || tileTitle.contains("check", ignoreCase = true) -> "Review"
-        else -> "General Service"
+        else -> "Maintenance"
     }
 }
 
@@ -96,7 +95,6 @@ fun DashboardScreen(
     onLogout: () -> Unit,
     onNavigateToVehiclesList: (serviceType: String) -> Unit = {}
 ) {
-    var searchQuery by remember { mutableStateOf("") }
     var orgName by remember { mutableStateOf("Swizima Motors & Parking Ltd") }
     var orgAddress by remember { mutableStateOf("Plot 12, Lugogo Bypass, Kampala") }
     var orgContact by remember { mutableStateOf("Contact: +256 414 123 456") }
@@ -106,8 +104,8 @@ fun DashboardScreen(
         if (clients.isNotEmpty()) {
             val client = clients.first()
             orgName = client.clientName
-            orgAddress = "Plot 45, Industrial Area, Kampala"
-            orgContact = "Code: ${client.clientCode}"
+            orgAddress = client.address.ifBlank { "Kampala, Uganda" }
+            orgContact = "Code: ${client.clientCode} ${if (client.phone.isNotBlank()) "| Phone: ${client.phone}" else ""}"
         }
     }
 
@@ -115,57 +113,41 @@ fun DashboardScreen(
         listOf(
             DashboardTaskTile(
                 id = "car_park",
-                title = "Car Park",
+                title = "Car park",
                 description = "Parking space booking, valet services & spot management",
-                tag = "Parking",
+                tag = "Car park",
                 icon = Icons.Default.LocalParking,
                 containerColor = Color(0xFFE8F5E9),
-                iconColor = Color(0xFF2E7D32),
-                activeTasksCount = 2
+                iconColor = Color(0xFF2E7D32)
             ),
             DashboardTaskTile(
                 id = "car_wash",
-                title = "Car Wash General",
+                title = "Car wash",
                 description = "Exterior washing, interior vacuum, foam detail & polish",
-                tag = "Wash & Detail",
+                tag = "Car wash",
                 icon = Icons.Default.LocalCarWash,
                 containerColor = Color(0xFFE1F5FE),
-                iconColor = Color(0xFF0288D1),
-                activeTasksCount = 1
+                iconColor = Color(0xFF0288D1)
             ),
             DashboardTaskTile(
                 id = "car_repair",
-                title = "Car Repair",
+                title = "Repair",
                 description = "Engine diagnostic, brakes, electrical & mechanical repair",
-                tag = "Maintenance",
+                tag = "Repair",
                 icon = Icons.Default.Build,
                 containerColor = Color(0xFFFFF3E0),
-                iconColor = Color(0xFFE65100),
-                activeTasksCount = 3
+                iconColor = Color(0xFFE65100)
             ),
             DashboardTaskTile(
-                id = "car_review_check",
-                title = "Car Review and Check General",
-                description = "Comprehensive multi-point vehicle inspection & health checks",
-                tag = "Inspection",
+                id = "car_maintenance",
+                title = "Maintenance",
+                description = "Comprehensive multi-point vehicle inspection & maintenance",
+                tag = "Maintenance",
                 icon = Icons.Default.FactCheck,
                 containerColor = Color(0xFFF3E5F5),
-                iconColor = Color(0xFF7B1FA2),
-                activeTasksCount = 0
+                iconColor = Color(0xFF7B1FA2)
             )
         )
-    }
-
-    val filteredTiles = remember(searchQuery) {
-        if (searchQuery.isBlank()) {
-            taskTiles
-        } else {
-            taskTiles.filter {
-                it.title.contains(searchQuery, ignoreCase = true) ||
-                        it.description.contains(searchQuery, ignoreCase = true) ||
-                        it.tag.contains(searchQuery, ignoreCase = true)
-            }
-        }
     }
 
     Scaffold(
@@ -297,39 +279,63 @@ fun DashboardScreen(
                 }
             }
 
-            // Search bar & Section header
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search services & task tiles...") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
+            // --- Metrics Dashboard ---
+            val records = com.example.swizima.data.VehicleRecordRepository.records
+            val todayDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val todaysRecords = records.filter { it.date == todayDate }
+            val totalTxCount = todaysRecords.size
+            val totalCharged = todaysRecords.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
+            val totalCollected = todaysRecords.filter { it.paymentStatus.equals("PAID", ignoreCase = true) }.sumOf { it.amountCharged.replace(",", "").toDoubleOrNull() ?: 0.0 }
+            val totalOutstanding = totalCharged - totalCollected
 
-                Spacer(modifier = Modifier.height(18.dp))
+            val formatter = java.text.NumberFormat.getNumberInstance(java.util.Locale.US)
 
-                Text(
-                    text = "Services & Task Categories",
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Total Transactions
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Today's Txns", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(totalTxCount.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+                // Collected
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Collected (UGX)", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(formatter.format(totalCollected), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
+                    }
+                }
+                // Outstanding
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Outstanding", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE65100))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(formatter.format(totalOutstanding), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    }
+                }
             }
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Task Tiles Grid
+            // Task Tiles Grid (Sleek Redesigned Cards)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -337,7 +343,7 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(filteredTiles, key = { it.id }) { tile ->
+                items(taskTiles, key = { it.id }) { tile ->
                     TaskTileCard(
                         tile = tile,
                         onClick = {
@@ -359,9 +365,9 @@ fun TaskTileCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .height(155.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -373,7 +379,7 @@ fun TaskTileCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Icon & Tag Row
+            // Top Row: Icon Badge & Category Tag
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -382,7 +388,7 @@ fun TaskTileCard(
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(tile.containerColor),
                     contentAlignment = Alignment.Center
                 ) {
@@ -395,14 +401,14 @@ fun TaskTileCard(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = tile.containerColor
                 ) {
                     Text(
                         text = tile.tag,
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
+                            fontSize = 11.sp
                         ),
                         color = tile.iconColor,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -410,7 +416,7 @@ fun TaskTileCard(
                 }
             }
 
-            // Title & Description
+            // Bottom Section: Title & Description
             Column {
                 Text(
                     text = tile.title,
@@ -427,39 +433,10 @@ fun TaskTileCard(
 
                 Text(
                     text = tile.description,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Footer Action Hint
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (tile.activeTasksCount > 0) {
-                    Text(
-                        text = "${tile.activeTasksCount} active tasks",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                } else {
-                    Text(
-                        text = "Explore task",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = "View Task",
-                    tint = tile.iconColor,
-                    modifier = Modifier.size(16.dp)
                 )
             }
         }

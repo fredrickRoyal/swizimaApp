@@ -2,9 +2,7 @@ package com.example.swizima.utils
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import com.example.swizima.data.VehicleRecord
-import java.net.URLEncoder
 
 object WhatsAppSender {
 
@@ -14,7 +12,7 @@ object WhatsAppSender {
             "kenyan", "kenya" -> "+254"
             "tanzanian", "tanzania" -> "+255"
             "rwandan", "rwanda" -> "+250"
-            "south Sudanese", "south sudan" -> "+211"
+            "south sudanese", "south sudan" -> "+211"
             "congolese", "congo" -> "+243"
             "burundian", "burundi" -> "+257"
             "sudanese", "sudan" -> "+249"
@@ -29,43 +27,50 @@ object WhatsAppSender {
         }
     }
 
-    fun sendTicketToWhatsApp(context: Context, record: VehicleRecord) {
-        val primaryPhone = record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: ""
-        if (primaryPhone.isBlank()) return
-
-        val formattedPhone = formatPhoneNumberForWhatsApp(primaryPhone, record.nationality)
-
-        val message = buildString {
-            append("*SWIZIMA AUTOMOTIVE SERVICES*\n")
-            append("🚗 *Vehicle Service Ticket*\n\n")
-            append("• *Ticket No:* ${record.id.take(8).uppercase()}\n")
-            append("• *Service:* ${record.serviceType}\n")
-            append("• *Number Plate:* ${record.numberPlate}\n")
-            if (record.clientName.isNotBlank()) {
-                append("• *Client:* ${record.clientName}\n")
-            }
-            append("• *Date:* ${record.date}\n")
-            append("• *Time In:* ${record.entryTime}\n")
-            if (record.expectedExitTime.isNotBlank()) {
-                append("• *Expected Exit:* ${record.expectedExitTime}\n")
-            }
-            append("• *Key Status:* ${if (record.isLeavingKey) "Key Left with Attendant" else "Key with Client"}\n")
-            if (record.assignedToPerson.isNotBlank()) {
-                append("• *Assigned To:* ${record.assignedToPerson}\n")
-            }
-            if (record.amountCharged.isNotBlank()) {
-                append("• *Amount Charged:* UGX ${record.amountCharged}\n")
-            }
-            append("\n_Thank You and Drive Safely !!!_")
-        }
-
+    fun sendTicketToWhatsApp(context: Context, record: VehicleRecord, customPhone: String? = null) {
         try {
-            val encodedMessage = URLEncoder.encode(message, "UTF-8")
-            val url = "https://api.whatsapp.com/send?phone=$formattedPhone&text=$encodedMessage"
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            val file = PdfTicketGenerator.generatePdfFile(context, record)
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+
+            val rawPhone = if (!customPhone.isNullOrBlank()) customPhone else (record.clientPhoneNumbers.firstOrNull { it.isNotBlank() } ?: "")
+            val formattedPhone = formatPhoneNumberForWhatsApp(rawPhone, record.nationality)
+            val cleanJidPhone = formattedPhone.replace("+", "").replace(" ", "").trim()
+
+            val messageText = "Swizima Automotive Receipt Ticket for ${record.numberPlate}"
+
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, messageText)
+                if (cleanJidPhone.isNotBlank()) {
+                    putExtra("jid", "$cleanJidPhone@s.whatsapp.net")
+                }
+                setPackage("com.whatsapp")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
             context.startActivity(intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (_: Exception) {
+            try {
+                val file = PdfTicketGenerator.generatePdfFile(context, record)
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_TEXT, "Swizima Automotive Receipt Ticket for ${record.numberPlate}")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Share Receipt PDF via WhatsApp"))
+            } catch (err: Exception) {
+                err.printStackTrace()
+            }
         }
     }
 }
