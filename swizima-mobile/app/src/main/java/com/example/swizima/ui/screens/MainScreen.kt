@@ -2,6 +2,7 @@ package com.example.swizima.ui.screens
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ListAlt
@@ -48,6 +49,12 @@ fun MainScreen(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 }
                 )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Wallet") },
+                    label = { Text("Wallet") },
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 }
+                )
             }
         }
     ) { innerPadding ->
@@ -66,6 +73,7 @@ fun MainScreen(
                     isGlobalList = true
                 )
                 2 -> ReportsScreen()
+                3 -> WalletScreen()
             }
         }
     }
