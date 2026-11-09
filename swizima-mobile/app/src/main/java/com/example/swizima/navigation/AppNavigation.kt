@@ -2,14 +2,16 @@ package com.example.swizima.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.swizima.ui.screens.DashboardScreen
-import com.example.swizima.ui.screens.MainScreen
+import com.example.swizima.data.AuthRepository
 import com.example.swizima.ui.screens.LoginScreen
+import com.example.swizima.ui.screens.MainScreen
 import com.example.swizima.ui.screens.OtpScreen
 import com.example.swizima.ui.screens.ServiceFormScreen
 import com.example.swizima.ui.screens.ServiceVehiclesListScreen
@@ -42,11 +44,21 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun AppNavigation() {
+    val context = LocalContext.current
+    val savedSession = remember { AuthRepository.getSavedSession(context) }
+    val startDestination = remember {
+        if (savedSession != null) {
+            if (savedSession.isLinked) Screen.Dashboard.createRoute(savedSession.contact) else Screen.SystemInformation.createRoute(savedSession.contact)
+        } else {
+            Screen.Login.route
+        }
+    }
+
     val navController = rememberNavController()
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = startDestination
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
@@ -72,6 +84,7 @@ fun AppNavigation() {
                     navController.popBackStack()
                 },
                 onOtpValidated = { profile ->
+                    AuthRepository.saveSession(context, profile)
                     if (profile.isLinked && profile.organizationId != null) {
                         navController.navigate(Screen.Dashboard.createRoute(contactInput)) {
                             popUpTo(Screen.Login.route) {
@@ -102,8 +115,9 @@ fun AppNavigation() {
             MainScreen(
                 userContact = userContact,
                 onLogout = {
+                    AuthRepository.clearSession(context)
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Dashboard.route) {
+                        popUpTo(0) {
                             inclusive = true
                         }
                     }
@@ -133,8 +147,9 @@ fun AppNavigation() {
             SystemInformationScreen(
                 userContact = userContact,
                 onLogout = {
+                    AuthRepository.clearSession(context)
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.SystemInformation.route) {
+                        popUpTo(0) {
                             inclusive = true
                         }
                     }

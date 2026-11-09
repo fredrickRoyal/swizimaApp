@@ -1,5 +1,6 @@
 package com.example.swizima.data
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -22,6 +23,53 @@ data class AuthResult(
 
 object AuthRepository {
     private var lastOtpReference: String = ""
+
+    private const val PREFS_NAME = "swizima_session"
+    private const val KEY_IS_LOGGED_IN = "is_logged_in"
+    private const val KEY_USER_CONTACT = "user_contact"
+    private const val KEY_IS_LINKED = "is_linked"
+    private const val KEY_ORG_ID = "org_id"
+
+    fun saveSession(context: Context, profile: UserProfile) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putBoolean(KEY_IS_LOGGED_IN, true)
+                .putString(KEY_USER_CONTACT, profile.contact)
+                .putBoolean(KEY_IS_LINKED, profile.isLinked)
+                .putString(KEY_ORG_ID, profile.organizationId)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
+    fun clearSession(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getSavedSession(context: Context): UserProfile? {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+            if (!isLoggedIn) return null
+            val contact = prefs.getString(KEY_USER_CONTACT, "") ?: ""
+            if (contact.isBlank()) return null
+            val isLinked = prefs.getBoolean(KEY_IS_LINKED, true)
+            val orgId = prefs.getString(KEY_ORG_ID, null)
+            UserProfile(
+                userId = "usr_saved_session",
+                contact = contact,
+                name = "Verified User",
+                organizationId = orgId,
+                organizationName = "Swizima Motors",
+                isLinked = isLinked
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     suspend fun requestOtp(contactInput: String): AuthResult = withContext(Dispatchers.IO) {
         try {
