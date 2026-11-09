@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,23 +19,35 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,34 +65,68 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.swizima.data.ApiBillingWallet
-import com.example.swizima.data.ApiServiceCatalogItem
 import com.example.swizima.data.ApiClientStaff
+import com.example.swizima.data.ApiServiceCatalogItem
+import com.example.swizima.data.ApiCreditLoad
+import com.example.swizima.data.ApiCreditRequest
 import com.example.swizima.data.ClientServiceRepository
+import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import java.text.NumberFormat
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WalletScreen() {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var showCreditRequestDialog by remember { mutableStateOf(false) }
     var requestedAmount by remember { mutableStateOf("") }
+    var selectedPaymentMethod by remember { mutableStateOf("MOBILE_MONEY") }
+    var methodDropdownExpanded by remember { mutableStateOf(false) }
+    var paymentReference by remember { mutableStateOf("") }
+    var contactPhone by remember { mutableStateOf(ClientServiceRepository.activeClientPhone) }
     var requestNotes by remember { mutableStateOf("") }
-    var requestSuccessMessage by remember { mutableStateOf<String?>(null) }
+    var requestError by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    var showTopUpHistoryDialog by remember { mutableStateOf(false) }
+    var historyTab by remember { mutableStateOf("REQUESTS") }
 
     var walletData by remember { mutableStateOf(ApiBillingWallet()) }
     var serviceCatalogList by remember { mutableStateOf<List<ApiServiceCatalogItem>>(emptyList()) }
     var staffList by remember { mutableStateOf<List<ApiClientStaff>>(emptyList()) }
+    var creditRequestsList by remember { mutableStateOf<List<ApiCreditRequest>>(emptyList()) }
+    var creditLoadsList by remember { mutableStateOf<List<ApiCreditLoad>>(emptyList()) }
+
+    fun refreshBillingData() {
+        scope.launch {
+            val clientId = ClientServiceRepository.activeClientId
+            walletData = ClientServiceRepository.fetchBillingWallet(clientId)
+            serviceCatalogList = ClientServiceRepository.fetchServiceCatalogs(clientId)
+            staffList = ClientServiceRepository.fetchClientStaff(clientId)
+            creditRequestsList = ClientServiceRepository.fetchCreditRequests(clientId)
+            creditLoadsList = ClientServiceRepository.fetchCreditLoads(clientId)
+        }
+    }
 
     LaunchedEffect(Unit) {
-        val clientId = ClientServiceRepository.activeClientId
-        walletData = ClientServiceRepository.fetchBillingWallet(clientId)
-        serviceCatalogList = ClientServiceRepository.fetchServiceCatalogs(clientId)
-        staffList = ClientServiceRepository.fetchClientStaff(clientId)
+        refreshBillingData()
     }
 
     val formatter = NumberFormat.getNumberInstance(Locale.US)
+    val quickAmounts = listOf(10000, 25000, 50000, 100000, 250000)
+    val paymentMethods = listOf(
+        "MOBILE_MONEY" to "Mobile Money",
+        "CASH" to "Cash",
+        "CARD" to "Card",
+        "BANK" to "Bank Transfer"
+    )
 
     Column(
         modifier = Modifier
@@ -99,7 +147,7 @@ fun WalletScreen() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 1. Credit Balance Card (Primary Accent)
+            // 1. Credit Balance Card
             Card(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(16.dp),
@@ -177,9 +225,11 @@ fun WalletScreen() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 3. Total Loaded Card
+            // 3. Total Loaded Card (Clickable to view Requests & Direct Top-ups)
             Card(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showTopUpHistoryDialog = true },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -203,8 +253,8 @@ fun WalletScreen() {
                     )
 
                     Text(
-                        text = "All-time top-ups",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "All-time top-ups (Tap to view)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = Color(0xFF2E7D32)
                     )
                 }
@@ -246,7 +296,14 @@ fun WalletScreen() {
 
         // Action: Request Credit Top-Up
         Button(
-            onClick = { showCreditRequestDialog = true },
+            onClick = {
+                requestError = null
+                requestedAmount = ""
+                paymentReference = ""
+                contactPhone = ClientServiceRepository.activeClientPhone
+                requestNotes = ""
+                showCreditRequestDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
@@ -254,7 +311,7 @@ fun WalletScreen() {
         ) {
             Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Request Credit Top-Up / Increase", fontWeight = FontWeight.Bold)
+            Text("Request Credit Top-Up", fontWeight = FontWeight.Bold)
         }
 
         // Support & Contact Persons Card
@@ -421,57 +478,381 @@ fun WalletScreen() {
         }
     }
 
+    // Request Credit Top-Up Modal (Mirrors Web App Form)
     if (showCreditRequestDialog) {
         AlertDialog(
-            onDismissRequest = { showCreditRequestDialog = false },
-            title = { Text("Request Credit Increase", fontWeight = FontWeight.Bold) },
+            onDismissRequest = { if (!isSubmitting) showCreditRequestDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Request credit top-up", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        Text(ClientServiceRepository.activeClientName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { showCreditRequestDialog = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Submit a request for credit limit adjustment to your account manager:", style = MaterialTheme.typography.bodyMedium)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Submit your credit top-up request below. A Swizima administrator will review your request, confirm the actual credit amount, and top up your wallet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
+                    // Quick Amount Chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        quickAmounts.forEach { amt ->
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    requestedAmount = formatter.format(amt.toLong())
+                                    requestError = null
+                                }
+                            ) {
+                                Text(
+                                    text = "+ ${formatter.format(amt.toLong())} UGX",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Amount Requested
                     OutlinedTextField(
                         value = requestedAmount,
-                        onValueChange = { requestedAmount = it },
-                        label = { Text("Requested Credit Increase (UGX)") },
-                        placeholder = { Text("e.g. 1,000,000") },
+                        onValueChange = {
+                            val clean = it.replace(",", "").replace(".", "")
+                            requestedAmount = if (clean.isNotBlank() && clean.all { c -> c.isDigit() }) {
+                                formatter.format(clean.toLong())
+                            } else {
+                                clean
+                            }
+                            requestError = null
+                        },
+                        label = { Text("Amount requested *") },
+                        placeholder = { Text("50,000") },
+                        trailingIcon = { Text("UGX", fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Payment Method Dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = methodDropdownExpanded,
+                        onExpandedChange = { methodDropdownExpanded = !methodDropdownExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = paymentMethods.find { it.first == selectedPaymentMethod }?.second ?: "Mobile Money",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Payment method *") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodDropdownExpanded) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = methodDropdownExpanded,
+                            onDismissRequest = { methodDropdownExpanded = false }
+                        ) {
+                            paymentMethods.forEach { (code, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, fontWeight = FontWeight.SemiBold) },
+                                    onClick = {
+                                        selectedPaymentMethod = code
+                                        methodDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Payment / MoMo reference
+                    OutlinedTextField(
+                        value = paymentReference,
+                        onValueChange = { paymentReference = it },
+                        label = { Text("Payment / MoMo reference") },
+                        placeholder = { Text("Receipt or MoMo txn ID") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // Contact phone
                     OutlinedTextField(
-                        value = requestNotes,
-                        onValueChange = { requestNotes = it },
-                        label = { Text("Reason / Business Notes") },
-                        placeholder = { Text("e.g. Fleet expansion") },
+                        value = contactPhone,
+                        onValueChange = { contactPhone = it },
+                        label = { Text("Contact phone") },
+                        placeholder = { Text("+256 700 123 456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (requestSuccessMessage != null) {
-                        Text(requestSuccessMessage!!, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    // Notes
+                    OutlinedTextField(
+                        value = requestNotes,
+                        onValueChange = { requestNotes = it },
+                        label = { Text("Notes") },
+                        placeholder = { Text("Optional details for the billing administrator") },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (requestError != null) {
+                        Text(requestError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        requestSuccessMessage = "Credit request submitted successfully! Support (+256700408387) will review shortly."
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            showCreditRequestDialog = false
-                            requestSuccessMessage = null
-                            requestedAmount = ""
-                            requestNotes = ""
-                        }, 1200L)
-                    },
-                    shape = RoundedCornerShape(12.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Submit Request")
+                    Button(
+                        onClick = {
+                            val cleanAmt = requestedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+                            if (cleanAmt <= 0) {
+                                requestError = "Enter a valid amount greater than zero"
+                                return@Button
+                            }
+                            isSubmitting = true
+                            scope.launch {
+                                val success = ClientServiceRepository.submitCreditRequest(
+                                    clientId = ClientServiceRepository.activeClientId,
+                                    amount = cleanAmt,
+                                    paymentMethod = selectedPaymentMethod,
+                                    paymentReference = paymentReference.ifBlank { null },
+                                    phone = contactPhone.ifBlank { null },
+                                    notes = requestNotes.ifBlank { null }
+                                )
+                                isSubmitting = false
+                                if (success) {
+                                    showCreditRequestDialog = false
+                                    refreshBillingData()
+                                    android.widget.Toast.makeText(ctx, "Credit request submitted successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    requestError = "Failed to submit credit request. Please try again."
+                                }
+                            }
+                        },
+                        enabled = !isSubmitting,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Text("Submit request", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val cleanAmt = requestedAmount.replace(",", "").toDoubleOrNull() ?: 0.0
+                            if (cleanAmt <= 0) {
+                                requestError = "Enter a valid amount greater than zero"
+                                return@OutlinedButton
+                            }
+                            isSubmitting = true
+                            scope.launch {
+                                ClientServiceRepository.submitCreditRequest(
+                                    clientId = ClientServiceRepository.activeClientId,
+                                    amount = cleanAmt,
+                                    paymentMethod = selectedPaymentMethod,
+                                    paymentReference = paymentReference.ifBlank { null },
+                                    phone = contactPhone.ifBlank { null },
+                                    notes = requestNotes.ifBlank { null }
+                                )
+                                isSubmitting = false
+                                showCreditRequestDialog = false
+                                refreshBillingData()
+
+                                val msg = buildString {
+                                    append("Hello Swizima Admin, I would like to request a credit top-up:\n")
+                                    append("• Business: ${ClientServiceRepository.activeClientName}\n")
+                                    append("• Amount: UGX ${formatter.format(cleanAmt.toLong())}\n")
+                                    append("• Method: ${selectedPaymentMethod.replace("_", " ")}\n")
+                                    if (paymentReference.isNotBlank()) append("• Reference: ${paymentReference.trim()}\n")
+                                    if (contactPhone.isNotBlank()) append("• Contact Phone: ${contactPhone.trim()}\n")
+                                    if (requestNotes.isNotBlank()) append("• Notes: ${requestNotes.trim()}\n")
+                                }
+                                try {
+                                    val encoded = URLEncoder.encode(msg, "UTF-8")
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=+256700408387&text=$encoded"))
+                                    ctx.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                        },
+                        enabled = !isSubmitting,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF25D366))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Submit & notify via WhatsApp", fontWeight = FontWeight.Bold)
+                    }
+
+                    TextButton(
+                        onClick = { showCreditRequestDialog = false },
+                        enabled = !isSubmitting,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCreditRequestDialog = false }) {
-                    Text("Cancel")
+            dismissButton = {}
+        )
+    }
+
+    // Top-Up History & Credit Requests Modal
+    if (showTopUpHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showTopUpHistoryDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("All-Time Top-Ups & Requests", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = { showTopUpHistoryDialog = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = historyTab == "REQUESTS",
+                            onClick = { historyTab = "REQUESTS" },
+                            label = { Text("Credit Requests (${creditRequestsList.size})", fontWeight = FontWeight.Bold) },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        FilterChip(
+                            selected = historyTab == "DIRECT",
+                            onClick = { historyTab = "DIRECT" },
+                            label = { Text("Direct Top-Ups (${creditLoadsList.size})", fontWeight = FontWeight.Bold) },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    if (historyTab == "REQUESTS") {
+                        if (creditRequestsList.isEmpty()) {
+                            Text("No credit requests found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            creditRequestsList.forEach { req ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("UGX ${formatter.format(req.requestedAmount.toLong())}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                            Text("Method: ${req.paymentMethod.replace("_", " ")} | ${req.createdAt}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            if (!req.paymentReference.isNullOrBlank()) {
+                                                Text("Ref: ${req.paymentReference}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+
+                                        val (statusBg, statusColor) = when (req.status.uppercase()) {
+                                            "APPROVED" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
+                                            "REJECTED" -> Color(0xFFFFEBEE) to Color(0xFFC62828)
+                                            else -> Color(0xFFFFF3E0) to Color(0xFFE65100)
+                                        }
+
+                                        Surface(shape = RoundedCornerShape(8.dp), color = statusBg) {
+                                            Text(req.status, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = statusColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        if (creditLoadsList.isEmpty()) {
+                            Text("No direct top-ups found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            creditLoadsList.forEach { load ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("UGX ${formatter.format(load.amount.toLong())}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                            Text("Method: ${load.paymentMethod.replace("_", " ")} | ${load.loadedAt}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            if (!load.paymentReference.isNullOrBlank()) {
+                                                Text("Ref: ${load.paymentReference}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+
+                                        Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFE8F5E9)) {
+                                            Text("Loaded", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showTopUpHistoryDialog = false }, shape = RoundedCornerShape(12.dp)) {
+                    Text("Close")
                 }
             }
         )

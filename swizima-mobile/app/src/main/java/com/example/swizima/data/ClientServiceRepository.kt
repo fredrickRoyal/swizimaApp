@@ -45,6 +45,26 @@ data class ApiBillingWallet(
     val planStatus: String = "ACTIVE"
 )
 
+data class ApiCreditRequest(
+    val id: String = "",
+    val requestedAmount: Double = 0.0,
+    val paymentMethod: String = "MOBILE_MONEY",
+    val paymentReference: String? = null,
+    val payerPhone: String? = null,
+    val status: String = "PENDING",
+    val createdAt: String = "",
+    val notes: String? = null
+)
+
+data class ApiCreditLoad(
+    val id: String = "",
+    val amount: Double = 0.0,
+    val paymentMethod: String = "MOBILE_MONEY",
+    val paymentReference: String? = null,
+    val loadedAt: String = "",
+    val notes: String? = null
+)
+
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
     var activeClientId: String = "219e77a7-b398-4829-b06f-5978193fe9c5"
@@ -165,6 +185,140 @@ object ClientServiceRepository {
             }
         } catch (_: Exception) {
             defaultWallet
+        }
+    }
+
+    suspend fun submitCreditRequest(
+        clientId: String?,
+        amount: Double,
+        paymentMethod: String,
+        paymentReference: String?,
+        phone: String?,
+        notes: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext false
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-requests?clientRef=$targetId")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val payload = """
+                {
+                  "requestedAmount": $amount,
+                  "paymentMethod": "$paymentMethod",
+                  "paymentReference": "${paymentReference ?: ""}",
+                  "payerName": "$activeClientName",
+                  "payerPhone": "${phone ?: activeClientPhone}",
+                  "notes": "${notes ?: ""}"
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun fetchCreditRequests(clientId: String?): List<ApiCreditRequest> = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext emptyList()
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-requests?clientRef=$targetId&page=0&size=50&sort=createdAt,desc")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            if (connection.responseCode in 200..299) {
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
+                val items = mutableListOf<ApiCreditRequest>()
+
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val amountMatches = Regex("\"requestedAmount\"\\s*:\\s*([0-9.]+)").findAll(json).toList()
+                val methodMatches = Regex("\"paymentMethod\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val statusMatches = Regex("\"status\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val dateMatches = Regex("\"createdAt\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val refMatches = Regex("\"paymentReference\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val amounts = amountMatches.map { it.groupValues[1].toDoubleOrNull() ?: 0.0 }
+                val methods = methodMatches.map { it.groupValues[1] }
+                val statuses = statusMatches.map { it.groupValues[1] }
+                val dates = dateMatches.map { it.groupValues[1] }
+                val refs = refMatches.map { it.groupValues[1] }
+
+                for (i in amounts.indices) {
+                    items.add(
+                        ApiCreditRequest(
+                            id = ids.getOrElse(i) { "cr_$i" },
+                            requestedAmount = amounts[i],
+                            paymentMethod = methods.getOrElse(i) { "MOBILE_MONEY" },
+                            status = statuses.getOrElse(i) { "PENDING" },
+                            createdAt = dates.getOrElse(i) { "" }.take(10),
+                            paymentReference = refs.getOrNull(i)
+                        )
+                    )
+                }
+                items
+            } else {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun fetchCreditLoads(clientId: String?): List<ApiCreditLoad> = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext emptyList()
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-loads?clientRef=$targetId&page=0&size=50&sort=loadedAt,desc")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            if (connection.responseCode in 200..299) {
+                val rawJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = extractContentJson(rawJson)
+                val items = mutableListOf<ApiCreditLoad>()
+
+                val idMatches = Regex("\"id\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val amountMatches = Regex("\"amount\"\\s*:\\s*([0-9.]+)").findAll(json).toList()
+                val methodMatches = Regex("\"paymentMethod\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val dateMatches = Regex("\"loadedAt\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+                val refMatches = Regex("\"paymentReference\"\\s*:\\s*\"([^\"]+)\"").findAll(json).toList()
+
+                val ids = idMatches.map { it.groupValues[1] }
+                val amounts = amountMatches.map { it.groupValues[1].toDoubleOrNull() ?: 0.0 }
+                val methods = methodMatches.map { it.groupValues[1] }
+                val dates = dateMatches.map { it.groupValues[1] }
+                val refs = refMatches.map { it.groupValues[1] }
+
+                for (i in amounts.indices) {
+                    items.add(
+                        ApiCreditLoad(
+                            id = ids.getOrElse(i) { "cl_$i" },
+                            amount = amounts[i],
+                            paymentMethod = methods.getOrElse(i) { "MOBILE_MONEY" },
+                            loadedAt = dates.getOrElse(i) { "" }.take(10),
+                            paymentReference = refs.getOrNull(i)
+                        )
+                    )
+                }
+                items
+            } else {
+                emptyList()
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
