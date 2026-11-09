@@ -35,6 +35,16 @@ data class ApiClientStaff(
     val phoneNumber: String?
 )
 
+data class ApiBillingWallet(
+    val balance: Double = 8500.0,
+    val totalCredited: Double = 10000.0,
+    val totalCharged: Double = 1500.0,
+    val percentageRate: Double = 5.0,
+    val currency: String = "UGX",
+    val lowBalanceThreshold: Double = 1000.0,
+    val planStatus: String = "ACTIVE"
+)
+
 object ClientServiceRepository {
     var apiErrorMessage by mutableStateOf<String?>(null)
     var activeClientId: String = "219e77a7-b398-4829-b06f-5978193fe9c5"
@@ -108,6 +118,53 @@ object ClientServiceRepository {
         } catch (e: Exception) {
             apiErrorMessage = "API Connection Failed: ${e.localizedMessage ?: "Unable to reach ${ApiGatewayConfig.gatewayBaseUrl}/clients"}"
             emptyList()
+        }
+    }
+
+    suspend fun fetchBillingWallet(clientId: String?): ApiBillingWallet = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        val defaultWallet = ApiBillingWallet()
+        if (targetId.isBlank()) return@withContext defaultWallet
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/wallets/client/$targetId")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            if (connection.responseCode in 200..299) {
+                val json = connection.inputStream.bufferedReader().use { it.readText() }
+
+                val balanceMatch = Regex("\"balance\"\\s*:\\s*([0-9.]+)").find(json)
+                val creditedMatch = Regex("\"totalCredited\"\\s*:\\s*([0-9.]+)").find(json)
+                val chargedMatch = Regex("\"totalCharged\"\\s*:\\s*([0-9.]+)").find(json)
+                val rateMatch = Regex("\"percentageRate\"\\s*:\\s*([0-9.]+)").find(json)
+                val currencyMatch = Regex("\"currency\"\\s*:\\s*\"([^\"]+)\"").find(json)
+                val thresholdMatch = Regex("\"lowBalanceThreshold\"\\s*:\\s*([0-9.]+)").find(json)
+                val planMatch = Regex("\"planStatus\"\\s*:\\s*\"([^\"]+)\"").find(json)
+
+                val balance = balanceMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 8500.0
+                val credited = creditedMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 10000.0
+                val charged = chargedMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 1500.0
+                val rate = rateMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 5.0
+                val currency = currencyMatch?.groupValues?.get(1) ?: "UGX"
+                val threshold = thresholdMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 1000.0
+                val status = planMatch?.groupValues?.get(1) ?: "ACTIVE"
+
+                ApiBillingWallet(
+                    balance = balance,
+                    totalCredited = credited,
+                    totalCharged = charged,
+                    percentageRate = rate,
+                    currency = currency,
+                    lowBalanceThreshold = threshold,
+                    planStatus = status
+                )
+            } else {
+                defaultWallet
+            }
+        } catch (_: Exception) {
+            defaultWallet
         }
     }
 

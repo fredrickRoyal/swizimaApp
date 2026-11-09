@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,10 +52,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.swizima.data.ApiBillingWallet
 import com.example.swizima.data.ApiServiceCatalogItem
 import com.example.swizima.data.ApiClientStaff
 import com.example.swizima.data.ClientServiceRepository
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun WalletScreen() {
@@ -63,13 +67,18 @@ fun WalletScreen() {
     var requestNotes by remember { mutableStateOf("") }
     var requestSuccessMessage by remember { mutableStateOf<String?>(null) }
 
+    var walletData by remember { mutableStateOf(ApiBillingWallet()) }
     var serviceCatalogList by remember { mutableStateOf<List<ApiServiceCatalogItem>>(emptyList()) }
     var staffList by remember { mutableStateOf<List<ApiClientStaff>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        serviceCatalogList = ClientServiceRepository.fetchServiceCatalogs(ClientServiceRepository.activeClientId)
-        staffList = ClientServiceRepository.fetchClientStaff(ClientServiceRepository.activeClientId)
+        val clientId = ClientServiceRepository.activeClientId
+        walletData = ClientServiceRepository.fetchBillingWallet(clientId)
+        serviceCatalogList = ClientServiceRepository.fetchServiceCatalogs(clientId)
+        staffList = ClientServiceRepository.fetchClientStaff(clientId)
     }
+
+    val formatter = NumberFormat.getNumberInstance(Locale.US)
 
     Column(
         modifier = Modifier
@@ -80,89 +89,172 @@ fun WalletScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Wallet & Support",
+            text = "Billing & Wallet",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        // Wallet Balance Card
-        Card(
+        // Web Parity Billing KPI Cards Grid (Row 1)
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            // 1. Credit Balance Card (Primary Accent)
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalanceWallet,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Available Credit",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    ) {
-                        Text(
-                            text = "Postpaid Corporate",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = "UGX 2,500,000",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-
-                Text(
-                    text = "Payment Plan: Monthly Settlement Billing | Credit Limit: UGX 5,000,000",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                )
-
-                Button(
-                    onClick = { showCreditRequestDialog = true },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Request Credit Limit Increase", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.AccountBalanceWallet, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Credit balance", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    Text(
+                        text = "${formatter.format(walletData.balance.toLong())} ${walletData.currency}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    Text(
+                        text = "Alert at ${formatter.format(walletData.lowBalanceThreshold.toLong())} ${walletData.currency}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
                 }
             }
+
+            // 2. Rate Per Transaction Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Receipt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Rate per tx", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    Text(
+                        text = "${walletData.percentageRate.toInt()}%",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE8F5E9)
+                    ) {
+                        Text(
+                            text = "• Active",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF2E7D32),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Web Parity Billing KPI Cards Grid (Row 2)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 3. Total Loaded Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Total loaded", style = MaterialTheme.typography.labelSmall, color = Color(0xFF2E7D32))
+                    }
+
+                    Text(
+                        text = "${formatter.format(walletData.totalCredited.toLong())} ${walletData.currency}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF1B5E20)
+                    )
+
+                    Text(
+                        text = "All-time top-ups",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF2E7D32)
+                    )
+                }
+            }
+
+            // 4. Total Charged Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.TrendingUp, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Total charged", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE65100))
+                    }
+
+                    Text(
+                        text = "${formatter.format(walletData.totalCharged.toLong())} ${walletData.currency}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFFE65100)
+                    )
+
+                    Text(
+                        text = "Net of refunds",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFE65100)
+                    )
+                }
+            }
+        }
+
+        // Action: Request Credit Top-Up
+        Button(
+            onClick = { showCreditRequestDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Request Credit Top-Up / Increase", fontWeight = FontWeight.Bold)
         }
 
         // Support & Contact Persons Card
@@ -275,7 +367,7 @@ fun WalletScreen() {
                         }
 
                         Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFE8F5E9)) {
-                            Text("${catalogItem.price.toLong()} ${catalogItem.currency}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            Text("${formatter.format(catalogItem.price.toLong())} ${catalogItem.currency}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
                 }
