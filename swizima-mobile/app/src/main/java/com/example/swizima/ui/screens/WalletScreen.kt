@@ -626,7 +626,7 @@ fun WalletScreen() {
                                 refreshBillingData()
                                 android.widget.Toast.makeText(ctx, "Service catalog item added!", android.widget.Toast.LENGTH_SHORT).show()
                             } else {
-                                addServiceError = "Failed to add service catalog item"
+                                addServiceError = ClientServiceRepository.apiErrorMessage ?: "Failed to add service catalog item"
                             }
                         }
                     },
@@ -712,7 +712,7 @@ fun WalletScreen() {
                                 refreshBillingData()
                                 android.widget.Toast.makeText(ctx, "Staff member added successfully!", android.widget.Toast.LENGTH_SHORT).show()
                             } else {
-                                addStaffError = "Failed to add staff member"
+                                addStaffError = ClientServiceRepository.apiErrorMessage ?: "Failed to add staff member"
                             }
                         }
                     },

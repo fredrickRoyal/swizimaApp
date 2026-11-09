@@ -465,19 +465,34 @@ object ClientServiceRepository {
                 category.contains("repair", ignoreCase = true) -> "REPAIR"
                 else -> "MAINTENANCE"
             }
+            val cleanName = serviceName.trim()
+            val cleanCode = "SVC-" + cleanName.uppercase().replace(Regex("[^A-Z0-9]"), "").take(8) + "-" + (System.currentTimeMillis() % 10000)
+
             val payload = """
                 {
                   "clientId": "$targetId",
-                  "serviceName": "${serviceName.trim()}",
+                  "serviceCode": "$cleanCode",
+                  "serviceName": "$cleanName",
                   "category": "$catCode",
                   "price": $price,
-                  "currency": "$currency"
+                  "currency": "$currency",
+                  "status": "ACTIVE"
                 }
             """.trimIndent()
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
-            responseCode in 200..299
-        } catch (_: Exception) {
+            if (responseCode in 200..299) {
+                apiErrorMessage = null
+                true
+            } else {
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (_: Exception) { "" }
+                apiErrorMessage = "Failed to add service catalog (Server $responseCode: $errorMsg)"
+                false
+            }
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage}"
             false
         }
     }
@@ -499,20 +514,36 @@ object ClientServiceRepository {
                 connectTimeout = 20000
                 readTimeout = 20000
             }
+            val trimmedName = fullName.trim()
+            val nameParts = trimmedName.split("\\s+".toRegex())
+            val surname = if (nameParts.size > 1) nameParts.last().uppercase() else trimmedName.uppercase()
+            val givenName = if (nameParts.size > 1) nameParts.dropLast(1).joinToString(" ").uppercase() else trimmedName.uppercase()
+
             val posVal = if (position.isNullOrBlank()) "null" else "\"${position.trim().uppercase()}\""
             val phoneVal = if (phoneNumber.isNullOrBlank()) "null" else "\"${phoneNumber.trim()}\""
 
             val payload = """
                 {
-                  "fullName": "${fullName.trim().uppercase()}",
+                  "surname": "$surname",
+                  "givenName": "$givenName",
                   "position": $posVal,
                   "phoneNumber": $phoneVal
                 }
             """.trimIndent()
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
-            responseCode in 200..299
-        } catch (_: Exception) {
+            if (responseCode in 200..299) {
+                apiErrorMessage = null
+                true
+            } else {
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (_: Exception) { "" }
+                apiErrorMessage = "Failed to add staff (Server $responseCode: $errorMsg)"
+                false
+            }
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage}"
             false
         }
     }
