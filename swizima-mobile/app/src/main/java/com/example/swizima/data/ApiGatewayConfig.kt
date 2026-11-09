@@ -4,6 +4,7 @@ import android.content.Context
 
 object ApiGatewayConfig {
     var gatewayBaseUrl: String = "http://swizima.com:9080/api/v1"
+    var paymentGatewayBaseUrl: String = "http://swizima.com:9080/api/v1/payments"
 
     private const val PREFS_NAME = "swizima_settings"
     private const val KEY_GATEWAY_URL = "gateway_base_url"

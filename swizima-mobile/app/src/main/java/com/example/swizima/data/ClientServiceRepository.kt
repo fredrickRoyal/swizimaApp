@@ -146,7 +146,7 @@ object ClientServiceRepository {
         val defaultWallet = ApiBillingWallet()
         if (targetId.isBlank()) return@withContext defaultWallet
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/wallets/client/$targetId")
+            val url = URL("${ApiGatewayConfig.paymentGatewayBaseUrl}/billing/wallets/client/$targetId")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
@@ -199,7 +199,7 @@ object ClientServiceRepository {
         val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
         if (targetId.isBlank()) return@withContext false
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/wallets/client/$targetId/credit-requests")
+            val url = URL("${ApiGatewayConfig.paymentGatewayBaseUrl}/billing/wallets/client/$targetId/credit-requests")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
@@ -244,7 +244,7 @@ object ClientServiceRepository {
         val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
         if (targetId.isBlank()) return@withContext emptyList()
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-requests?clientRef=$targetId&page=0&size=50&sort=createdAt,desc")
+            val url = URL("${ApiGatewayConfig.paymentGatewayBaseUrl}/billing/credit-requests?clientRef=$targetId&page=0&size=50&sort=createdAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
@@ -294,7 +294,7 @@ object ClientServiceRepository {
         val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
         if (targetId.isBlank()) return@withContext emptyList()
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-loads?clientRef=$targetId&page=0&size=50&sort=loadedAt,desc")
+            val url = URL("${ApiGatewayConfig.paymentGatewayBaseUrl}/billing/credit-loads?clientRef=$targetId&page=0&size=50&sort=loadedAt,desc")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 20000
