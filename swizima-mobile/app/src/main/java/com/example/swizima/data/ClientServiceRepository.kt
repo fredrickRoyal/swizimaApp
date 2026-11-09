@@ -199,7 +199,7 @@ object ClientServiceRepository {
         val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
         if (targetId.isBlank()) return@withContext false
         try {
-            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/credit-requests?clientRef=$targetId")
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/billing/wallets/client/$targetId/credit-requests")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
@@ -207,20 +207,35 @@ object ClientServiceRepository {
                 connectTimeout = 20000
                 readTimeout = 20000
             }
+            val refVal = if (paymentReference.isNullOrBlank()) "null" else "\"$paymentReference\""
+            val nameVal = if (activeClientName.isBlank()) "null" else "\"$activeClientName\""
+            val phoneVal = if (phone.isNullOrBlank()) "null" else "\"$phone\""
+            val notesVal = if (notes.isNullOrBlank()) "null" else "\"$notes\""
+
             val payload = """
                 {
                   "requestedAmount": $amount,
                   "paymentMethod": "$paymentMethod",
-                  "paymentReference": "${paymentReference ?: ""}",
-                  "payerName": "$activeClientName",
-                  "payerPhone": "${phone ?: activeClientPhone}",
-                  "notes": "${notes ?: ""}"
+                  "paymentReference": $refVal,
+                  "payerName": $nameVal,
+                  "payerPhone": $phoneVal,
+                  "notes": $notesVal
                 }
             """.trimIndent()
             connection.outputStream.write(payload.toByteArray())
             val responseCode = connection.responseCode
-            responseCode in 200..299
-        } catch (_: Exception) {
+            if (responseCode in 200..299) {
+                apiErrorMessage = null
+                true
+            } else {
+                val errorMsg = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                } catch (_: Exception) { "" }
+                apiErrorMessage = "Credit request failed (Server $responseCode: $errorMsg)"
+                false
+            }
+        } catch (e: Exception) {
+            apiErrorMessage = "API Connection Failed: ${e.localizedMessage}"
             false
         }
     }

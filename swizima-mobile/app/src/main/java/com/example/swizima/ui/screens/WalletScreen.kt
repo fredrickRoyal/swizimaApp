@@ -656,7 +656,7 @@ fun WalletScreen() {
                                     refreshBillingData()
                                     android.widget.Toast.makeText(ctx, "Credit request submitted successfully!", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
-                                    requestError = "Failed to submit credit request. Please try again."
+                                    requestError = ClientServiceRepository.apiErrorMessage ?: "Failed to submit credit request. Please try again."
                                 }
                             }
                         },
