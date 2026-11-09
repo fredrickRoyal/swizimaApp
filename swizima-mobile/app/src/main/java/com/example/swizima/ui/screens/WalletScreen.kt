@@ -98,6 +98,23 @@ fun WalletScreen() {
     var showTopUpHistoryDialog by remember { mutableStateOf(false) }
     var historyTab by remember { mutableStateOf("REQUESTS") }
 
+    // Add Service Dialog States
+    var showAddServiceDialog by remember { mutableStateOf(false) }
+    var newServiceName by remember { mutableStateOf("") }
+    var newServiceCategory by remember { mutableStateOf("Car wash") }
+    var serviceCatDropdownExpanded by remember { mutableStateOf(false) }
+    var newServicePrice by remember { mutableStateOf("") }
+    var addServiceError by remember { mutableStateOf<String?>(null) }
+    var isAddingService by remember { mutableStateOf(false) }
+
+    // Add Staff Dialog States
+    var showAddStaffDialog by remember { mutableStateOf(false) }
+    var newStaffName by remember { mutableStateOf("") }
+    var newStaffRole by remember { mutableStateOf("ATTENDANT") }
+    var newStaffPhone by remember { mutableStateOf("") }
+    var addStaffError by remember { mutableStateOf<String?>(null) }
+    var isAddingStaff by remember { mutableStateOf(false) }
+
     var walletData by remember { mutableStateOf(ApiBillingWallet()) }
     var serviceCatalogList by remember { mutableStateOf<List<ApiServiceCatalogItem>>(emptyList()) }
     var staffList by remember { mutableStateOf<List<ApiClientStaff>>(emptyList()) }
@@ -127,6 +144,7 @@ fun WalletScreen() {
         "CARD" to "Card",
         "BANK" to "Bank Transfer"
     )
+    val serviceCategories = listOf("Car park", "Car wash", "Repair", "Maintenance")
 
     Column(
         modifier = Modifier
@@ -385,12 +403,31 @@ fun WalletScreen() {
             }
         }
 
-        // Service Catalog Summary
-        Text(
-            text = "Service Catalog (${serviceCatalogList.size})",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        // Service Catalog Header with Add Option
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Service Catalog (${serviceCatalogList.size})",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            TextButton(
+                onClick = {
+                    newServiceName = ""
+                    newServicePrice = ""
+                    addServiceError = null
+                    showAddServiceDialog = true
+                }
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Add Service", fontWeight = FontWeight.Bold)
+            }
+        }
 
         if (serviceCatalogList.isEmpty()) {
             Card(
@@ -431,12 +468,31 @@ fun WalletScreen() {
             }
         }
 
-        // Client Staff Summary
-        Text(
-            text = "Client Staff Members (${staffList.size})",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        // Client Staff Header with Add Option
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Client Staff Members (${staffList.size})",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            TextButton(
+                onClick = {
+                    newStaffName = ""
+                    newStaffPhone = ""
+                    addStaffError = null
+                    showAddStaffDialog = true
+                }
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Add Staff", fontWeight = FontWeight.Bold)
+            }
+        }
 
         if (staffList.isEmpty()) {
             Card(
@@ -476,6 +532,206 @@ fun WalletScreen() {
                 }
             }
         }
+    }
+
+    // Add Service Catalog Item Dialog
+    if (showAddServiceDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isAddingService) showAddServiceDialog = false },
+            title = { Text("Add Service Catalog Item", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newServiceName,
+                        onValueChange = { newServiceName = it },
+                        label = { Text("Service Name *") },
+                        placeholder = { Text("e.g. Standard Car Wash") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    ExposedDropdownMenuBox(
+                        expanded = serviceCatDropdownExpanded,
+                        onExpandedChange = { serviceCatDropdownExpanded = !serviceCatDropdownExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = newServiceCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Service Category *") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = serviceCatDropdownExpanded) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = serviceCatDropdownExpanded,
+                            onDismissRequest = { serviceCatDropdownExpanded = false }
+                        ) {
+                            serviceCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat, fontWeight = FontWeight.SemiBold) },
+                                    onClick = {
+                                        newServiceCategory = cat
+                                        serviceCatDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = newServicePrice,
+                        onValueChange = { newServicePrice = it },
+                        label = { Text("Price (UGX) *") },
+                        placeholder = { Text("e.g. 15000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (addServiceError != null) {
+                        Text(addServiceError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanAmt = newServicePrice.replace(",", "").toDoubleOrNull() ?: 0.0
+                        if (newServiceName.isBlank()) {
+                            addServiceError = "Please enter a service name"
+                            return@Button
+                        }
+                        if (cleanAmt <= 0) {
+                            addServiceError = "Please enter a valid price"
+                            return@Button
+                        }
+                        isAddingService = true
+                        scope.launch {
+                            val success = ClientServiceRepository.addServiceCatalog(
+                                clientId = ClientServiceRepository.activeClientId,
+                                serviceName = newServiceName,
+                                category = newServiceCategory,
+                                price = cleanAmt
+                            )
+                            isAddingService = false
+                            if (success) {
+                                showAddServiceDialog = false
+                                refreshBillingData()
+                                android.widget.Toast.makeText(ctx, "Service catalog item added!", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                addServiceError = "Failed to add service catalog item"
+                            }
+                        }
+                    },
+                    enabled = !isAddingService,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isAddingService) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Add Service")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddServiceDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Add Staff Member Dialog
+    if (showAddStaffDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isAddingStaff) showAddStaffDialog = false },
+            title = { Text("Add Staff Member", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newStaffName,
+                        onValueChange = { newStaffName = it },
+                        label = { Text("Full Name *") },
+                        placeholder = { Text("e.g. JOSEPH AGABA") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = newStaffRole,
+                        onValueChange = { newStaffRole = it },
+                        label = { Text("Role / Position") },
+                        placeholder = { Text("e.g. ATTENDANT or MANAGER") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = newStaffPhone,
+                        onValueChange = { newStaffPhone = it },
+                        label = { Text("Phone Number") },
+                        placeholder = { Text("e.g. +256 700 123 456") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (addStaffError != null) {
+                        Text(addStaffError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newStaffName.isBlank()) {
+                            addStaffError = "Please enter staff full name"
+                            return@Button
+                        }
+                        isAddingStaff = true
+                        scope.launch {
+                            val success = ClientServiceRepository.addClientStaff(
+                                clientId = ClientServiceRepository.activeClientId,
+                                fullName = newStaffName,
+                                position = newStaffRole.ifBlank { "ATTENDANT" },
+                                phoneNumber = newStaffPhone.ifBlank { null }
+                            )
+                            isAddingStaff = false
+                            if (success) {
+                                showAddStaffDialog = false
+                                refreshBillingData()
+                                android.widget.Toast.makeText(ctx, "Staff member added successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                addStaffError = "Failed to add staff member"
+                            }
+                        }
+                    },
+                    enabled = !isAddingStaff,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isAddingStaff) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Add Staff")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddStaffDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Request Credit Top-Up Modal (Mirrors Web App Form)

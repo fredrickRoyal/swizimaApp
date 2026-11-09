@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- White Background Circle / Card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,4 C 26.4,4 4,26.4 4,54 C 4,81.6 26.4,104 54,104 C 81.6,104 104,81.6 104,54 C 104,26.4 81.6,4 54,4 Z" />
+
+    <!-- Swizima Blue 'S' -->
+    <path
+        android:fillColor="#0B65C2"
+        android:pathData="M 62,32 C 57,25 43,25 38,32 C 33,38 37,46 45,49 L 58,53 C 69,57 73,66 67,76 C 60,86 43,86 35,76 L 41,69 C 46,75 56,75 60,70 C 64,65 60,59 52,56 L 39,51 C 29,47 25,36 31,26 C 39,14 61,14 69,26 Z" />
+
+    <!-- Swizima Orange Swoosh / Dynamic Arrow -->
+    <path
+        android:fillColor="#FF7A00"
+        android:pathData="M 22,64 C 30,73 45,61 58,53 C 71,45 80,45 88,48 L 78,38 C 70,39 60,42 49,48 C 37,55 27,61 22,64 Z" />
+</vector>

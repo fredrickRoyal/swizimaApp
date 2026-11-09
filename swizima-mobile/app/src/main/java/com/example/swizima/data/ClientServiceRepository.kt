@@ -440,4 +440,80 @@ object ClientServiceRepository {
             emptyList()
         }
     }
+
+    suspend fun addServiceCatalog(
+        clientId: String?,
+        serviceName: String,
+        category: String,
+        price: Double,
+        currency: String = "UGX"
+    ): Boolean = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext false
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/service-catalogs")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val catCode = when {
+                category.contains("park", ignoreCase = true) -> "CAR_PARK"
+                category.contains("wash", ignoreCase = true) -> "CAR_WASH"
+                category.contains("repair", ignoreCase = true) -> "REPAIR"
+                else -> "MAINTENANCE"
+            }
+            val payload = """
+                {
+                  "clientId": "$targetId",
+                  "serviceName": "${serviceName.trim()}",
+                  "category": "$catCode",
+                  "price": $price,
+                  "currency": "$currency"
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun addClientStaff(
+        clientId: String?,
+        fullName: String,
+        position: String?,
+        phoneNumber: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val targetId = if (!clientId.isNullOrBlank()) clientId else activeClientId
+        if (targetId.isBlank()) return@withContext false
+        try {
+            val url = URL("${ApiGatewayConfig.gatewayBaseUrl}/clients/$targetId/staff")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 20000
+                readTimeout = 20000
+            }
+            val posVal = if (position.isNullOrBlank()) "null" else "\"${position.trim().uppercase()}\""
+            val phoneVal = if (phoneNumber.isNullOrBlank()) "null" else "\"${phoneNumber.trim()}\""
+
+            val payload = """
+                {
+                  "fullName": "${fullName.trim().uppercase()}",
+                  "position": $posVal,
+                  "phoneNumber": $phoneVal
+                }
+            """.trimIndent()
+            connection.outputStream.write(payload.toByteArray())
+            val responseCode = connection.responseCode
+            responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
