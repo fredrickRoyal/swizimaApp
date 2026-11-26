@@ -30,6 +30,17 @@ local.properties
 /swizima-web/.npm/
 /swizima-web/.idea/
 
+# StaffTrack Web Subproject (stafftrack-web)
+/stafftrack-web/node_modules/
+/stafftrack-web/.angular/
+/stafftrack-web/dist/
+/stafftrack-web/build/
+/stafftrack-web/out-tsc/
+/stafftrack-web/coverage/
+/stafftrack-web/.npm/
+/stafftrack-web/.idea/
+/stafftrack-web/*.tsbuildinfo
+
 # API Subproject (swizima-api)
 /swizima-api/node_modules/
 /swizima-api/venv/
@@ -39,7 +50,7 @@ local.properties
 /swizima-api/.idea/
 
 # API - Java / Maven / Spring Boot services
-# (clientapi, configurationsapi, paymentsapi, clienttransactionsapi, usersapi)
+# (apigateway, clientapi, configurationsapi, paymentsapi, clienttransactionsapi, usersapi, stafftrackapi, filesapi)
 /swizima-api/*/target/
 /swizima-api/*/HELP.md
 /swizima-api/*/.mvn/wrapper/maven-wrapper.jar
