@@ -18,12 +18,13 @@
   border-bottom: 1px solid var(--sidebar-border);
   text-decoration: none;
 }
-.logo svg { width: 38px; height: 38px; filter: drop-shadow(0 6px 14px rgb(99 102 241 / 0.35)); }
+.logo img { width: 38px; height: 38px; display: block; border-radius: 9px; filter: drop-shadow(0 4px 10px rgb(15 23 42 / 0.18)); }
 .brand-text {
   display: grid;
   line-height: 1.2;
-  strong { color: var(--sidebar-heading); font-size: 1.1rem; letter-spacing: -0.01em; }
-  small { color: var(--sidebar-text-muted); font-size: 0.75rem; }
+  min-width: 0;
+  strong { color: var(--sidebar-heading); font-size: 1.1rem; letter-spacing: -0.01em; white-space: nowrap; }
+  small { color: var(--sidebar-text-muted); font-size: 0.72rem; white-space: nowrap; }
 }
 
 /* ---------- Links ---------- */

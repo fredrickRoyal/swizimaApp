@@ -1,0 +1,16 @@
+package com.swizima.filesapi.config;
+
+import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.InitBinder;
+
+@ControllerAdvice
+public class StringTrimmingConfig {
+
+    @InitBinder
+    public void registerStringTrimmer(WebDataBinder binder) {
+        binder.registerCustomEditor(String.class, new StringTrimmerEditor(false));
+    }
+}
+

@@ -1,17 +1,17 @@
 package com.swizima.usersapi.service.otp;
 
 import com.swizima.usersapi.config.OtpProperties;
+import com.swizima.usersapi.config.WhatsAppProperties;
+import com.swizima.usersapi.dto.WhatsAppMessageResponse;
 import com.swizima.usersapi.entity.enums.OtpChannel;
 import com.swizima.usersapi.exception.OtpDeliveryException;
+import com.swizima.usersapi.service.whatsapp.WhatsAppMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * WhatsApp OTP sender.
- * <p>
- * TODO: integrate the WhatsApp Business Cloud API (Meta) or a BSP such as Twilio using an approved
- * authentication template, then set {@code app.otp.whatsapp.enabled=true}.
+ * WhatsApp OTP sender backed by {@link WhatsAppMessageService}.
  */
 @Slf4j
 @Component
@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 public class WhatsAppOtpSender implements OtpSender {
 
     private final OtpProperties otpProperties;
+    private final WhatsAppProperties whatsAppProperties;
+    private final WhatsAppMessageService whatsAppMessageService;
 
     @Override
     public OtpChannel channel() {
@@ -27,11 +29,15 @@ public class WhatsAppOtpSender implements OtpSender {
 
     @Override
     public void send(String destination, String code, int expiryMinutes) {
-        if (!otpProperties.whatsapp().enabled()) {
-            throw new OtpDeliveryException("WhatsApp delivery is not available yet. Please choose EMAIL.");
+        boolean enabled = whatsAppProperties.enabled()
+                || (otpProperties.whatsapp() != null && otpProperties.whatsapp().enabled());
+        if (!enabled) {
+            throw new OtpDeliveryException(
+                    "WhatsApp delivery is disabled. Set app.whatsapp.enabled=true (or OTP_WHATSAPP_ENABLED=true) and configure provider credentials.");
         }
-        // Provider integration goes here.
-        log.info("WhatsApp OTP queued for {}", OtpMasking.mask(destination));
-        throw new OtpDeliveryException("WhatsApp provider is enabled but not implemented");
+
+        WhatsAppMessageResponse response = whatsAppMessageService.sendOtpMessage(destination, code, expiryMinutes);
+        log.info("WhatsApp OTP sent to {} via {} (messageId={})",
+                OtpMasking.mask(destination), response.provider(), response.messageId());
     }
 }

@@ -1,6 +1,11 @@
 package com.example.swizima.ui.screens
 
 import android.graphics.Bitmap
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -467,6 +472,8 @@ fun ServiceFormScreen(
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isOcrProcessing by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
@@ -486,6 +493,16 @@ fun ServiceFormScreen(
                 .addOnFailureListener {
                     isOcrProcessing = false
                 }
+        }
+    }
+
+    val cameraPermissionLauncherPlate = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Camera permission is required to capture photo", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -626,6 +643,16 @@ fun ServiceFormScreen(
                             isIdOcrProcessing = false
                         }
                 }
+        }
+    }
+
+    val cameraPermissionLauncherId = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            idDocCameraLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Camera permission is required to scan ID", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -854,7 +881,13 @@ fun ServiceFormScreen(
                 )
 
                 OutlinedButton(
-                    onClick = { cameraLauncher.launch(null) },
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            cameraLauncher.launch(null)
+                        } else {
+                            cameraPermissionLauncherPlate.launch(Manifest.permission.CAMERA)
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1160,7 +1193,13 @@ fun ServiceFormScreen(
 
                 // Photo Scan BEFORE Client Name
                 OutlinedButton(
-                    onClick = { idDocCameraLauncher.launch(null) },
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            idDocCameraLauncher.launch(null)
+                        } else {
+                            cameraPermissionLauncherId.launch(Manifest.permission.CAMERA)
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {

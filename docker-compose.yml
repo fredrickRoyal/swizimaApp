@@ -111,6 +111,42 @@ services:
       - swizima
 
   # -------------------------------------------------------------------
+  # StaffTrack API (8086)
+  # -------------------------------------------------------------------
+  stafftrackapi:
+    image: fredrickkasoma/swizima-stafftrackapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-stafftrackapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8086
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_stafftrack
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8086:8086"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
+  # Files API (8087)
+  # -------------------------------------------------------------------
+  filesapi:
+    image: fredrickkasoma/swizima-filesapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-filesapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8087
+      DB_URL: jdbc:postgresql://${DB_HOST:-swizima-postgres}:${DB_PORT:-5432}/swizima_files
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8087:8087"
+    networks:
+      - swizima
+
+  # -------------------------------------------------------------------
   # API Gateway (9080)
   # -------------------------------------------------------------------
   apigateway:
@@ -124,6 +160,8 @@ services:
       - configurationsapi
       - paymentsapi
       - clienttransactionsapi
+      - stafftrackapi
+      - filesapi
     environment:
       SERVER_PORT: 9080
       CLIENT_API_URL: http://clientapi:8081
@@ -131,6 +169,8 @@ services:
       PAYMENTS_API_URL: http://paymentsapi:8083
       CLIENT_TRANSACTIONS_API_URL: http://clienttransactionsapi:8084
       USERS_API_URL: http://usersapi:8085
+      STAFFTRACK_API_URL: http://stafftrackapi:8086
+      FILES_API_URL: http://filesapi:8087
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
     ports:
       - "${GATEWAY_PORT:-9080}:9080"

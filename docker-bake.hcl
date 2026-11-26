@@ -13,6 +13,8 @@ group "default" {
     "configurationsapi",
     "paymentsapi",
     "clienttransactionsapi",
+    "stafftrackapi",
+    "filesapi",
     "apigateway"
   ]
 }
@@ -50,6 +52,20 @@ target "clienttransactionsapi" {
   dockerfile = "Dockerfile"
   target     = "clienttransactionsapi"
   tags       = ["${DOCKERHUB_USER}/swizima-clienttransactionsapi:${TAG}"]
+}
+
+target "stafftrackapi" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  target     = "stafftrackapi"
+  tags       = ["${DOCKERHUB_USER}/swizima-stafftrackapi:${TAG}"]
+}
+
+target "filesapi" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  target     = "filesapi"
+  tags       = ["${DOCKERHUB_USER}/swizima-filesapi:${TAG}"]
 }
 
 target "apigateway" {
