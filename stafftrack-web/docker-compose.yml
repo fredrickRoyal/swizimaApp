@@ -1,0 +1,21 @@
+# =====================================================================
+# SOOTR — Staff Out-of-Office Tracking & Reporting (Angular 22 + Nginx)
+#
+#   docker compose up -d --build   # build & start SOOTR web portal on :4300
+#   docker compose down            # stop container
+# =====================================================================
+name: stafftrack-web
+
+services:
+  stafftrack-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fredrickkasoma/stafftrack-web:${TAG:-latest}
+    container_name: stafftrack-web
+    restart: unless-stopped
+    environment:
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://154.72.196.32:9080}
+    ports:
+      - "${WEB_PORT:-4300}:80"
+

@@ -10,7 +10,7 @@ import java.util.List;
  */
 @ConfigurationProperties(prefix = "app.cors")
 public record CorsProperties(
-        @DefaultValue("http://localhost:3000") List<String> allowedOrigins,
+        @DefaultValue("*") List<String> allowedOrigins,
         @DefaultValue({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}) List<String> allowedMethods,
         @DefaultValue("*") List<String> allowedHeaders,
         @DefaultValue("Location") List<String> exposedHeaders,

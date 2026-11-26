@@ -13,8 +13,10 @@ COPY swizima-api/configurationsapi/pom.xml configurationsapi/pom.xml
 COPY swizima-api/paymentsapi/pom.xml paymentsapi/pom.xml
 COPY swizima-api/clienttransactionsapi/pom.xml clienttransactionsapi/pom.xml
 COPY swizima-api/usersapi/pom.xml usersapi/pom.xml
+COPY swizima-api/stafftrackapi/pom.xml stafftrackapi/pom.xml
+COPY swizima-api/filesapi/pom.xml filesapi/pom.xml
 
-# Generate a reactor pom.xml to build all 6 APIs in a single Maven invocation
+# Generate a reactor pom.xml to build all 8 APIs in a single Maven invocation
 RUN cat <<'EOF' > pom.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -32,6 +34,8 @@ RUN cat <<'EOF' > pom.xml
         <module>paymentsapi</module>
         <module>clienttransactionsapi</module>
         <module>usersapi</module>
+        <module>stafftrackapi</module>
+        <module>filesapi</module>
     </modules>
 </project>
 EOF
@@ -40,13 +44,15 @@ EOF
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -T 1C dependency:go-offline -DskipTests || true
 
-# Copy all API sources and package all 6 executable JARs at once
+# Copy all API sources and package all 8 executable JARs at once
 COPY swizima-api/apigateway/src apigateway/src
 COPY swizima-api/clientapi/src clientapi/src
 COPY swizima-api/configurationsapi/src configurationsapi/src
 COPY swizima-api/paymentsapi/src paymentsapi/src
 COPY swizima-api/clienttransactionsapi/src clienttransactionsapi/src
 COPY swizima-api/usersapi/src usersapi/src
+COPY swizima-api/stafftrackapi/src stafftrackapi/src
+COPY swizima-api/filesapi/src filesapi/src
 
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -T 1C clean package -DskipTests
@@ -97,4 +103,16 @@ ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 FROM api-base AS usersapi
 COPY --from=api-builder /workspace/swizima-api/usersapi/target/*.jar /app/app.jar
 EXPOSE 8085
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# 7. StaffTrack API (8086) -> fredrickkasoma/swizima-stafftrackapi
+FROM api-base AS stafftrackapi
+COPY --from=api-builder /workspace/swizima-api/stafftrackapi/target/*.jar /app/app.jar
+EXPOSE 8086
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# 8. Files API (8087) -> fredrickkasoma/swizima-filesapi
+FROM api-base AS filesapi
+COPY --from=api-builder /workspace/swizima-api/filesapi/target/*.jar /app/app.jar
+EXPOSE 8087
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

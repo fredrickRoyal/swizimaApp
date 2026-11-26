@@ -65,7 +65,7 @@ public class OtpServiceImpl implements OtpService {
     @Override
     @Transactional
     public OtpChallengeResponse issue(SystemUser user, OtpPurpose purpose, OtpChannel requestedChannel) {
-        if (emailOnly) {
+        if (emailOnly && requestedChannel != OtpChannel.WHATSAPP) {
             return createAndSendEmailOnly(user, purpose);
         }
         OtpChannel channel = resolveChannel(user, requestedChannel);
@@ -89,7 +89,8 @@ public class OtpServiceImpl implements OtpService {
         }
 
         SystemUser user = previous.getUser();
-        if (emailOnly) {
+        OtpChannel effectiveRequested = requestedChannel != null ? requestedChannel : previous.getChannel();
+        if (emailOnly && effectiveRequested != OtpChannel.WHATSAPP) {
             return createAndSendEmailOnly(user, purpose);
         }
         OtpChannel channel = requestedChannel != null

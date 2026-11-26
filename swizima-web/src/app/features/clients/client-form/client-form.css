@@ -13,11 +13,10 @@
 }
 .signup-brand { display: flex; align-items: center; gap: 0.65rem; text-decoration: none; color: inherit; }
 .signup-logo {
-  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
-  background: var(--gradient-brand); color: #fff; font-weight: 700;
+  display: block; width: 36px; height: 36px; border-radius: 9px;
 }
-.signup-brand-text { display: grid; line-height: 1.2; }
-.signup-brand-text small { font-size: 0.72rem; color: var(--text-muted); }
+.signup-brand-text { display: grid; line-height: 1.2; white-space: nowrap; }
+.signup-brand-text small { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
 .signup-nav-links { display: flex; align-items: center; gap: 0.6rem; }
 .signup-container { width: min(1100px, 100% - 2.5rem); margin-inline: auto; }
 

@@ -15,7 +15,7 @@ import { ThemeToggle } from '../../../shared/theme-toggle/theme-toggle';
       <div class="hero-shade"></div>
       <div class="hero-content">
         <a routerLink="/welcome" class="brand" id="auth-hero-home">
-          <span class="logo">S</span>
+          <img src="favicon.png" alt="" class="logo" width="40" height="40" />
           <strong>Swizima</strong>
         </a>
         <div class="pitch">
@@ -41,7 +41,7 @@ import { ThemeToggle } from '../../../shared/theme-toggle/theme-toggle';
       </div>
       <div class="panel-inner">
         <a routerLink="/welcome" class="mobile-brand" id="auth-mobile-home">
-          <span class="logo">S</span>
+          <img src="favicon.png" alt="" class="logo" width="40" height="40" />
           <strong>Swizima</strong>
         </a>
         <router-outlet />
@@ -164,16 +164,11 @@ import { ThemeToggle } from '../../../shared/theme-toggle/theme-toggle';
       strong { font-size: 1.25rem; letter-spacing: -0.01em; }
     }
     .logo {
-      display: grid;
-      place-items: center;
+      display: block;
       width: 40px;
       height: 40px;
-      border-radius: 12px;
-      color: #fff;
-      font-weight: 800;
-      font-size: 1.2rem;
-      background: var(--gradient-brand);
-      box-shadow: 0 10px 24px -10px rgb(99 102 241 / 0.9);
+      border-radius: 10px;
+      box-shadow: 0 8px 20px -8px rgb(15 23 42 / 0.35);
     }
     .mobile-brand { margin-bottom: 2rem; }
     @media (min-width: 1024px) { .mobile-brand { display: none; } }

@@ -419,3 +419,17 @@
   .muted { color: var(--text-muted); }
   .stack { display: grid; gap: 1.25rem; }
 }
+
+.brand-text,
+.brand-text small,
+.signup-brand-text,
+.signup-brand-text small {
+  white-space: nowrap;
+}
+
+app-landing .brand .logo {
+  font-size: 0;
+  color: transparent;
+  background: url('/favicon.png') center / cover no-repeat;
+  box-shadow: 0 4px 10px rgb(15 23 42 / 0.12);
+}
