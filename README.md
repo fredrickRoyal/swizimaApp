@@ -13,9 +13,11 @@ swizimaApp/
 ├── Dockerfile            # Multi-stage Maven + JRE 21 build for all 6 backend API services
 ├── docker-bake.hcl       # Docker Buildx Bake definition for building/pushing all images
 ├── docker-compose.yml    # Backend APIs stack (pulls fredrickkasoma/swizima-*:latest)
-├── swizima-mobile/       # Native Android Application (Jetpack Compose, Kotlin, Material 3)
+├── stafftrack-web/       # Angular 22 Web portal for StaffTrack Attendance & Shifts
+├── stafftracker-mobile/  # Native Android Application for StaffTracker (Jetpack Compose, Kotlin)
 ├── swizima-api/          # Backend API microservices + PostgreSQL docker-compose.yml
-└── swizima-web/          # Angular 22 Web portal + Nginx Dockerfile & docker-compose.yml
+├── swizima-mobile/       # Native Android Application for Swizima Automotive (Jetpack Compose, Kotlin)
+└── swizima-web/          # Angular 22 Web portal for Swizima Automotive
 ```
 
 ### Recent Highlights
