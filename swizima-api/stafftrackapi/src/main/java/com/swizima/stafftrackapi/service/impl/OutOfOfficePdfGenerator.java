@@ -22,6 +22,7 @@ import com.swizima.stafftrackapi.entity.ReportBackManagementAction;
 import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
+import com.swizima.stafftrackapi.entity.enums.UnitHeadApprovalStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -307,6 +308,14 @@ public class OutOfOfficePdfGenerator {
                 "Acting / Cover Officer", safe(item.getActingOfficer()), false,
                 "Date Logged", loggedDate, false);
 
+        if ((item.getUnitHeadName() != null && !item.getUnitHeadName().isBlank())
+                || (item.getUnitHeadApprovalStatus() != null
+                && item.getUnitHeadApprovalStatus() != UnitHeadApprovalStatus.NOT_REQUIRED)) {
+            addKeyValRow(table,
+                    "Unit Head", safe(item.getUnitHeadName()), true,
+                    "Unit Head Decision", formatUnitHeadDecision(item), false);
+        }
+
         return table;
     }
 
@@ -471,6 +480,21 @@ public class OutOfOfficePdfGenerator {
         officerCell.addElement(new Paragraph(safe(item.getOfficerRole()) + " · " + safe(item.getDutyStation()), FONT_TD_MUTED));
         table.addCell(officerCell);
 
+        if ((item.getUnitHeadName() != null && !item.getUnitHeadName().isBlank())
+                || (item.getUnitHeadApprovalStatus() != null
+                && item.getUnitHeadApprovalStatus() != UnitHeadApprovalStatus.NOT_REQUIRED)) {
+            table.addCell(thCell("Reviewed By (Unit Head)", Element.ALIGN_LEFT));
+            PdfPCell uhCell = new PdfPCell();
+            uhCell.setBorderColor(SLATE_300);
+            uhCell.setPadding(6f);
+            String reviewerName = item.getUnitHeadReviewedBy() != null && !item.getUnitHeadReviewedBy().isBlank()
+                    ? item.getUnitHeadReviewedBy().trim()
+                    : safe(item.getUnitHeadName());
+            uhCell.addElement(new Paragraph(reviewerName, FONT_TD_BOLD));
+            uhCell.addElement(new Paragraph(formatUnitHeadDecision(item), FONT_TD_MUTED));
+            table.addCell(uhCell);
+        }
+
         return table;
     }
 
@@ -481,7 +505,7 @@ public class OutOfOfficePdfGenerator {
 
         Phrase leftPhrase = new Phrase();
         leftPhrase.add(new Chunk("OPM · Department of Refugees", FONT_FOOTER_BOLD));
-        leftPhrase.add(new Chunk(" · Official SOOTR Verification Document", FONT_FOOTER));
+        leftPhrase.add(new Chunk(" · Staff Out-of-Office Tracker Verification Document", FONT_FOOTER));
 
         PdfPCell left = new PdfPCell(leftPhrase);
         left.setBorder(Rectangle.TOP);
@@ -492,7 +516,7 @@ public class OutOfOfficePdfGenerator {
         String stationClean = item.getDutyStation() != null
                 ? item.getDutyStation().toUpperCase().replace(" ", "")
                 : "OPM";
-        String verifyId = "VERIFY-ID: SOOTR-" + (item.getId() != null ? item.getId() : item.getReferenceNumber()) + "-" + stationClean;
+        String verifyId = "VERIFY-ID: " + (item.getId() != null ? item.getId() : item.getReferenceNumber()) + "-" + stationClean;
 
         PdfPCell right = new PdfPCell(new Phrase(verifyId, FONT_BARCODE_TEXT));
         right.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -600,6 +624,25 @@ public class OutOfOfficePdfGenerator {
             case ACTIVE_AWAY -> "Currently Away";
             case RETURNED -> "Returned";
             case CANCELLED -> "Cancelled";
+        };
+    }
+
+    private static String formatUnitHeadDecision(OutOfOfficeNotification item) {
+        UnitHeadApprovalStatus st = item.getUnitHeadApprovalStatus();
+        if (st == null || st == UnitHeadApprovalStatus.PENDING_UNIT_HEAD) {
+            return "Pending Unit Head Acceptance";
+        }
+        String when = item.getUnitHeadReviewedAt() != null
+                ? " on " + item.getUnitHeadReviewedAt().toLocalDate()
+                : "";
+        String note = item.getUnitHeadComment() != null && !item.getUnitHeadComment().isBlank()
+                ? " (" + item.getUnitHeadComment().trim() + ")"
+                : "";
+        return switch (st) {
+            case ACCEPTED -> "Accepted" + when + note + " · Forwarded to Overall Head";
+            case REJECTED -> "Rejected" + when + note;
+            case NOT_REQUIRED -> "Not Required";
+            case PENDING_UNIT_HEAD -> "Pending Unit Head Acceptance";
         };
     }
 

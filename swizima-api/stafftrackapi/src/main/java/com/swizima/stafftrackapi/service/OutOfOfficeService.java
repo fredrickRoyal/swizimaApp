@@ -8,6 +8,7 @@ import com.swizima.stafftrackapi.dto.PageResponse;
 import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
+import com.swizima.stafftrackapi.entity.enums.UnitHeadApprovalStatus;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
@@ -21,6 +22,9 @@ public interface OutOfOfficeService {
 
     OutOfOfficeNotificationResponse updateStatus(UUID id, OutOfOfficeStatus status);
 
+    OutOfOfficeNotificationResponse reviewByUnitHead(
+            UUID id, UnitHeadApprovalStatus decision, String reviewedBy, String comment);
+
     OutOfOfficeNotificationResponse updateSupervisorConfirmation(
             UUID id, SupervisorConfirmationStatus confirmationStatus, String confirmedBy);
 
@@ -30,6 +34,9 @@ public interface OutOfOfficeService {
 
     List<OutOfOfficeNotificationResponse> getAllNotifications(String role, UUID staffMemberId, String officerName);
 
+    List<OutOfOfficeNotificationResponse> getAllNotifications(
+            String role, UUID staffMemberId, String officerName, String callerEmail, String callerPhone);
+
     PageResponse<OutOfOfficeNotificationResponse> searchNotifications(String query,
                                                                       String department,
                                                                       String dutyStation,
@@ -38,6 +45,18 @@ public interface OutOfOfficeService {
                                                                       String role,
                                                                       UUID staffMemberId,
                                                                       String officerName,
+                                                                      Pageable pageable);
+
+    PageResponse<OutOfOfficeNotificationResponse> searchNotifications(String query,
+                                                                      String department,
+                                                                      String dutyStation,
+                                                                      OutOfOfficeStatus status,
+                                                                      EngagementType engagementType,
+                                                                      String role,
+                                                                      UUID staffMemberId,
+                                                                      String officerName,
+                                                                      String callerEmail,
+                                                                      String callerPhone,
                                                                       Pageable pageable);
 
     OutOfOfficeNotificationResponse submitReportBack(UUID notificationId, OutOfOfficeReportBackRequest request);

@@ -14,6 +14,26 @@ export type OutOfOfficeStatus =
 
 export type SupervisorConfirmationStatus = 'NEW' | 'SEEN';
 
+export type SupervisorCategory = 'UNIT_HEAD' | 'OVERALL_HEAD';
+
+export type UnitHeadApprovalStatus =
+  | 'PENDING_UNIT_HEAD'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'NOT_REQUIRED';
+
+export const SUPERVISOR_CATEGORY_LABELS: Record<SupervisorCategory, string> = {
+  UNIT_HEAD: 'Unit Head',
+  OVERALL_HEAD: 'Overall Head',
+};
+
+export const UNIT_HEAD_APPROVAL_LABELS: Record<UnitHeadApprovalStatus, string> = {
+  PENDING_UNIT_HEAD: 'Pending Unit Head',
+  ACCEPTED: 'Accepted by Unit Head',
+  REJECTED: 'Rejected by Unit Head',
+  NOT_REQUIRED: 'Not Required',
+};
+
 export interface SupervisorConfirmationRecord {
   id: string;
   notificationId?: string;
@@ -22,6 +42,7 @@ export interface SupervisorConfirmationRecord {
   supervisorName?: string;
   supervisorEmail?: string;
   supervisorPhone?: string;
+  supervisorCategory?: SupervisorCategory;
   confirmationStatus: SupervisorConfirmationStatus;
   seenAt?: string;
   confirmedBy?: string;
@@ -97,6 +118,14 @@ export interface OutOfOfficeNotification {
   contactPhone: string;
   status: OutOfOfficeStatus;
   managementActionRequired?: string;
+  unitHeadSupervisorId?: string;
+  unitHeadName?: string;
+  unitHeadEmail?: string;
+  unitHeadPhone?: string;
+  unitHeadApprovalStatus?: UnitHeadApprovalStatus;
+  unitHeadReviewedAt?: string;
+  unitHeadReviewedBy?: string;
+  unitHeadComment?: string;
   supervisorConfirmationStatus?: SupervisorConfirmationStatus;
   supervisorSeenAt?: string;
   supervisorConfirmedBy?: string;
@@ -396,8 +425,22 @@ export interface NotificationSupervisor {
   name?: string;
   email?: string;
   phone?: string;
+  category?: SupervisorCategory;
+  department?: string;
   status: SupervisorNotificationStatus;
   createdAt: string;
+}
+
+export interface NotificationChannelConfig {
+  id: string;
+  channelCode: UserOtpChannel;
+  displayName: string;
+  description: string;
+  active: boolean;
+  otpEnabled: boolean;
+  supervisorAlertEnabled: boolean;
+  displayOrder: number;
+  updatedAt: string;
 }
 
 

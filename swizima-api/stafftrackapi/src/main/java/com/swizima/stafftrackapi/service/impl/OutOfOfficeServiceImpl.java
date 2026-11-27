@@ -20,6 +20,7 @@ import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.RecordStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
+import com.swizima.stafftrackapi.entity.enums.UnitHeadApprovalStatus;
 import com.swizima.stafftrackapi.exception.BusinessRuleException;
 import com.swizima.stafftrackapi.exception.ResourceNotFoundException;
 import com.swizima.stafftrackapi.repository.OutOfOfficeNotificationRepository;
@@ -63,7 +64,26 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
         notification.setRecordStatus(RecordStatus.ACTIVE);
         notification.setSupervisorConfirmationStatus(SupervisorConfirmationStatus.NEW);
         applyNotificationRequest(notification, request);
-        attachInitialSupervisorConfirmations(notification);
+
+        boolean submitterIsUnitOrDeptHead = isDepartmentOrUnitHeadRole(request.submitterRole(), request.officerRole());
+        if (submitterIsUnitOrDeptHead) {
+            notification.setUnitHeadSupervisorId(null);
+            notification.setUnitHeadName(null);
+            notification.setUnitHeadEmail(null);
+            notification.setUnitHeadPhone(null);
+            notification.setUnitHeadApprovalStatus(UnitHeadApprovalStatus.NOT_REQUIRED);
+            boolean isFuture = notification.getStartDate() != null
+                    && notification.getStartDate().isAfter(LocalDate.now());
+            notification.setStatus(isFuture ? OutOfOfficeStatus.APPROVED : OutOfOfficeStatus.ACTIVE_AWAY);
+            attachOverallHeadConfirmations(notification, true);
+        } else if (hasUnitHeadAssigned(notification)) {
+            notification.setUnitHeadApprovalStatus(UnitHeadApprovalStatus.PENDING_UNIT_HEAD);
+            notification.setStatus(OutOfOfficeStatus.PENDING_APPROVAL);
+            attachUnitHeadConfirmationOnly(notification);
+        } else {
+            notification.setUnitHeadApprovalStatus(UnitHeadApprovalStatus.NOT_REQUIRED);
+            attachOverallHeadConfirmations(notification, true);
+        }
 
         OutOfOfficeNotification saved = notificationRepository.save(notification);
         supervisorNotificationService.notifyOutOfOfficeCreated(saved);
@@ -77,7 +97,22 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
         validateDates(request.startDate(), request.endDate());
 
         OutOfOfficeNotification notification = findNotification(id);
+        OutOfOfficeStatus prevStatus = notification.getStatus();
+        UnitHeadApprovalStatus prevApproval = notification.getUnitHeadApprovalStatus();
+
         applyNotificationRequest(notification, request);
+
+        if (prevApproval == UnitHeadApprovalStatus.PENDING_UNIT_HEAD
+                && prevStatus == OutOfOfficeStatus.PENDING_APPROVAL) {
+            notification.setStatus(OutOfOfficeStatus.PENDING_APPROVAL);
+            notification.setUnitHeadApprovalStatus(UnitHeadApprovalStatus.PENDING_UNIT_HEAD);
+        } else if (notification.getUnitHeadApprovalStatus() == null) {
+            notification.setUnitHeadApprovalStatus(
+                    hasUnitHeadAssigned(notification)
+                            ? UnitHeadApprovalStatus.PENDING_UNIT_HEAD
+                            : UnitHeadApprovalStatus.NOT_REQUIRED
+            );
+        }
 
         return OutOfOfficeNotificationResponse.from(notificationRepository.save(notification));
     }
@@ -86,7 +121,68 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
     @Transactional
     public OutOfOfficeNotificationResponse updateStatus(UUID id, OutOfOfficeStatus status) {
         OutOfOfficeNotification notification = findNotification(id);
+        if (notification.getUnitHeadApprovalStatus() == UnitHeadApprovalStatus.PENDING_UNIT_HEAD
+                && (status == OutOfOfficeStatus.APPROVED || status == OutOfOfficeStatus.ACTIVE_AWAY)) {
+            return reviewByUnitHead(id, UnitHeadApprovalStatus.ACCEPTED, notification.getUnitHeadName(), null);
+        }
         notification.setStatus(status);
+        return OutOfOfficeNotificationResponse.from(notificationRepository.save(notification));
+    }
+
+    @Override
+    @Transactional
+    public OutOfOfficeNotificationResponse reviewByUnitHead(
+            UUID id, UnitHeadApprovalStatus decision, String reviewedBy, String comment) {
+        if (decision != UnitHeadApprovalStatus.ACCEPTED && decision != UnitHeadApprovalStatus.REJECTED) {
+            throw new BusinessRuleException("Unit Head decision must be ACCEPTED or REJECTED.");
+        }
+
+        OutOfOfficeNotification notification = findNotification(id);
+        LocalDateTime now = LocalDateTime.now();
+        String actor = firstNonBlank(reviewedBy, firstNonBlank(notification.getUnitHeadName(), "Unit Head"));
+
+        notification.setUnitHeadApprovalStatus(decision);
+        notification.setUnitHeadReviewedAt(now);
+        notification.setUnitHeadReviewedBy(actor);
+        notification.setUnitHeadComment(comment != null && !comment.isBlank() ? comment.trim() : null);
+
+        if (notification.getSupervisorConfirmations() != null) {
+            for (SupervisorConfirmation sc : notification.getSupervisorConfirmations()) {
+                if ("UNIT_HEAD".equalsIgnoreCase(sc.getSupervisorCategory())
+                        || sc.getSupervisorCategory() == null) {
+                    sc.setConfirmationStatus(SupervisorConfirmationStatus.SEEN);
+                    sc.setSeenAt(now);
+                    sc.setConfirmedBy(actor);
+                }
+            }
+        }
+
+        if (decision == UnitHeadApprovalStatus.ACCEPTED) {
+            if (notification.getStatus() != OutOfOfficeStatus.RETURNED) {
+                boolean isFuture = notification.getStartDate() != null
+                        && notification.getStartDate().isAfter(LocalDate.now());
+                notification.setStatus(isFuture ? OutOfOfficeStatus.APPROVED : OutOfOfficeStatus.ACTIVE_AWAY);
+            }
+            int addedOverall = attachOverallHeadConfirmations(notification, false);
+            if (addedOverall > 0) {
+                notification.setSupervisorConfirmationStatus(SupervisorConfirmationStatus.NEW);
+                notification.setSupervisorSeenAt(null);
+                notification.setSupervisorConfirmedBy(null);
+            } else {
+                notification.setSupervisorConfirmationStatus(SupervisorConfirmationStatus.SEEN);
+                notification.setSupervisorSeenAt(now);
+                notification.setSupervisorConfirmedBy(actor);
+            }
+
+            OutOfOfficeNotification saved = notificationRepository.save(notification);
+            supervisorNotificationService.notifyOverallHeadsAfterUnitHeadAcceptance(saved);
+            return OutOfOfficeNotificationResponse.from(saved);
+        }
+
+        notification.setStatus(OutOfOfficeStatus.CANCELLED);
+        notification.setSupervisorConfirmationStatus(SupervisorConfirmationStatus.SEEN);
+        notification.setSupervisorSeenAt(now);
+        notification.setSupervisorConfirmedBy(actor);
         return OutOfOfficeNotificationResponse.from(notificationRepository.save(notification));
     }
 
@@ -107,7 +203,12 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
         notification.setSupervisorConfirmedBy(nextStatus == SupervisorConfirmationStatus.SEEN ? actor : null);
 
         if (notification.getSupervisorConfirmations() == null || notification.getSupervisorConfirmations().isEmpty()) {
-            attachInitialSupervisorConfirmations(notification);
+            if (hasUnitHeadAssigned(notification)
+                    && notification.getUnitHeadApprovalStatus() == UnitHeadApprovalStatus.PENDING_UNIT_HEAD) {
+                attachUnitHeadConfirmationOnly(notification);
+            } else {
+                attachOverallHeadConfirmations(notification, true);
+            }
         }
 
         for (SupervisorConfirmation sc : notification.getSupervisorConfirmations()) {
@@ -119,30 +220,83 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
         return OutOfOfficeNotificationResponse.from(notificationRepository.save(notification));
     }
 
-    private void attachInitialSupervisorConfirmations(OutOfOfficeNotification notification) {
-        List<Supervisor> activeSupervisors = supervisorRepository
+    private boolean hasUnitHeadAssigned(OutOfOfficeNotification n) {
+        return n.getUnitHeadSupervisorId() != null
+                || (n.getUnitHeadName() != null && !n.getUnitHeadName().isBlank())
+                || (n.getUnitHeadEmail() != null && !n.getUnitHeadEmail().isBlank())
+                || (n.getUnitHeadPhone() != null && !n.getUnitHeadPhone().isBlank());
+    }
+
+    private boolean isDepartmentOrUnitHeadRole(String submitterRole, String officerRole) {
+        return matchesDeptOrUnitHead(submitterRole) || matchesDeptOrUnitHead(officerRole);
+    }
+
+    private boolean matchesDeptOrUnitHead(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        String norm = raw.trim().toUpperCase(Locale.ROOT).replaceAll("[\\s/\\-]+", "_");
+        return "DEPARTMENT_HEAD".equals(norm)
+                || "UNIT_HEAD".equals(norm)
+                || "DEPARTMENT_UNIT_HEAD".equals(norm);
+    }
+
+    private void attachUnitHeadConfirmationOnly(OutOfOfficeNotification notification) {
+        notification.getSupervisorConfirmations().clear();
+        SupervisorConfirmation conf = SupervisorConfirmation.builder()
+                .clientRef(notification.getClientRef())
+                .notification(notification)
+                .supervisorId(notification.getUnitHeadSupervisorId())
+                .supervisorName(firstNonBlank(notification.getUnitHeadName(), "Unit Head"))
+                .supervisorEmail(notification.getUnitHeadEmail())
+                .supervisorPhone(notification.getUnitHeadPhone())
+                .supervisorCategory("UNIT_HEAD")
+                .confirmationStatus(SupervisorConfirmationStatus.NEW)
+                .recordStatus(RecordStatus.ACTIVE)
+                .build();
+        notification.getSupervisorConfirmations().add(conf);
+    }
+
+    private int attachOverallHeadConfirmations(OutOfOfficeNotification notification, boolean clearExisting) {
+        List<Supervisor> overallSupervisors = supervisorRepository
                 .findAllByRecordStatusNotOrderByCreatedAtDesc(RecordStatus.DELETED)
                 .stream()
                 .filter(s -> !"INACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(s -> {
+                    String cat = s.getCategory();
+                    return cat == null || cat.isBlank() || "OVERALL_HEAD".equalsIgnoreCase(cat.trim());
+                })
                 .toList();
 
-        notification.getSupervisorConfirmations().clear();
-
-        if (activeSupervisors.isEmpty()) {
-            SupervisorConfirmation defaultConf = SupervisorConfirmation.builder()
-                    .clientRef(notification.getClientRef())
-                    .notification(notification)
-                    .supervisorName(notification.getActingOfficer() != null
-                            ? notification.getActingOfficer()
-                            : "Unit Supervisor")
-                    .confirmationStatus(SupervisorConfirmationStatus.NEW)
-                    .recordStatus(RecordStatus.ACTIVE)
-                    .build();
-            notification.getSupervisorConfirmations().add(defaultConf);
-            return;
+        if (clearExisting) {
+            notification.getSupervisorConfirmations().clear();
         }
 
-        for (Supervisor sup : activeSupervisors) {
+        if (overallSupervisors.isEmpty()) {
+            if (clearExisting) {
+                SupervisorConfirmation defaultConf = SupervisorConfirmation.builder()
+                        .clientRef(notification.getClientRef())
+                        .notification(notification)
+                        .supervisorName(notification.getActingOfficer() != null
+                                ? notification.getActingOfficer()
+                                : "Overall Head")
+                        .supervisorCategory("OVERALL_HEAD")
+                        .confirmationStatus(SupervisorConfirmationStatus.NEW)
+                        .recordStatus(RecordStatus.ACTIVE)
+                        .build();
+                notification.getSupervisorConfirmations().add(defaultConf);
+            }
+            return 0;
+        }
+
+        int added = 0;
+        for (Supervisor sup : overallSupervisors) {
+            boolean alreadyPresent = notification.getSupervisorConfirmations().stream()
+                    .anyMatch(existing -> sup.getId() != null && sup.getId().equals(existing.getSupervisorId())
+                            && "OVERALL_HEAD".equalsIgnoreCase(existing.getSupervisorCategory()));
+            if (alreadyPresent) {
+                continue;
+            }
             SupervisorConfirmation conf = SupervisorConfirmation.builder()
                     .clientRef(notification.getClientRef())
                     .notification(notification)
@@ -150,11 +304,14 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
                     .supervisorName(sup.getName())
                     .supervisorEmail(sup.getEmail())
                     .supervisorPhone(sup.getPhone())
+                    .supervisorCategory("OVERALL_HEAD")
                     .confirmationStatus(SupervisorConfirmationStatus.NEW)
                     .recordStatus(RecordStatus.ACTIVE)
                     .build();
             notification.getSupervisorConfirmations().add(conf);
+            added++;
         }
+        return added;
     }
 
     @Override
@@ -164,16 +321,25 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
 
     @Override
     public List<OutOfOfficeNotificationResponse> getAllNotifications() {
-        return getAllNotifications(null, null, null);
+        return getAllNotifications(null, null, null, null, null);
     }
 
     @Override
     public List<OutOfOfficeNotificationResponse> getAllNotifications(String role,
                                                                      UUID staffMemberId,
                                                                      String officerName) {
+        return getAllNotifications(role, staffMemberId, officerName, null, null);
+    }
+
+    @Override
+    public List<OutOfOfficeNotificationResponse> getAllNotifications(String role,
+                                                                     UUID staffMemberId,
+                                                                     String officerName,
+                                                                     String callerEmail,
+                                                                     String callerPhone) {
         return notificationRepository.findAllByRecordStatusNotOrderByCreatedAtDesc(RecordStatus.DELETED)
                 .stream()
-                .filter(n -> isVisibleToCaller(n, role, staffMemberId, officerName))
+                .filter(n -> isVisibleToCaller(n, role, staffMemberId, officerName, callerEmail, callerPhone))
                 .map(OutOfOfficeNotificationResponse::from)
                 .toList();
     }
@@ -188,12 +354,29 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
                                                                              UUID staffMemberId,
                                                                              String officerName,
                                                                              Pageable pageable) {
-        if (isStaffOfficerScoped(role, staffMemberId, officerName)) {
+        return searchNotifications(
+                query, department, dutyStation, status, engagementType,
+                role, staffMemberId, officerName, null, null, pageable);
+    }
+
+    @Override
+    public PageResponse<OutOfOfficeNotificationResponse> searchNotifications(String query,
+                                                                             String department,
+                                                                             String dutyStation,
+                                                                             OutOfOfficeStatus status,
+                                                                             EngagementType engagementType,
+                                                                             String role,
+                                                                             UUID staffMemberId,
+                                                                             String officerName,
+                                                                             String callerEmail,
+                                                                             String callerPhone,
+                                                                             Pageable pageable) {
+        if (isStaffOfficerScoped(role, staffMemberId, officerName, callerEmail, callerPhone)) {
             List<OutOfOfficeNotificationResponse> filtered = notificationRepository
                     .search(query, department, dutyStation, status, engagementType, RecordStatus.DELETED, Pageable.unpaged())
                     .getContent()
                     .stream()
-                    .filter(n -> isVisibleToCaller(n, role, staffMemberId, officerName))
+                    .filter(n -> isVisibleToCaller(n, role, staffMemberId, officerName, callerEmail, callerPhone))
                     .map(OutOfOfficeNotificationResponse::from)
                     .toList();
             int start = (int) Math.min(pageable.getOffset(), filtered.size());
@@ -207,8 +390,15 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
         );
     }
 
-    private boolean isStaffOfficerScoped(String role, UUID staffMemberId, String officerName) {
-        boolean hasIdentity = staffMemberId != null || (officerName != null && !officerName.isBlank());
+    private boolean isStaffOfficerScoped(String role,
+                                         UUID staffMemberId,
+                                         String officerName,
+                                         String callerEmail,
+                                         String callerPhone) {
+        boolean hasIdentity = staffMemberId != null
+                || (officerName != null && !officerName.isBlank())
+                || (callerEmail != null && !callerEmail.isBlank())
+                || (callerPhone != null && !callerPhone.isBlank());
         if (!hasIdentity) {
             return false;
         }
@@ -220,22 +410,51 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
     }
 
     /**
-     * When the caller is a Staff Officer, returns true only if the notification was created by them
-     * ({@code staffMemberId} or {@code officerName}).
+     * When the caller is a Staff Officer, returns true if the notification was created by them
+     * OR if they were selected as the Unit Head for that notification.
      */
     private boolean isVisibleToCaller(OutOfOfficeNotification n,
                                       String role,
                                       UUID staffMemberId,
-                                      String officerName) {
-        if (!isStaffOfficerScoped(role, staffMemberId, officerName)) {
+                                      String officerName,
+                                      String callerEmail,
+                                      String callerPhone) {
+        if (!isStaffOfficerScoped(role, staffMemberId, officerName, callerEmail, callerPhone)) {
             return true;
         }
 
-        // Only return records created by the logged-in Staff Officer
         if (staffMemberId != null && staffMemberId.equals(n.getStaffMemberId())) {
             return true;
         }
-        return namesMatch(officerName, n.getOfficerName());
+        if (namesMatch(officerName, n.getOfficerName())) {
+            return true;
+        }
+        if (namesMatch(officerName, n.getUnitHeadName())) {
+            return true;
+        }
+        if (callerEmail != null && !callerEmail.isBlank()
+                && n.getUnitHeadEmail() != null
+                && callerEmail.trim().equalsIgnoreCase(n.getUnitHeadEmail().trim())) {
+            return true;
+        }
+        String digitsCaller = normalizeDigits(callerPhone);
+        String digitsUnitHead = normalizeDigits(n.getUnitHeadPhone());
+        return !digitsCaller.isEmpty() && digitsCaller.equals(digitsUnitHead);
+    }
+
+    private static String normalizeDigits(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        String d = raw.replaceAll("\\D", "");
+        if (d.startsWith("0") && d.length() == 10) {
+            return "256" + d.substring(1);
+        }
+        return d;
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a.trim();
+        if (b != null && !b.isBlank()) return b.trim();
+        return null;
     }
 
     private boolean namesMatch(String a, String b) {
@@ -435,6 +654,24 @@ public class OutOfOfficeServiceImpl implements OutOfOfficeService {
                 ? r.actingOfficer().trim()
                 : "Assigned by Unit Supervisor");
         n.setContactPhone(r.contactPhone());
+
+        if (r.unitHeadSupervisorId() != null) {
+            n.setUnitHeadSupervisorId(r.unitHeadSupervisorId());
+            Supervisor sup = supervisorRepository
+                    .findByIdAndRecordStatusNot(r.unitHeadSupervisorId(), RecordStatus.DELETED)
+                    .orElse(null);
+            n.setUnitHeadName(firstNonBlank(r.unitHeadName(), sup != null ? sup.getName() : null));
+            n.setUnitHeadEmail(firstNonBlank(r.unitHeadEmail(), sup != null ? sup.getEmail() : null));
+            n.setUnitHeadPhone(firstNonBlank(r.unitHeadPhone(), sup != null ? sup.getPhone() : null));
+        } else if ((r.unitHeadName() != null && !r.unitHeadName().isBlank())
+                || (r.unitHeadEmail() != null && !r.unitHeadEmail().isBlank())
+                || (r.unitHeadPhone() != null && !r.unitHeadPhone().isBlank())) {
+            n.setUnitHeadSupervisorId(null);
+            n.setUnitHeadName(r.unitHeadName() != null && !r.unitHeadName().isBlank() ? r.unitHeadName().trim() : null);
+            n.setUnitHeadEmail(r.unitHeadEmail() != null && !r.unitHeadEmail().isBlank() ? r.unitHeadEmail().trim().toLowerCase(Locale.ROOT) : null);
+            n.setUnitHeadPhone(r.unitHeadPhone() != null && !r.unitHeadPhone().isBlank() ? r.unitHeadPhone().trim() : null);
+        }
+
         if (r.status() != null) {
             n.setStatus(r.status());
         } else if (n.getStatus() == null) {

@@ -58,7 +58,7 @@ public class SupervisorConfirmationController {
         return ResponseEntity.ok(list);
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Mark a specific supervisor confirmation record as SEEN or NEW")
     public ResponseEntity<SupervisorConfirmationDto> updateConfirmationStatus(

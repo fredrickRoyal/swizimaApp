@@ -151,7 +151,7 @@ import { Pagination } from '../../shared/pagination/pagination';
       <header class="page-header">
         <div class="page-title">
           <h1>Users</h1>
-          <p>People who can sign in to SOOTR, and the clients / departments they can access.</p>
+          <p>People who can sign in to Staff Out-of-Office Tracker, and the clients / departments they can access.</p>
         </div>
         <div class="header-actions">
           <button
@@ -765,7 +765,7 @@ import { Pagination } from '../../shared/pagination/pagination';
                       class="input"
                       required
                       [(ngModel)]="form.phone"
-                      placeholder="+256 700 408 387"
+                      placeholder="+256 700 000 000"
                     />
                   </div>
 

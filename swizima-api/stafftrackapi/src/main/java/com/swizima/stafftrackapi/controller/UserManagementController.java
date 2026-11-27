@@ -198,7 +198,7 @@ public class UserManagementController {
         return ResponseEntity.ok(SystemUserDto.from(saved));
     }
 
-    @PatchMapping("/users/{id}/status")
+    @RequestMapping(value = "/users/{id}/status", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Update System User status (ACTIVE, SUSPENDED, PENDING_ACTIVATION)")
     public ResponseEntity<SystemUserDto> updateUserStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
@@ -257,7 +257,7 @@ public class UserManagementController {
         return ResponseEntity.ok(ClientUserDto.from(clientUserRepository.save(cu)));
     }
 
-    @PatchMapping("/client-users/{id}/status")
+    @RequestMapping(value = "/client-users/{id}/status", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Update Client User activation status")
     public ResponseEntity<ClientUserDto> updateClientUserStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
@@ -267,7 +267,7 @@ public class UserManagementController {
         return ResponseEntity.ok(ClientUserDto.from(clientUserRepository.save(cu)));
     }
 
-    @PatchMapping("/client-users/{id}/default")
+    @RequestMapping(value = "/client-users/{id}/default", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Make this Client / Department the user's default organisation")
     public ResponseEntity<ClientUserDto> makeDefaultClientUser(@PathVariable UUID id) {

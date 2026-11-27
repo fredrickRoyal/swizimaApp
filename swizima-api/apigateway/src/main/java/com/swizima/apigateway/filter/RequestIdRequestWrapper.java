@@ -23,19 +23,33 @@ class RequestIdRequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public String getHeader(String name) {
-        return RequestIdFilter.HEADER.equalsIgnoreCase(name) ? requestId : super.getHeader(name);
+        if (RequestIdFilter.HEADER.equalsIgnoreCase(name)) {
+            return requestId;
+        }
+        // CorsFilter runs BEFORE RequestIdFilter at Ordered.HIGHEST_PRECEDENCE, so gateway CORS
+        // headers are already handled; stripping Origin here prevents downstream Spring MVC
+        // DefaultCorsProcessor from rejecting proxied POST/PUT/DELETE requests with 403.
+        if ("Origin".equalsIgnoreCase(name)) {
+            return null;
+        }
+        return super.getHeader(name);
     }
 
     @Override
     public Enumeration<String> getHeaders(String name) {
-        return RequestIdFilter.HEADER.equalsIgnoreCase(name)
-                ? Collections.enumeration(Set.of(requestId))
-                : super.getHeaders(name);
+        if (RequestIdFilter.HEADER.equalsIgnoreCase(name)) {
+            return Collections.enumeration(Set.of(requestId));
+        }
+        if ("Origin".equalsIgnoreCase(name)) {
+            return Collections.emptyEnumeration();
+        }
+        return super.getHeaders(name);
     }
 
     @Override
     public Enumeration<String> getHeaderNames() {
         Set<String> names = new LinkedHashSet<>(Collections.list(super.getHeaderNames()));
+        names.removeIf("Origin"::equalsIgnoreCase);
         names.add(RequestIdFilter.HEADER);
         return Collections.enumeration(names);
     }

@@ -11,7 +11,8 @@ spring:
   application:
     name: apigateway
 
-  # Timeouts for calls from the gateway to downstream services
+  # Timeouts & HTTP/1.1 configured via GatewayHttpClientConfig (JdkClientHttpRequestFactory,
+  # supporting GET/POST/PUT/PATCH/DELETE while preventing h2c ClosedChannelException)
   http:
     clients:
       connect-timeout: ${GATEWAY_CONNECT_TIMEOUT:5s}

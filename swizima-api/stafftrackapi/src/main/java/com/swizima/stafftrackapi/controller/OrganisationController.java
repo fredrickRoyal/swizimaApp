@@ -142,7 +142,7 @@ public class OrganisationController {
         return ResponseEntity.ok(OrganisationDto.from(organisationRepository.save(entity)));
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Update Organisation status (ACTIVE, SUSPENDED, INACTIVE, PENDING)")
     public ResponseEntity<OrganisationDto> updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {

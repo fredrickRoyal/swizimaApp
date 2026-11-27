@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   ENGAGEMENT_TYPE_LABELS,
@@ -36,7 +37,7 @@ interface BarcodeBar {
 
 @Component({
   selector: 'app-view-report',
-  imports: [RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: `
     .report-toolbar {
@@ -321,6 +322,93 @@ interface BarcodeBar {
       </div>
 
       @if (notice(); as item) {
+        <!-- Unit Head Review & Approval Banner (Screen Only) -->
+        @if (isPendingUnitHead(item)) {
+          <section
+            class="card no-print"
+            style="max-width: 1020px; margin-inline: auto; width: 100%; border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-bg)"
+            aria-label="Unit Head Review Action"
+          >
+            <div class="card-body" style="display: grid; gap: 0.85rem">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap">
+                <div>
+                  <span class="badge badge-warning">Pending Unit Head Review</span>
+                  <h2 style="font-size: 1rem; margin-top: 0.35rem">
+                    Unit Head Review: {{ item.unitHeadName || 'Assigned Unit Head' }}
+                  </h2>
+                  <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem">
+                    @if (canReviewUnitHead(item)) {
+                      Review Section A below and click <strong>Accept &amp; Notify Overall Head</strong> to approve and forward this notification to the Overall Head (Overall Head is notified for information only).
+                    } @else {
+                      Waiting for <strong>{{ item.unitHeadName || 'Unit Head' }}</strong> to view and accept before this notification is forwarded to the Overall Head.
+                    }
+                  </p>
+                </div>
+              </div>
+
+              @if (canReviewUnitHead(item)) {
+                <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem">
+                  <div class="field" style="flex: 1 1 280px; margin: 0">
+                    <label for="uh-review-comment">Unit Head Note / Comment (Optional)</label>
+                    <input
+                      id="uh-review-comment"
+                      type="text"
+                      name="unitHeadComment"
+                      class="input"
+                      [(ngModel)]="reviewComment"
+                      placeholder="Optional note for officer & Overall Head..."
+                    />
+                  </div>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      [disabled]="decisionSubmitting()"
+                      (click)="submitDecision(item, 'ACCEPTED')"
+                    >
+                      <app-icon name="check" />
+                      <span>
+                        {{ decisionSubmitting() ? 'Submitting...' : 'Accept & Notify Overall Head' }}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      [disabled]="decisionSubmitting()"
+                      (click)="submitDecision(item, 'REJECTED')"
+                    >
+                      <app-icon name="close" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </section>
+        } @else if (item.unitHeadApprovalStatus === 'ACCEPTED') {
+          <div
+            class="no-print"
+            role="status"
+            style="max-width: 1020px; margin-inline: auto; width: 100%; padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--success-bg); color: var(--success); font-size: 0.86rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem"
+          >
+            <app-icon name="check" />
+            <span>
+              Accepted by Unit Head ({{ item.unitHeadReviewedBy || item.unitHeadName || 'Unit Head' }}) — forwarded to Overall Head for notification only.
+            </span>
+          </div>
+        } @else if (item.unitHeadApprovalStatus === 'REJECTED') {
+          <div
+            class="no-print"
+            role="status"
+            style="max-width: 1020px; margin-inline: auto; width: 100%; padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--danger-bg); color: var(--danger); font-size: 0.86rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem"
+          >
+            <app-icon name="alert" />
+            <span>
+              Rejected by Unit Head ({{ item.unitHeadReviewedBy || item.unitHeadName || 'Unit Head' }}){{ item.unitHeadComment ? ' — ' + item.unitHeadComment : '' }}.
+            </span>
+          </div>
+        }
+
         <article
           #reportSheetEl
           class="pdf-sheet"
@@ -347,7 +435,7 @@ interface BarcodeBar {
 
             <!-- QR Code + Barcode + Reference Metadata -->
             <div class="verification-cluster" aria-label="Document QR Code and Barcode Verification">
-              <div class="qr-box" title="Official SOOTR Verification QR Code">
+              <div class="qr-box" title="Official Verification QR Code">
                 <svg viewBox="0 0 21 21" shape-rendering="crispEdges" aria-label="Verification QR Code">
                   <rect width="21" height="21" fill="#ffffff" />
                   @for (cell of qrMatrix(item); track $index) {
@@ -422,6 +510,14 @@ interface BarcodeBar {
                   <th>Date Logged</th>
                   <td>{{ item.createdAt }}</td>
                 </tr>
+                @if (hasUnitHeadInfo(item)) {
+                  <tr>
+                    <th>Unit Head</th>
+                    <td><strong>{{ item.unitHeadName || '—' }}</strong></td>
+                    <th>Unit Head Decision</th>
+                    <td>{{ formatUnitHeadDecision(item) }}</td>
+                  </tr>
+                }
               </tbody>
             </table>
 
@@ -650,6 +746,15 @@ interface BarcodeBar {
                     <small style="color: var(--text-muted)">{{ item.officerRole }} · {{ item.dutyStation }}</small>
                   </td>
                 </tr>
+                @if (hasUnitHeadInfo(item)) {
+                  <tr>
+                    <th>Reviewed By (Unit Head)</th>
+                    <td colspan="3">
+                      <strong>{{ item.unitHeadReviewedBy || item.unitHeadName || 'Unit Head' }}</strong><br />
+                      <small style="color: var(--text-muted)">{{ formatUnitHeadDecision(item) }}</small>
+                    </td>
+                  </tr>
+                }
               </tbody>
             </table>
           </section>
@@ -657,10 +762,10 @@ interface BarcodeBar {
           <!-- Footer Verification Strip -->
           <footer class="doc-footer-strip">
             <span>
-              <strong>OPM · Department of Refugees</strong> · Official SOOTR Verification Document
+              <strong>OPM · Department of Refugees</strong> · Staff Out-of-Office Tracker Verification Document
             </span>
             <span style="font-family: var(--font-mono)">
-              VERIFY-ID: SOOTR-{{ item.id }}-{{ item.dutyStation.toUpperCase().replaceAll(' ', '') }}
+              VERIFY-ID: {{ item.id }}-{{ item.dutyStation.toUpperCase().replaceAll(' ', '') }}
             </span>
           </footer>
         </article>
@@ -686,12 +791,69 @@ export class ViewReport implements OnInit {
   protected readonly statusLabels = OOO_STATUS_LABELS;
   protected readonly noticeId = signal('');
   protected readonly filesApiAttachments = signal<ReportBackAttachment[]>([]);
+  protected readonly decisionSubmitting = signal(false);
+  protected reviewComment = '';
   protected readonly todayDate = new Date().toISOString().slice(0, 10);
   private readonly reportSheetRef = viewChild<ElementRef<HTMLElement>>('reportSheetEl');
 
   protected readonly notice = computed<OutOfOfficeNotification | undefined>(() =>
     this.store.outOfOfficeList().find((i) => i.id === this.noticeId())
   );
+
+  protected isPendingUnitHead(item: OutOfOfficeNotification): boolean {
+    return (
+      item.unitHeadApprovalStatus === 'PENDING_UNIT_HEAD' ||
+      (item.status === 'PENDING_APPROVAL' && item.unitHeadApprovalStatus !== 'ACCEPTED')
+    );
+  }
+
+  protected canReviewUnitHead(item: OutOfOfficeNotification): boolean {
+    return this.auth.canReviewAsUnitHead(item);
+  }
+
+  protected hasUnitHeadInfo(item: OutOfOfficeNotification): boolean {
+    return Boolean(
+      item.unitHeadName ||
+        (item.unitHeadApprovalStatus && item.unitHeadApprovalStatus !== 'NOT_REQUIRED')
+    );
+  }
+
+  protected formatUnitHeadDecision(item: OutOfOfficeNotification): string {
+    const st = item.unitHeadApprovalStatus;
+    if (!st || st === 'PENDING_UNIT_HEAD') {
+      return 'Pending Unit Head Acceptance';
+    }
+    const when = item.unitHeadReviewedAt ? ` on ${item.unitHeadReviewedAt.slice(0, 10)}` : '';
+    const note = item.unitHeadComment ? ` (${item.unitHeadComment})` : '';
+    if (st === 'ACCEPTED') {
+      return `Accepted${when}${note} · Forwarded to Overall Head`;
+    }
+    if (st === 'REJECTED') {
+      return `Rejected${when}${note}`;
+    }
+    return 'Not Required';
+  }
+
+  protected submitDecision(
+    item: OutOfOfficeNotification,
+    decision: 'ACCEPTED' | 'REJECTED'
+  ): void {
+    const reviewer = this.auth.session()?.fullName || item.unitHeadName || 'Unit Head';
+    this.decisionSubmitting.set(true);
+    this.store.reviewOutOfOfficeByUnitHead(
+      item.id,
+      decision,
+      reviewer,
+      this.reviewComment,
+      () => {
+        this.decisionSubmitting.set(false);
+        this.reviewComment = '';
+      },
+      () => {
+        this.decisionSubmitting.set(false);
+      }
+    );
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') || '';

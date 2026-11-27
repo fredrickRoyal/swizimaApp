@@ -17,7 +17,7 @@ public class OpenApiConfig {
     public OpenAPI staffTrackApiOpenAPI(@Value("${app.openapi.server-url:/}") String serverUrl) {
         return new OpenAPI()
                 .info(new Info()
-                        .title("SOOTR — Staff Out-of-Office Tracking & Reporting API")
+                        .title("Staff Out-of-Office Tracker API")
                         .description("Staff registration, departments, officer designations, duty stations, out-of-office notifications, and report-back management actions.")
                         .version("v1")
                         .contact(new Contact().name("Office of the Prime Minister (OPM) · Department of Refugees")))

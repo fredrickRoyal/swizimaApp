@@ -50,6 +50,9 @@ public class SupervisorConfirmation extends ParentEntity {
     @Column(name = "supervisor_phone", length = 40)
     private String supervisorPhone;
 
+    @Column(name = "supervisor_category", length = 40)
+    private String supervisorCategory;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "confirmation_status", nullable = false, length = 20)

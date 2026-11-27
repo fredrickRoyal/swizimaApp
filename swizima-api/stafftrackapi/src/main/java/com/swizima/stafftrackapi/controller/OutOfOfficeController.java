@@ -6,6 +6,7 @@ import com.swizima.stafftrackapi.dto.OutOfOfficeReportBackRequest;
 import com.swizima.stafftrackapi.dto.OutOfOfficeReportBackResponse;
 import com.swizima.stafftrackapi.dto.OutOfOfficeStatusRequest;
 import com.swizima.stafftrackapi.dto.PageResponse;
+import com.swizima.stafftrackapi.dto.UnitHeadDecisionRequest;
 import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
@@ -53,7 +54,7 @@ public class OutOfOfficeController {
     }
 
     @GetMapping
-    @Operation(summary = "Search and paginate Out-of-Office Notifications (supports Staff Officer scoping by creator or Co-Attending Officer)")
+    @Operation(summary = "Search and paginate Out-of-Office Notifications (supports Staff Officer scoping by creator or assigned Unit Head)")
     public ResponseEntity<PageResponse<OutOfOfficeNotificationResponse>> searchNotifications(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String department,
@@ -63,18 +64,24 @@ public class OutOfOfficeController {
             @RequestParam(required = false) String role,
             @RequestParam(required = false) UUID staffMemberId,
             @RequestParam(required = false) String officerName,
+            @RequestParam(required = false) String callerEmail,
+            @RequestParam(required = false) String callerPhone,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(outOfOfficeService.searchNotifications(
-                query, department, dutyStation, status, engagementType, role, staffMemberId, officerName, pageable));
+                query, department, dutyStation, status, engagementType,
+                role, staffMemberId, officerName, callerEmail, callerPhone, pageable));
     }
 
     @GetMapping("/all")
-    @Operation(summary = "List active Out-of-Office Notifications (when role=STAFF_OFFICER, returns only records created by them or where they are a Co-Attending Officer)")
+    @Operation(summary = "List active Out-of-Office Notifications (when role=STAFF_OFFICER, returns records created by them or assigned to them as Unit Head)")
     public ResponseEntity<List<OutOfOfficeNotificationResponse>> getAllNotifications(
             @RequestParam(required = false) String role,
             @RequestParam(required = false) UUID staffMemberId,
-            @RequestParam(required = false) String officerName) {
-        return ResponseEntity.ok(outOfOfficeService.getAllNotifications(role, staffMemberId, officerName));
+            @RequestParam(required = false) String officerName,
+            @RequestParam(required = false) String callerEmail,
+            @RequestParam(required = false) String callerPhone) {
+        return ResponseEntity.ok(outOfOfficeService.getAllNotifications(
+                role, staffMemberId, officerName, callerEmail, callerPhone));
     }
 
     @GetMapping("/{id}")
@@ -91,12 +98,21 @@ public class OutOfOfficeController {
         return ResponseEntity.ok(outOfOfficeService.updateNotification(id, request));
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Operation(summary = "Update Out-of-Office Notification status (e.g. ACTIVE_AWAY, RETURNED)")
     public ResponseEntity<OutOfOfficeNotificationResponse> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody OutOfOfficeStatusRequest request) {
         return ResponseEntity.ok(outOfOfficeService.updateStatus(id, request.status()));
+    }
+
+    @RequestMapping(value = "/{id}/unit-head-decision", method = {org.springframework.web.bind.annotation.RequestMethod.PUT, org.springframework.web.bind.annotation.RequestMethod.PATCH})
+    @Operation(summary = "Unit Head accepts or rejects an Out-of-Office Notification; accepting automatically notifies Overall Heads")
+    public ResponseEntity<OutOfOfficeNotificationResponse> submitUnitHeadDecision(
+            @PathVariable UUID id,
+            @Valid @RequestBody UnitHeadDecisionRequest request) {
+        return ResponseEntity.ok(outOfOfficeService.reviewByUnitHead(
+                id, request.decision(), request.reviewedBy(), request.comment()));
     }
 
     @PostMapping("/{id}/report-back")
@@ -127,7 +143,7 @@ public class OutOfOfficeController {
     ) {
     }
 
-    @PatchMapping("/{id}/supervisor-confirmation")
+    @RequestMapping(value = "/{id}/supervisor-confirmation", method = {org.springframework.web.bind.annotation.RequestMethod.PATCH, org.springframework.web.bind.annotation.RequestMethod.PUT})
     @Operation(summary = "Update Supervisor Confirmation status (NEW or SEEN) for an Out-of-Office Notification")
     public ResponseEntity<OutOfOfficeNotificationResponse> updateSupervisorConfirmation(
             @PathVariable UUID id,

@@ -18,6 +18,7 @@ import com.swizima.stafftrackapi.repository.OrganisationRepository;
 import com.swizima.stafftrackapi.repository.StaffMemberRepository;
 import com.swizima.stafftrackapi.repository.SupervisorRepository;
 import com.swizima.stafftrackapi.repository.UserAccountRepository;
+import com.swizima.stafftrackapi.service.NotificationChannelConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -44,6 +45,7 @@ public class StaffTrackDataSeeder implements CommandLineRunner {
     private final UserAccountRepository userAccountRepository;
     private final ClientUserAssignmentRepository clientUserAssignmentRepository;
     private final SupervisorRepository supervisorRepository;
+    private final NotificationChannelConfigService notificationChannelConfigService;
 
     @Override
     @Transactional
@@ -55,6 +57,7 @@ public class StaffTrackDataSeeder implements CommandLineRunner {
         StaffMember fredrickStaff = seedStaffMembers();
         seedDefaultUserAndAssignment(opm, fredrickStaff);
         seedDefaultSupervisor(opm);
+        notificationChannelConfigService.seedMissingDefaults();
     }
 
     private void seedDefaultSupervisor(Organisation opm) {

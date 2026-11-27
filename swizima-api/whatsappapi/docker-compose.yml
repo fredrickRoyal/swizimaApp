@@ -1,0 +1,76 @@
+# =====================================================================
+# DigitalOcean Standalone Compose Stack - Swizima WhatsApp Relay Service
+# Uses `swizima.com` (already pointed to 165.245.157.109) via Caddy TLS-ALPN-01
+# on port 443 so Meta accepts `https://swizima.com/api/v1/whatsapp/webhook`
+# without triggering Meta Error #1004 on wildcard DNS domains (sslip.io/nip.io).
+#
+#   docker compose pull
+#   docker compose up -d
+# =====================================================================
+name: swizima-whatsapp-relay
+
+services:
+  whatsappapi:
+    image: ${DOCKERHUB_USER:-fredrickkasoma}/swizima-whatsappapi:${TAG:-latest}
+    pull_policy: always
+    container_name: swizima-whatsappapi
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8088
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-true}
+      WHATSAPP_AUTH_REQUIRED: ${WHATSAPP_AUTH_REQUIRED:-true}
+      WHATSAPP_SERVICE_API_KEY: ${WHATSAPP_SERVICE_API_KEY:-swz-wa-relay-2026-secret}
+      DEFAULT_COUNTRY_CODE: ${DEFAULT_COUNTRY_CODE:-256}
+      WHATSAPP_META_BASE_URL: ${WHATSAPP_META_BASE_URL:-https://graph.facebook.com}
+      WHATSAPP_META_API_VERSION: ${WHATSAPP_META_API_VERSION:-v25.0}
+      WHATSAPP_META_PHONE_NUMBER_ID: ${WHATSAPP_META_PHONE_NUMBER_ID:-1503783962810442}
+      WHATSAPP_META_ACCESS_TOKEN: ${WHATSAPP_META_ACCESS_TOKEN:-EAGfZBqpmU6u8BTOiKm2l7BVpryc9rPUKwYgJfWjGW4GDe2ZCHCYlX3TO3nx6FhcVNEyNXg1P4u4IebFbXK0pjOVWwG29EjrSibBGLJnkG4ZCZBIZC7im9OecYHNajvdeNboBkCoSZBZCmMxZCwumbzAyGWqEyB2dO4yxAr9LRmWNQv26jNjxE53o9PUFMTjUAr3bQAZDZD}
+      WHATSAPP_META_DEFAULT_TEMPLATE: ${WHATSAPP_META_DEFAULT_TEMPLATE:-3p_direct_integration_test_template}
+      WHATSAPP_META_DEFAULT_LANG: ${WHATSAPP_META_DEFAULT_LANG:-en_US}
+      WHATSAPP_META_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_META_WEBHOOK_VERIFY_TOKEN:-swz_wa_whsec_9f4c2e8a71b6403d8e5f1a2c9b7d4e60}
+      WHATSAPP_META_WEBHOOK_CALLBACK_URL: https://${WEBHOOK_DOMAIN:-swizima.com}/api/v1/whatsapp/webhook
+    ports:
+      - "${HOST_PORT:-8088}:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/api/v1/whatsapp/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Automatic Let's Encrypt HTTPS on port 443 for swizima.com
+  # Routes /api/v1/whatsapp* -> whatsappapi:8088, and all other paths -> swizima-web on host :80
+  caddy:
+    image: caddy:2-alpine
+    container_name: swizima-whatsapp-https
+    restart: unless-stopped
+    depends_on:
+      - whatsappapi
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      WEBHOOK_DOMAIN: ${WEBHOOK_DOMAIN:-swizima.com}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat <<'EOF' > /etc/caddy/Caddyfile
+        {$WEBHOOK_DOMAIN} {
+            handle /api/v1/whatsapp* {
+                reverse_proxy whatsappapi:8088
+            }
+            handle {
+                reverse_proxy host.docker.internal:80
+            }
+        }
+        EOF
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - "${HTTP_PORT:-81}:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

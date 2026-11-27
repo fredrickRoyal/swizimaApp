@@ -3,6 +3,7 @@ package com.swizima.stafftrackapi.entity;
 import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
+import com.swizima.stafftrackapi.entity.enums.UnitHeadApprovalStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -116,6 +117,31 @@ public class OutOfOfficeNotification extends ParentEntity {
 
     @Column(name = "management_action_required", columnDefinition = "TEXT")
     private String managementActionRequired;
+
+    @Column(name = "unit_head_supervisor_id")
+    private UUID unitHeadSupervisorId;
+
+    @Column(name = "unit_head_name", length = 180)
+    private String unitHeadName;
+
+    @Column(name = "unit_head_email", length = 180)
+    private String unitHeadEmail;
+
+    @Column(name = "unit_head_phone", length = 40)
+    private String unitHeadPhone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit_head_approval_status", length = 30)
+    private UnitHeadApprovalStatus unitHeadApprovalStatus;
+
+    @Column(name = "unit_head_reviewed_at")
+    private LocalDateTime unitHeadReviewedAt;
+
+    @Column(name = "unit_head_reviewed_by", length = 180)
+    private String unitHeadReviewedBy;
+
+    @Column(name = "unit_head_comment", columnDefinition = "TEXT")
+    private String unitHeadComment;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

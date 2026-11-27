@@ -128,6 +128,23 @@ export class AuthService {
     return this.resolvedSystemRole() === 'STAFF_OFFICER';
   });
 
+  readonly isDepartmentOrUnitHead = computed<boolean>(() => {
+    if (!this.isAuthenticated()) return false;
+    if (this.resolvedSystemRole() === 'DEPARTMENT_HEAD') {
+      return true;
+    }
+    const sess = this.session();
+    const raw = (sess?.systemRole || sess?.role || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s/\-]+/g, '_');
+    return (
+      raw === 'DEPARTMENT_HEAD' ||
+      raw === 'UNIT_HEAD' ||
+      raw === 'DEPARTMENT_UNIT_HEAD'
+    );
+  });
+
   canViewOutOfOfficeRecord(item: OutOfOfficeNotification): boolean {
     if (!this.isStaffOfficer()) {
       return true;
@@ -168,6 +185,36 @@ export class AuthService {
       return true;
     }
     if (targetName && this.namesMatch(item.officerName, targetName)) {
+      return true;
+    }
+    if (this.isAssignedUnitHeadForRecord(item)) {
+      return true;
+    }
+    return false;
+  }
+
+  canReviewAsUnitHead(item: OutOfOfficeNotification): boolean {
+    if (!this.isAuthenticated()) return false;
+    if (!this.isStaffOfficer()) {
+      return true;
+    }
+    return this.isAssignedUnitHeadForRecord(item);
+  }
+
+  private isAssignedUnitHeadForRecord(item: OutOfOfficeNotification): boolean {
+    const sess = this.session();
+    if (!sess) return false;
+    const emailLower = (sess.email || sess.identifier || '').trim().toLowerCase();
+    const normPhone = this.normalizePhone(sess.phone || sess.identifier);
+    const fullName = (sess.fullName || '').trim();
+
+    if (emailLower && item.unitHeadEmail?.trim().toLowerCase() === emailLower) {
+      return true;
+    }
+    if (normPhone.length > 6 && this.normalizePhone(item.unitHeadPhone) === normPhone) {
+      return true;
+    }
+    if (fullName && item.unitHeadName && this.namesMatch(item.unitHeadName, fullName)) {
       return true;
     }
     return false;

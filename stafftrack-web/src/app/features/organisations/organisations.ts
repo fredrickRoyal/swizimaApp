@@ -65,8 +65,8 @@ import { Pagination } from '../../shared/pagination/pagination';
         <div class="page-title">
           <h1>Organisations</h1>
           <p>
-            Manage client organisations, ministries, and partner agencies registered on SOOTR (seeded
-            with Office of the Prime Minister — OPM).
+            Manage client organisations, ministries, and partner agencies registered on Staff
+            Out-of-Office Tracker (seeded with Office of the Prime Minister — OPM).
           </p>
         </div>
         <div class="header-actions">
@@ -172,7 +172,7 @@ import { Pagination } from '../../shared/pagination/pagination';
         <div tabindex="0" role="region" aria-labelledby="orgs-table-caption" class="table-wrapper">
           <table class="data-table">
             <caption id="orgs-table-caption">
-              Organisations registered on SOOTR with primary contact, location, and status
+              Organisations registered on Staff Out-of-Office Tracker with primary contact, location, and status
             </caption>
             <thead>
               <tr>
@@ -357,7 +357,7 @@ import { Pagination } from '../../shared/pagination/pagination';
                       class="input"
                       required
                       [(ngModel)]="form.contactPerson"
-                      placeholder="e.g. Kasoma Fredrick"
+                      placeholder="e.g. Full Name"
                     />
                   </div>
 
@@ -370,7 +370,7 @@ import { Pagination } from '../../shared/pagination/pagination';
                       class="input"
                       required
                       [(ngModel)]="form.email"
-                      placeholder="e.g. kfredrick35@gmail.com"
+                      placeholder="e.g. info@organisation.go.ug"
                     />
                   </div>
 
@@ -383,7 +383,7 @@ import { Pagination } from '../../shared/pagination/pagination';
                       class="input"
                       required
                       [(ngModel)]="form.phone"
-                      placeholder="+256 700 408 387"
+                      placeholder="+256 700 000 000"
                     />
                   </div>
 
@@ -495,12 +495,12 @@ export class Organisations {
     code: '',
     name: '',
     organisationType: 'Government Ministry / Agency',
-    contactPerson: 'Kasoma Fredrick',
-    email: 'kfredrick35@gmail.com',
-    phone: '+256 700 408 387',
+    contactPerson: '',
+    email: '',
+    phone: '',
     city: 'Kampala',
     country: 'Uganda',
-    address: 'Plot 9-11 Apollo Kaggwa Road, Kampala',
+    address: '',
     status: 'ACTIVE' as OrganisationStatus,
   };
 
@@ -594,9 +594,9 @@ export class Organisations {
         organisationType: 'Government Ministry / Agency',
         contactPerson: firstStaff
           ? `${firstStaff.surname} ${firstStaff.lastName}`
-          : 'Kasoma Fredrick',
-        email: firstStaff?.email || 'kfredrick35@gmail.com',
-        phone: firstStaff?.phone || '+256 700 408 387',
+          : '',
+        email: firstStaff?.email || '',
+        phone: firstStaff?.phone || '',
         city: 'Kampala',
         country: 'Uganda',
         address: '',

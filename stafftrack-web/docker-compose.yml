@@ -1,21 +1,28 @@
 # =====================================================================
-# SOOTR — Staff Out-of-Office Tracking & Reporting (Angular 22 + Nginx)
+# Staff Out-of-Office Tracker (Angular 22 + Nginx)
+# Connects to `swizima-apigateway:9080` over the `swizima-network` bridge
+# (avoids host public-IP hairpin NAT 502 Bad Gateway).
 #
-#   docker compose up -d --build   # build & start SOOTR web portal on :4300
+#   docker compose pull            # pull latest image from Docker Hub
+#   docker compose up -d           # start web portal on :5000 (or WEB_PORT)
 #   docker compose down            # stop container
 # =====================================================================
 name: stafftrack-web
 
 services:
   stafftrack-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: fredrickkasoma/stafftrack-web:${TAG:-latest}
+    image: ${DOCKERHUB_USER:-fredrickkasoma}/stafftrack-web:${TAG:-latest}
+    pull_policy: always
     container_name: stafftrack-web
     restart: unless-stopped
     environment:
-      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://154.72.196.32:9080}
+      API_GATEWAY_URL: ${API_GATEWAY_URL:-http://swizima-apigateway:9080}
     ports:
-      - "${WEB_PORT:-4300}:80"
+      - "${WEB_PORT:-5000}:80"
+    networks:
+      - swizima
 
+networks:
+  swizima:
+    name: swizima-network
+    external: true

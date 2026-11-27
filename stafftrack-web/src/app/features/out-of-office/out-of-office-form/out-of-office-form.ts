@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   OnInit,
+  computed,
   effect,
   inject,
   signal,
@@ -86,6 +87,79 @@ const OTHER_DEPARTMENT_OPTION = 'Other (Specify)';
       cursor: not-allowed;
       opacity: 0.92;
     }
+    .officer-disclosure {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--bg-subtle);
+      margin-bottom: 1.15rem;
+    }
+    .officer-disclosure > summary {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text);
+      user-select: none;
+    }
+    .officer-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    .officer-disclosure > summary:focus-visible {
+      outline: 3px solid var(--brand-500);
+      outline-offset: 2px;
+      border-radius: var(--radius);
+    }
+    .officer-disclosure > summary::before {
+      content: '';
+      inline-size: 0.95em;
+      block-size: 0.95em;
+      flex-shrink: 0;
+      background-color: currentColor;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+        no-repeat center / contain;
+      rotate: -90deg;
+    }
+    .officer-disclosure[open] > summary::before {
+      rotate: 0deg;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .officer-disclosure > summary::before {
+        transition: rotate 0.2s;
+      }
+    }
+    .officer-disclosure::details-content {
+      interpolate-size: allow-keywords;
+      overflow: clip;
+      contain: layout;
+    }
+    .officer-disclosure:not([open])::details-content {
+      block-size: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .officer-disclosure::details-content {
+        transition: block-size 0.25s ease-in-out, content-visibility 0.25s ease-in-out,
+          display 0.25s ease-in-out;
+        transition-behavior: allow-discrete;
+      }
+    }
+    .officer-summary-meta {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .officer-stack {
+      display: grid;
+      gap: 0.85rem;
+      padding: 0.95rem 1rem 1.05rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg-elevated);
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
     .form-footer {
       display: flex;
       flex-wrap: wrap;
@@ -118,8 +192,8 @@ const OTHER_DEPARTMENT_OPTION = 'Other (Specify)';
             {{ editingId() ? 'Update Out-of-Office Notification' : 'Record Out-of-Office Notification' }}
           </h1>
           <p>
-            Provide engagement details, planned official purpose &amp; deliverables, and any other
-            OPM officers attending with you.
+            Provide engagement details, purpose &amp; deliverables, and any other OPM staff
+            attending with you.
           </p>
         </div>
       </header>
@@ -157,60 +231,88 @@ const OTHER_DEPARTMENT_OPTION = 'Other (Specify)';
           </div>
 
           <div class="card-body">
+            <details class="officer-disclosure">
+              <summary>
+                <span>Officer &amp; Duty Station Details</span>
+                @if (form.officerName) {
+                  <span class="officer-summary-meta">
+                    — {{ form.officerName }}
+                    @if (designationOption) {
+                      · {{ designationOption }}
+                    }
+                    @if (dutyStationOption) {
+                      · {{ dutyStationOption }}
+                    }
+                  </span>
+                }
+              </summary>
+
+              <div class="officer-stack">
+                <div class="field">
+                  <label for="ooo-officer">Officer Full Name *</label>
+                  <input
+                    id="ooo-officer"
+                    name="officerName"
+                    class="input input-readonly"
+                    readonly
+                    aria-readonly="true"
+                    [(ngModel)]="form.officerName"
+                  />
+                </div>
+
+                <div class="field">
+                  <label for="ooo-role">Designation of Officer *</label>
+                  <input
+                    id="ooo-role"
+                    name="designationOption"
+                    class="input input-readonly"
+                    readonly
+                    aria-readonly="true"
+                    [(ngModel)]="designationOption"
+                  />
+                </div>
+
+                <div class="field">
+                  <label for="ooo-dept">Department / Unit *</label>
+                  <input
+                    id="ooo-dept"
+                    name="departmentOption"
+                    class="input input-readonly"
+                    readonly
+                    aria-readonly="true"
+                    [(ngModel)]="departmentOption"
+                  />
+                </div>
+
+                <div class="field">
+                  <label for="ooo-station">Duty station / office / settlement *</label>
+                  <input
+                    id="ooo-station"
+                    name="dutyStationOption"
+                    class="input input-readonly"
+                    readonly
+                    aria-readonly="true"
+                    [(ngModel)]="dutyStationOption"
+                  />
+                </div>
+
+                <div class="field">
+                  <label for="ooo-phone">Field Contact Phone *</label>
+                  <input
+                    id="ooo-phone"
+                    name="contactPhone"
+                    class="input input-readonly"
+                    readonly
+                    aria-readonly="true"
+                    [(ngModel)]="form.contactPhone"
+                    placeholder="+256 700 000 000"
+                  />
+                </div>
+              </div>
+            </details>
+
             <div class="form-grid">
-              <div class="field">
-                <label for="ooo-officer">Officer Full Name *</label>
-                <input
-                  id="ooo-officer"
-                  name="officerName"
-                  class="input input-readonly"
-                  required
-                  readonly
-                  aria-readonly="true"
-                  [(ngModel)]="form.officerName"
-                />
-              </div>
-
-              <div class="field">
-                <label for="ooo-role">Designation of Officer *</label>
-                <input
-                  id="ooo-role"
-                  name="designationOption"
-                  class="input input-readonly"
-                  required
-                  readonly
-                  aria-readonly="true"
-                  [(ngModel)]="designationOption"
-                />
-              </div>
-
-              <div class="field">
-                <label for="ooo-dept">Department / Unit *</label>
-                <input
-                  id="ooo-dept"
-                  name="departmentOption"
-                  class="input input-readonly"
-                  required
-                  readonly
-                  aria-readonly="true"
-                  [(ngModel)]="departmentOption"
-                />
-              </div>
-
-              <div class="field">
-                <label for="ooo-station">Duty station / office / settlement *</label>
-                <input
-                  id="ooo-station"
-                  name="dutyStationOption"
-                  class="input input-readonly"
-                  required
-                  readonly
-                  aria-readonly="true"
-                  [(ngModel)]="dutyStationOption"
-                />
-              </div>
-
-              <div class="field">
+              <div class="field" [class.field-full]="isDeptOrUnitHeadSubmitter()">
                 <label for="ooo-type">Engagement Type *</label>
                 <select
                   id="ooo-type"
@@ -224,19 +326,24 @@ const OTHER_DEPARTMENT_OPTION = 'Other (Specify)';
                 </select>
               </div>
 
-              <div class="field">
-                <label for="ooo-phone">Field Contact Phone *</label>
-                <input
-                  id="ooo-phone"
-                  name="contactPhone"
-                  class="input input-readonly"
-                  required
-                  readonly
-                  aria-readonly="true"
-                  [(ngModel)]="form.contactPhone"
-                  placeholder="+256 700 408 387"
-                />
-              </div>
+              @if (!isDeptOrUnitHeadSubmitter()) {
+                <div class="field">
+                  <label for="ooo-unit-head">Unit Head/supervisor *</label>
+                  <select
+                    id="ooo-unit-head"
+                    name="selectedUnitHeadKey"
+                    class="select"
+                    required
+                    [ngModel]="selectedUnitHeadKey"
+                    (ngModelChange)="onUnitHeadSelect($event)"
+                  >
+                    <option value="">-- Select your Unit Head/supervisor --</option>
+                    @for (opt of unitHeadOptions(); track opt.key) {
+                      <option [value]="opt.key">{{ opt.label }}</option>
+                    }
+                  </select>
+                </div>
+              }
 
               <div class="field">
                 <label for="ooo-dest">Destination / Venue *</label>
@@ -285,6 +392,20 @@ const OTHER_DEPARTMENT_OPTION = 'Other (Specify)';
                   [(ngModel)]="form.endDate"
                 />
               </div>
+
+              @if (isDeptOrUnitHeadSubmitter()) {
+                <div class="field field-full">
+                  <div
+                    role="note"
+                    style="padding: 0.75rem 0.95rem; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--info) 35%, var(--border)); background: var(--info-bg); font-size: 0.85rem; color: var(--text)"
+                  >
+                    <strong>Direct Submission to Overall Head:</strong> Because your role is
+                    <strong>Department / Unit Head</strong>, this Out-of-Office Notification will be
+                    sent directly to the <strong>Overall Head</strong> for notification only (no
+                    Unit Head acceptance step required).
+                  </div>
+                </div>
+              }
             </div>
           </div>
         </section>
@@ -527,6 +648,57 @@ export class OutOfOfficeForm implements OnInit {
   protected purposeRows: Array<{ text: string }> = [{ text: '' }];
   protected attendingWithOthers = false;
   protected attendingRows: AttendingRow[] = [];
+  protected selectedUnitHeadKey = '';
+  protected readonly isDeptOrUnitHeadSubmitter = computed(() =>
+    this.auth.isDepartmentOrUnitHead()
+  );
+
+  protected readonly unitHeadOptions = computed(() => {
+    const supOpts = this.store.unitHeadSupervisors().map((s) => ({
+      key: `sup:${s.id}`,
+      supervisorId: s.id as string | undefined,
+      name: s.name || s.email || s.phone || 'Unit Head',
+      email: s.email || '',
+      phone: s.phone || '',
+      label: `${s.name || 'Unit Head'}${s.entityName ? ' · ' + s.entityName : ''} (${[s.email, s.phone].filter(Boolean).join(' / ') || 'Active'
+        })`,
+    }));
+
+    const seenEmails = new Set(
+      this.store
+        .notificationSupervisors()
+        .map((s) => (s.email || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const seenPhones = new Set(
+      this.store
+        .notificationSupervisors()
+        .map((s) => (s.phone || '').replace(/\D/g, ''))
+        .filter(Boolean)
+    );
+
+    const roleUnitHeadOpts = this.store
+      .userAccounts()
+      .filter((u) => {
+        if (u.status === 'SUSPENDED' || u.role !== 'DEPARTMENT_HEAD') return false;
+        const em = (u.email || '').trim().toLowerCase();
+        const ph = (u.phone || '').replace(/\D/g, '');
+        if (em && seenEmails.has(em)) return false;
+        if (ph && seenPhones.has(ph)) return false;
+        return true;
+      })
+      .map((u) => ({
+        key: `usr:${u.id}`,
+        supervisorId: undefined as string | undefined,
+        name: u.fullName || u.email || u.phone || 'Unit Head',
+        email: u.email || '',
+        phone: u.phone || '',
+        label: `${u.fullName}${u.department ? ' · ' + u.department : ''} (${[u.email, u.phone].filter(Boolean).join(' / ') || 'Unit Head'
+          })`,
+      }));
+
+    return [...supOpts, ...roleUnitHeadOpts];
+  });
 
   protected form = {
     officerName: '',
@@ -536,8 +708,12 @@ export class OutOfOfficeForm implements OnInit {
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
     actingOfficer: 'Assigned by Unit Supervisor',
-    contactPhone: '+256 700 408 387',
-    status: 'ACTIVE_AWAY' as OutOfOfficeStatus,
+    contactPhone: '',
+    unitHeadSupervisorId: '' as string | undefined,
+    unitHeadName: '',
+    unitHeadEmail: '',
+    unitHeadPhone: '',
+    status: 'PENDING_APPROVAL' as OutOfOfficeStatus,
   };
 
   constructor() {
@@ -614,7 +790,7 @@ export class OutOfOfficeForm implements OnInit {
       currentSession?.fullName ||
       (matchedStaff ? `${matchedStaff.surname} ${matchedStaff.lastName}` : '') ||
       matchedUser?.fullName ||
-      'Kasoma Fredrick';
+      '';
 
     this.designationOption =
       currentSession?.designation ||
@@ -639,7 +815,7 @@ export class OutOfOfficeForm implements OnInit {
       currentSession?.phone ||
       matchedStaff?.phone ||
       matchedUser?.phone ||
-      '+256 700 408 387';
+      '';
 
     this.cdr.markForCheck();
   }
@@ -660,8 +836,8 @@ export class OutOfOfficeForm implements OnInit {
       existing.purposeList && existing.purposeList.length > 0
         ? existing.purposeList
         : existing.purpose
-        ? existing.purpose.split(/\s*;\s*|\n+/).filter(Boolean)
-        : [];
+          ? existing.purpose.split(/\s*;\s*|\n+/).filter(Boolean)
+          : [];
     const savedPurposes = rawPurposes.length > 0 ? rawPurposes : [''];
     this.purposeRows = savedPurposes.map((text) => ({ text }));
 
@@ -707,9 +883,46 @@ export class OutOfOfficeForm implements OnInit {
       endDate: existing.endDate,
       actingOfficer: existing.actingOfficer,
       contactPhone: existing.contactPhone,
+      unitHeadSupervisorId: existing.unitHeadSupervisorId,
+      unitHeadName: existing.unitHeadName || '',
+      unitHeadEmail: existing.unitHeadEmail || '',
+      unitHeadPhone: existing.unitHeadPhone || '',
       status: existing.status,
     };
+
+    const allUnitOpts = this.unitHeadOptions();
+    const matchedUnit = allUnitOpts.find(
+      (o) =>
+        (existing.unitHeadSupervisorId && o.supervisorId === existing.unitHeadSupervisorId) ||
+        (existing.unitHeadEmail &&
+          o.email.trim().toLowerCase() === existing.unitHeadEmail.trim().toLowerCase()) ||
+        (existing.unitHeadName &&
+          o.name.trim().toLowerCase() === existing.unitHeadName.trim().toLowerCase())
+    );
+    this.selectedUnitHeadKey = matchedUnit?.key || '';
     this.cdr.markForCheck();
+  }
+
+  protected onUnitHeadSelect(key: string): void {
+    this.selectedUnitHeadKey = key;
+    const picked = this.unitHeadOptions().find((o) => o.key === key);
+    if (!picked) {
+      this.form.unitHeadSupervisorId = undefined;
+      this.form.unitHeadName = '';
+      this.form.unitHeadEmail = '';
+      this.form.unitHeadPhone = '';
+      return;
+    }
+    this.form.unitHeadSupervisorId = picked.supervisorId;
+    this.form.unitHeadName = picked.name;
+    this.form.unitHeadEmail = picked.email;
+    this.form.unitHeadPhone = picked.phone;
+    if (
+      !this.form.actingOfficer ||
+      this.form.actingOfficer.startsWith('Assigned by ')
+    ) {
+      this.form.actingOfficer = `Assigned by ${picked.name}`;
+    }
   }
 
   protected onPrimaryStaffSelect(staffId: string): void {
@@ -885,24 +1098,49 @@ export class OutOfOfficeForm implements OnInit {
 
     const cleanAttending: AttendingOfficer[] = this.attendingWithOthers
       ? this.attendingRows
-          .filter((r) => r.customName.trim().length > 0)
-          .map((r) => ({
-            staffMemberId: r.selectionMode === 'LIST' ? r.selectedStaffId : undefined,
-            name: r.customName.trim(),
-            designation: r.designation.trim() || 'Officer',
-            department: r.department.trim() || resolvedDepartment,
-            dutyStation: r.dutyStation.trim() || resolvedStation,
-            isCustom: r.selectionMode === 'CUSTOM',
-          }))
+        .filter((r) => r.customName.trim().length > 0)
+        .map((r) => ({
+          staffMemberId: r.selectionMode === 'LIST' ? r.selectedStaffId : undefined,
+          name: r.customName.trim(),
+          designation: r.designation.trim() || 'Officer',
+          department: r.department.trim() || resolvedDepartment,
+          dutyStation: r.dutyStation.trim() || resolvedStation,
+          isCustom: r.selectionMode === 'CUSTOM',
+        }))
       : [];
+
+    const isDirectToOverallHead = !this.editingId() && this.isDeptOrUnitHeadSubmitter();
+    if (
+      !isDirectToOverallHead &&
+      !this.form.unitHeadSupervisorId &&
+      !this.form.unitHeadName.trim() &&
+      !this.form.unitHeadEmail.trim() &&
+      !this.form.unitHeadPhone.trim()
+    ) {
+      this.store.apiNotice.set({
+        tone: 'error',
+        text: 'Please select a Unit Head/supervisor so they can review and accept your Out-of-Office notification.',
+      });
+      return;
+    }
 
     const currentSession = this.auth.session();
     this.submitting.set(true);
 
+    const hasUnitHead =
+      !isDirectToOverallHead &&
+      Boolean(
+        this.form.unitHeadSupervisorId ||
+        this.form.unitHeadName.trim() ||
+        this.form.unitHeadEmail.trim() ||
+        this.form.unitHeadPhone.trim()
+      );
+    const todayIso = new Date().toISOString().slice(0, 10);
+
     this.store.saveOutOfOffice(
       {
         staffMemberId: this.selectedStaffMemberId || undefined,
-        officerName: (this.form.officerName || currentSession?.fullName || 'Fredrick Kasoma').trim(),
+        officerName: (this.form.officerName || currentSession?.fullName || 'Officer').trim(),
         officerRole: resolvedDesignation,
         department: resolvedDepartment,
         dutyStation: resolvedStation,
@@ -917,8 +1155,25 @@ export class OutOfOfficeForm implements OnInit {
         attendingOfficers: cleanAttending,
         actingOfficer: this.form.actingOfficer || 'Assigned by Unit Supervisor',
         contactPhone: this.form.contactPhone,
-        status: this.form.status,
-      },
+        unitHeadSupervisorId: isDirectToOverallHead
+          ? undefined
+          : this.form.unitHeadSupervisorId || undefined,
+        unitHeadName: isDirectToOverallHead ? undefined : this.form.unitHeadName.trim() || undefined,
+        unitHeadEmail: isDirectToOverallHead
+          ? undefined
+          : this.form.unitHeadEmail.trim() || undefined,
+        unitHeadPhone: isDirectToOverallHead
+          ? undefined
+          : this.form.unitHeadPhone.trim() || undefined,
+        status: this.editingId()
+          ? this.form.status
+          : hasUnitHead
+            ? 'PENDING_APPROVAL'
+            : this.form.startDate > todayIso
+              ? 'APPROVED'
+              : 'ACTIVE_AWAY',
+        ...(isDirectToOverallHead ? { submitterRole: this.auth.resolvedSystemRole() } : {}),
+      } as Omit<OutOfOfficeNotification, 'id' | 'createdAt'>,
       this.editingId(),
       () => {
         this.submitting.set(false);

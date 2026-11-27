@@ -12,6 +12,7 @@ import {
   EngagementType,
   LookupItem,
   ManagementActionItem,
+  NotificationChannelConfig,
   NotificationSupervisor,
   Organisation,
   OrganisationStatus,
@@ -24,6 +25,7 @@ import {
   SupervisorNotificationStatus,
   SystemUserAccount,
   UserAccountStatus,
+  UserOtpChannel,
   WeeklyConsolidatedReport,
   WeeklyPendingAction,
 } from '../models/stafftrack.models';
@@ -82,6 +84,45 @@ const DEFAULT_SEED_CLIENT_USER: ClientUserLink = {
   createdAt: new Date().toISOString().slice(0, 10),
 };
 
+const DEFAULT_CHANNEL_CONFIGS: NotificationChannelConfig[] = [
+  {
+    id: 'CHN-EMAIL',
+    channelCode: 'EMAIL',
+    displayName: 'Email',
+    description:
+      'Deliver 6-digit login verification codes and official supervisor PDF reports via SMTP email.',
+    active: true,
+    otpEnabled: true,
+    supervisorAlertEnabled: true,
+    displayOrder: 1,
+    updatedAt: new Date().toISOString().slice(0, 10),
+  },
+  {
+    id: 'CHN-SMS',
+    channelCode: 'SMS',
+    displayName: 'SMS',
+    description:
+      'Deliver mobile SMS verification codes and movement alerts (disabled until an SMS gateway is active).',
+    active: false,
+    otpEnabled: false,
+    supervisorAlertEnabled: false,
+    displayOrder: 2,
+    updatedAt: new Date().toISOString().slice(0, 10),
+  },
+  {
+    id: 'CHN-WHATSAPP',
+    channelCode: 'WHATSAPP',
+    displayName: 'WhatsApp',
+    description:
+      'Deliver 6-digit login verification codes and supervisor alerts via the WhatsApp Relay Service.',
+    active: true,
+    otpEnabled: true,
+    supervisorAlertEnabled: true,
+    displayOrder: 3,
+    updatedAt: new Date().toISOString().slice(0, 10),
+  },
+];
+
 @Injectable({ providedIn: 'root' })
 export class StaffTrackStore {
   private readonly api = inject(StaffTrackApiService);
@@ -105,6 +146,23 @@ export class StaffTrackStore {
   readonly clientUserLinks = signal<ClientUserLink[]>([DEFAULT_SEED_CLIENT_USER]);
   readonly billingPlans = signal<ClientBillingPlan[]>([]);
   readonly notificationSupervisors = signal<NotificationSupervisor[]>([]);
+  readonly channelConfigs = signal<NotificationChannelConfig[]>(DEFAULT_CHANNEL_CONFIGS);
+
+  readonly activeChannelCount = computed(
+    () => this.channelConfigs().filter((c) => c.active).length
+  );
+
+  readonly unitHeadSupervisors = computed(() =>
+    this.notificationSupervisors().filter(
+      (s) => s.status !== 'INACTIVE' && (s.category || 'OVERALL_HEAD') === 'UNIT_HEAD'
+    )
+  );
+
+  readonly overallHeadSupervisors = computed(() =>
+    this.notificationSupervisors().filter(
+      (s) => s.status !== 'INACTIVE' && (s.category || 'OVERALL_HEAD') === 'OVERALL_HEAD'
+    )
+  );
 
   readonly departments = computed(() => this.departmentItems().map((i) => i.name));
   readonly designations = computed(() => this.designationItems().map((i) => i.name));
@@ -172,6 +230,8 @@ export class StaffTrackStore {
               role: 'STAFF_OFFICER',
               staffMemberId: callerScope.staffMemberId,
               officerName: callerScope.officerName,
+              callerEmail: callerScope.callerEmail,
+              callerPhone: callerScope.callerPhone,
             }
           : undefined
       )
@@ -243,6 +303,54 @@ export class StaffTrackStore {
       },
       error: () => {},
     });
+
+    this.loadChannelConfigs();
+  }
+
+  loadChannelConfigs(): void {
+    this.api.getAllChannelConfigs().subscribe({
+      next: (configs) => {
+        if (Array.isArray(configs) && configs.length > 0) {
+          this.channelConfigs.set(configs);
+        }
+      },
+      error: () => {},
+    });
+  }
+
+  isOtpChannelActive(channelCode: UserOtpChannel): boolean {
+    const cfg = this.channelConfigs().find((c) => c.channelCode === channelCode);
+    return cfg ? cfg.active && cfg.otpEnabled : channelCode !== 'SMS';
+  }
+
+  isSupervisorChannelActive(channelCode: UserOtpChannel): boolean {
+    const cfg = this.channelConfigs().find((c) => c.channelCode === channelCode);
+    return cfg ? cfg.active && cfg.supervisorAlertEnabled : channelCode !== 'SMS';
+  }
+
+  updateChannelConfig(
+    channelCode: UserOtpChannel,
+    patch: {
+      active?: boolean;
+      otpEnabled?: boolean;
+      supervisorAlertEnabled?: boolean;
+      description?: string;
+    }
+  ): void {
+    this.api.updateChannelConfig(channelCode, patch).subscribe({
+      next: (updated) => {
+        this.channelConfigs.update((list) =>
+          list.map((c) => (c.channelCode === updated.channelCode ? updated : c))
+        );
+        this.apiNotice.set({
+          tone: 'success',
+          text: `${updated.displayName} channel updated (${updated.active ? 'Active' : 'Disabled'}).`,
+        });
+      },
+      error: (err) => {
+        this.apiNotice.set({ tone: 'error', text: extractApiErrorMessage(err) });
+      },
+    });
   }
 
   clearApiNotice(): void {
@@ -253,6 +361,8 @@ export class StaffTrackStore {
     isStaffOfficer: boolean;
     staffMemberId?: string;
     officerName?: string;
+    callerEmail?: string;
+    callerPhone?: string;
   } {
     if (typeof window === 'undefined') {
       return { isStaffOfficer: false };
@@ -343,6 +453,8 @@ export class StaffTrackStore {
         isStaffOfficer: sysRole === 'STAFF_OFFICER',
         staffMemberId,
         officerName,
+        callerEmail: emailLower || matchedUser?.email?.toLowerCase() || matchedStaff?.email?.toLowerCase(),
+        callerPhone: sess.phone || matchedUser?.phone || matchedStaff?.phone,
       };
     } catch {
       return { isStaffOfficer: false };
@@ -351,17 +463,35 @@ export class StaffTrackStore {
 
   private matchesCallerOutOfOfficeScope(
     item: OutOfOfficeNotification,
-    scope: { isStaffOfficer: boolean; staffMemberId?: string; officerName?: string }
+    scope: {
+      isStaffOfficer: boolean;
+      staffMemberId?: string;
+      officerName?: string;
+      callerEmail?: string;
+      callerPhone?: string;
+    }
   ): boolean {
     if (!scope.isStaffOfficer) return true;
     const targetId = (scope.staffMemberId || '').trim();
     const targetName = (scope.officerName || '').trim();
-    if (!targetId && !targetName) return false;
+    const targetEmail = (scope.callerEmail || '').trim().toLowerCase();
+    const targetPhone = this.normalizePhoneDigits(scope.callerPhone);
+
+    if (!targetId && !targetName && !targetEmail && !targetPhone) return false;
 
     if (targetId && item.staffMemberId && item.staffMemberId === targetId) {
       return true;
     }
     if (targetName && this.namesMatchScope(item.officerName, targetName)) {
+      return true;
+    }
+    if (targetName && item.unitHeadName && this.namesMatchScope(item.unitHeadName, targetName)) {
+      return true;
+    }
+    if (targetEmail && item.unitHeadEmail?.trim().toLowerCase() === targetEmail) {
+      return true;
+    }
+    if (targetPhone && this.normalizePhoneDigits(item.unitHeadPhone) === targetPhone) {
       return true;
     }
     return false;
@@ -601,6 +731,43 @@ export class StaffTrackStore {
         this.apiNotice.set({ tone: 'error', text: extractApiErrorMessage(err) });
       },
     });
+  }
+
+  reviewOutOfOfficeByUnitHead(
+    id: string,
+    decision: 'ACCEPTED' | 'REJECTED',
+    reviewedBy = 'Unit Head',
+    comment?: string,
+    onSuccess?: (saved: OutOfOfficeNotification) => void,
+    onError?: (message: string) => void
+  ): void {
+    this.api
+      .submitUnitHeadDecision(id, {
+        decision,
+        reviewedBy,
+        comment: comment?.trim() || undefined,
+      })
+      .subscribe({
+        next: (saved) => {
+          const mapped = this.mapOooDto(saved);
+          this.outOfOfficeList.update((list) =>
+            list.map((item) => (item.id === id ? mapped : item))
+          );
+          this.apiNotice.set({
+            tone: 'success',
+            text:
+              decision === 'ACCEPTED'
+                ? `Accepted Out-of-Office notification ${mapped.referenceNumber || ''} and notified Overall Head.`
+                : `Rejected Out-of-Office notification ${mapped.referenceNumber || ''}.`,
+          });
+          onSuccess?.(mapped);
+        },
+        error: (err) => {
+          const msg = extractApiErrorMessage(err);
+          this.apiNotice.set({ tone: 'error', text: msg });
+          onError?.(msg);
+        },
+      });
   }
 
   updateOutOfOfficeSupervisorConfirmation(
@@ -1632,6 +1799,8 @@ export class StaffTrackStore {
       name: (payload.name || '').trim(),
       email: (payload.email || '').trim().toLowerCase(),
       phone: (payload.phone || '').trim(),
+      category: payload.category || 'OVERALL_HEAD',
+      department: (payload.department || '').trim() || undefined,
       status: payload.status || 'ACTIVE',
     };
 
@@ -1828,6 +1997,14 @@ export class StaffTrackStore {
       contactPhone: dto.contactPhone,
       status: dto.status,
       managementActionRequired: dto.managementActionRequired,
+      unitHeadSupervisorId: dto.unitHeadSupervisorId,
+      unitHeadName: dto.unitHeadName,
+      unitHeadEmail: dto.unitHeadEmail,
+      unitHeadPhone: dto.unitHeadPhone,
+      unitHeadApprovalStatus: dto.unitHeadApprovalStatus,
+      unitHeadReviewedAt: dto.unitHeadReviewedAt,
+      unitHeadReviewedBy: dto.unitHeadReviewedBy,
+      unitHeadComment: dto.unitHeadComment,
       supervisorConfirmationStatus: dto.supervisorConfirmationStatus || 'NEW',
       supervisorSeenAt: dto.supervisorSeenAt,
       supervisorConfirmedBy: dto.supervisorConfirmedBy,

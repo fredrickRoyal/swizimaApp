@@ -36,6 +36,12 @@ public class Supervisor extends ParentEntity {
     @Column(name = "phone", length = 40)
     private String phone;
 
+    @Column(name = "category", length = 40)
+    private String category;
+
+    @Column(name = "department", length = 200)
+    private String department;
+
     @Column(name = "status", nullable = false, length = 40)
     private String status;
 }

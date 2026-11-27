@@ -12,7 +12,7 @@
 	<artifactId>stafftrackapi</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>stafftrackapi</name>
-	<description>SOOTR - Staff Out-of-Office Tracking &amp; Reporting API</description>
+	<description>Staff Out-of-Office Tracker API</description>
 	<url/>
 	<licenses>
 		<license/>

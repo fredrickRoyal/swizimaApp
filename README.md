@@ -92,7 +92,7 @@ docker compose ps   # wait for "healthy"
 ```
 
 ### 2. Build/Push & Start the Backend APIs Stack (`docker-compose.yml`)
-Build and push all 6 backend microservices (`usersapi`, `clientapi`, `configurationsapi`, `paymentsapi`, `clienttransactionsapi`, `apigateway`) to Docker Hub using `docker buildx bake`, then start them:
+Build and push all 9 backend microservices (`usersapi`, `clientapi`, `configurationsapi`, `paymentsapi`, `clienttransactionsapi`, `stafftrackapi`, `filesapi`, `whatsappapi`, `apigateway`) to Docker Hub using `docker buildx bake`, then start them (note: `whatsappapi` is deployed separately on DigitalOcean via `swizima-api/whatsappapi/docker-compose.yml`):
 
 ```bash
 # From the repository root (swizimaApp/)

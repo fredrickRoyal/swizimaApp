@@ -8,8 +8,10 @@ import {
   OutOfOfficeNotification,
   OutOfOfficeStatus,
   SupervisorConfirmationStatus,
+  UNIT_HEAD_APPROVAL_LABELS,
 } from '../../core/models/stafftrack.models';
 import { AuthService } from '../../core/services/auth.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { StaffTrackStore } from '../../core/services/stafftrack.store';
 import { Icon } from '../../shared/icon/icon';
 import { Pagination } from '../../shared/pagination/pagination';
@@ -200,7 +202,7 @@ import { Pagination } from '../../shared/pagination/pagination';
                 <th>Duration &amp; Dates</th>
                 <th>Purpose</th>
                 <th>Status</th>
-                <th>Supervisor Confirmation</th>
+                <th>Unit Head &amp; Confirmation</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -243,37 +245,75 @@ import { Pagination } from '../../shared/pagination/pagination';
                       {{ statusLabels[item.status] }}
                     </span>
                   </td>
-                  <td data-label="Supervisor Confirmation">
+                  <td data-label="Unit Head & Confirmation">
                     <div class="cell-stack">
-                      <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap">
-                        @if ((item.supervisorConfirmationStatus || 'NEW') === 'SEEN') {
-                          <span class="badge badge-success">Seen</span>
-                          <button
-                            type="button"
-                            class="btn btn-sm"
-                            style="font-size: 0.72rem; padding: 0.15rem 0.5rem; min-height: 24px"
-                            title="Mark notification as New (unseen)"
-                            (click)="toggleSupervisorConfirmation(item)"
-                          >
-                            Mark New
-                          </button>
-                        } @else {
-                          <span class="badge badge-warning">New</span>
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-primary"
-                            style="font-size: 0.72rem; padding: 0.15rem 0.5rem; min-height: 24px"
-                            title="Confirm as Seen by Supervisor"
-                            (click)="toggleSupervisorConfirmation(item)"
-                          >
-                            Mark Seen
-                          </button>
+                      @if (item.unitHeadName) {
+                        <small><strong>Unit Head:</strong> {{ item.unitHeadName }}</small>
+                      }
+                      @if (isPendingUnitHead(item)) {
+                        <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap">
+                          <span class="badge badge-warning">Pending Unit Head</span>
+                          @if (canReviewUnitHead(item)) {
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-primary"
+                              style="font-size: 0.72rem; padding: 0.15rem 0.55rem; min-height: 24px"
+                              title="Accept as Unit Head and notify Overall Head"
+                              (click)="acceptAsUnitHead(item)"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-danger"
+                              style="font-size: 0.72rem; padding: 0.15rem 0.55rem; min-height: 24px"
+                              title="Reject notification"
+                              (click)="rejectAsUnitHead(item)"
+                            >
+                              Reject
+                            </button>
+                          }
+                        </div>
+                      } @else if (item.unitHeadApprovalStatus === 'REJECTED') {
+                        <span class="badge" style="width: fit-content">
+                          {{ unitHeadLabels['REJECTED'] }}
+                        </span>
+                      } @else {
+                        @if (item.unitHeadApprovalStatus === 'ACCEPTED') {
+                          <span class="badge badge-success" style="width: fit-content">
+                            {{ unitHeadLabels['ACCEPTED'] }}
+                          </span>
                         }
-                      </div>
-                      @if ((item.supervisorConfirmationStatus || 'NEW') === 'SEEN' && item.supervisorSeenAt) {
-                        <small>
-                          {{ item.supervisorConfirmedBy || 'Supervisor' }} · {{ item.supervisorSeenAt.slice(0, 10) }}
-                        </small>
+                        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap">
+                          @if ((item.supervisorConfirmationStatus || 'NEW') === 'SEEN') {
+                            <span class="badge badge-info">Overall Seen</span>
+                            <button
+                              type="button"
+                              class="btn btn-sm"
+                              style="font-size: 0.72rem; padding: 0.15rem 0.5rem; min-height: 24px"
+                              title="Mark notification as New (unseen)"
+                              (click)="toggleSupervisorConfirmation(item)"
+                            >
+                              Mark New
+                            </button>
+                          } @else {
+                            <span class="badge badge-warning">New</span>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-primary"
+                              style="font-size: 0.72rem; padding: 0.15rem 0.5rem; min-height: 24px"
+                              title="Confirm as Seen"
+                              (click)="toggleSupervisorConfirmation(item)"
+                            >
+                              Mark Seen
+                            </button>
+                          }
+                        </div>
+                        @if ((item.supervisorConfirmationStatus || 'NEW') === 'SEEN' && item.supervisorSeenAt) {
+                          <small>
+                            {{ item.supervisorConfirmedBy || 'Supervisor' }} · {{ item.supervisorSeenAt.slice(0, 10) }}
+                          </small>
+                        }
                       }
                     </div>
                   </td>
@@ -340,8 +380,10 @@ import { Pagination } from '../../shared/pagination/pagination';
 export class OutOfOffice {
   protected readonly store = inject(StaffTrackStore);
   private readonly auth = inject(AuthService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly engagementLabels = ENGAGEMENT_TYPE_LABELS;
   protected readonly statusLabels = OOO_STATUS_LABELS;
+  protected readonly unitHeadLabels = UNIT_HEAD_APPROVAL_LABELS;
   protected readonly engagementTypes: EngagementType[] = [
     'TRAVEL',
     'MEETING',
@@ -350,6 +392,8 @@ export class OutOfOffice {
     'OFFICIAL_ENGAGEMENT',
   ];
   protected readonly statusOptions: OutOfOfficeStatus[] = [
+    'PENDING_APPROVAL',
+    'APPROVED',
     'ACTIVE_AWAY',
     'RETURNED',
     'CANCELLED',
@@ -398,6 +442,34 @@ export class OutOfOffice {
       );
     });
   });
+
+  protected isPendingUnitHead(item: OutOfOfficeNotification): boolean {
+    return (
+      item.unitHeadApprovalStatus === 'PENDING_UNIT_HEAD' ||
+      (item.status === 'PENDING_APPROVAL' && item.unitHeadApprovalStatus !== 'ACCEPTED')
+    );
+  }
+
+  protected canReviewUnitHead(item: OutOfOfficeNotification): boolean {
+    return this.auth.canReviewAsUnitHead(item);
+  }
+
+  protected acceptAsUnitHead(item: OutOfOfficeNotification): void {
+    const reviewer = this.auth.session()?.fullName || item.unitHeadName || 'Unit Head';
+    this.store.reviewOutOfOfficeByUnitHead(item.id, 'ACCEPTED', reviewer);
+  }
+
+  protected rejectAsUnitHead(item: OutOfOfficeNotification): void {
+    const reviewer = this.auth.session()?.fullName || item.unitHeadName || 'Unit Head';
+    this.confirm.ask({
+      title: 'Reject Out-of-Office Notification',
+      message: `Reject ${item.officerName}'s Out-of-Office notification (${item.destination})? Overall Head will not be notified.`,
+      confirmLabel: 'Reject Notification',
+      onConfirm: () => {
+        this.store.reviewOutOfOfficeByUnitHead(item.id, 'REJECTED', reviewer);
+      },
+    });
+  }
 
   protected toggleSupervisorConfirmation(item: OutOfOfficeNotification): void {
     const current: SupervisorConfirmationStatus = item.supervisorConfirmationStatus || 'NEW';

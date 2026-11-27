@@ -5,6 +5,7 @@ import {
   ActivationStatus,
   ClientUserLink,
   EngagementType,
+  NotificationChannelConfig,
   NotificationSupervisor,
   Organisation,
   OrganisationStatus,
@@ -14,6 +15,7 @@ import {
   SupervisorConfirmationStatus,
   SupervisorNotificationStatus,
   SystemUserAccount,
+  UnitHeadApprovalStatus,
   UserAccountStatus,
 } from '../models/stafftrack.models';
 
@@ -105,6 +107,15 @@ export interface OutOfOfficeApiDto {
   contactPhone: string;
   status: OutOfOfficeStatus;
   managementActionRequired?: string;
+  unitHeadSupervisorId?: string;
+  unitHeadName?: string;
+  unitHeadEmail?: string;
+  unitHeadPhone?: string;
+  unitHeadApprovalStatus?: UnitHeadApprovalStatus;
+  unitHeadReviewedAt?: string;
+  unitHeadReviewedBy?: string;
+  unitHeadComment?: string;
+  submitterRole?: string;
   supervisorConfirmationStatus?: SupervisorConfirmationStatus;
   supervisorSeenAt?: string;
   supervisorConfirmedBy?: string;
@@ -204,16 +215,33 @@ const API_PATH = '/api/v1/stafftrack';
 const FILES_API_PATH = '/api/v1/files/generalattachments';
 
 /**
- * All calls use same-origin relative URLs (single call, no CORS preflight):
- *  - local dev (`ng serve`, localhost:4300): proxy.conf.mjs forwards /api -> http://154.72.196.32:9080
- *  - deployed: Nginx forwards /api -> API_GATEWAY_URL (http://154.72.196.32:9080)
+ * Primary requests always route through the same-origin proxy (/api -> API Gateway).
+ * If the container reverse proxy ever returns 502/503/504 (e.g. before joining swizima-network),
+ * fallback automatically retries against the host's API Gateway (:9080).
  */
+function resolveGatewayFallbackOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
+  const { protocol, hostname } = window.location;
+  if (protocol === 'http:' && hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return `${protocol}//${hostname}:9080`;
+  }
+  return null;
+}
+
 function resolveBaseUrls(): { primary: string; fallback: string } {
-  return { primary: API_PATH, fallback: API_PATH };
+  const gw = resolveGatewayFallbackOrigin();
+  return {
+    primary: API_PATH,
+    fallback: gw ? `${gw}${API_PATH}` : API_PATH,
+  };
 }
 
 function resolveFilesApiBaseUrls(): { primary: string; fallback: string } {
-  return { primary: FILES_API_PATH, fallback: FILES_API_PATH };
+  const gw = resolveGatewayFallbackOrigin();
+  return {
+    primary: FILES_API_PATH,
+    fallback: gw ? `${gw}${FILES_API_PATH}` : FILES_API_PATH,
+  };
 }
 
 export function extractApiErrorMessage(err: unknown): string {
@@ -471,11 +499,15 @@ export class StaffTrackApiService {
     role?: string;
     staffMemberId?: string;
     officerName?: string;
+    callerEmail?: string;
+    callerPhone?: string;
   }): Observable<OutOfOfficeApiDto[]> {
     const queryParams: Record<string, string> = {};
     if (params?.role?.trim()) queryParams['role'] = params.role.trim();
     if (params?.staffMemberId?.trim()) queryParams['staffMemberId'] = params.staffMemberId.trim();
     if (params?.officerName?.trim()) queryParams['officerName'] = params.officerName.trim();
+    if (params?.callerEmail?.trim()) queryParams['callerEmail'] = params.callerEmail.trim();
+    if (params?.callerPhone?.trim()) queryParams['callerPhone'] = params.callerPhone.trim();
 
     return this.withFallback((base) =>
       this.http.get<OutOfOfficeApiDto[]>(`${base}/out-of-office/all`, {
@@ -509,9 +541,25 @@ export class StaffTrackApiService {
 
   updateOutOfOfficeStatus(id: string, status: OutOfOfficeStatus): Observable<OutOfOfficeApiDto> {
     return this.withFallback((base) =>
-      this.http.patch<OutOfOfficeApiDto>(
+      this.http.put<OutOfOfficeApiDto>(
         `${base}/out-of-office/${encodeURIComponent(id)}/status`,
         { status }
+      )
+    );
+  }
+
+  submitUnitHeadDecision(
+    id: string,
+    payload: {
+      decision: 'ACCEPTED' | 'REJECTED';
+      reviewedBy?: string;
+      comment?: string;
+    }
+  ): Observable<OutOfOfficeApiDto> {
+    return this.withFallback((base) =>
+      this.http.put<OutOfOfficeApiDto>(
+        `${base}/out-of-office/${encodeURIComponent(id)}/unit-head-decision`,
+        payload
       )
     );
   }
@@ -522,7 +570,7 @@ export class StaffTrackApiService {
     confirmedBy?: string
   ): Observable<OutOfOfficeApiDto> {
     return this.withFallback((base) =>
-      this.http.patch<OutOfOfficeApiDto>(
+      this.http.put<OutOfOfficeApiDto>(
         `${base}/out-of-office/${encodeURIComponent(id)}/supervisor-confirmation`,
         { confirmationStatus, confirmedBy }
       )
@@ -670,7 +718,7 @@ export class StaffTrackApiService {
 
   updateUserStatus(id: string, status: UserAccountStatus): Observable<SystemUserAccount> {
     return this.withFallback((base) =>
-      this.http.patch<SystemUserAccount>(
+      this.http.put<SystemUserAccount>(
         `${base}/users/${encodeURIComponent(id)}/status`,
         { status }
       )
@@ -707,7 +755,7 @@ export class StaffTrackApiService {
     activationStatus: ActivationStatus
   ): Observable<ClientUserLink> {
     return this.withFallback((base) =>
-      this.http.patch<ClientUserLink>(
+      this.http.put<ClientUserLink>(
         `${base}/client-users/${encodeURIComponent(id)}/status`,
         { activationStatus }
       )
@@ -716,7 +764,7 @@ export class StaffTrackApiService {
 
   makeDefaultClientUser(id: string): Observable<ClientUserLink> {
     return this.withFallback((base) =>
-      this.http.patch<ClientUserLink>(
+      this.http.put<ClientUserLink>(
         `${base}/client-users/${encodeURIComponent(id)}/default`,
         {}
       )
@@ -761,7 +809,7 @@ export class StaffTrackApiService {
     status: OrganisationStatus
   ): Observable<Organisation> {
     return this.withFallback((base) =>
-      this.http.patch<Organisation>(
+      this.http.put<Organisation>(
         `${base}/organisations/${encodeURIComponent(id)}/status`,
         { status }
       )
@@ -814,7 +862,7 @@ export class StaffTrackApiService {
     status: SupervisorNotificationStatus
   ): Observable<NotificationSupervisor> {
     return this.withFallback((base) =>
-      this.http.patch<NotificationSupervisor>(
+      this.http.put<NotificationSupervisor>(
         `${base}/supervisors/${encodeURIComponent(id)}/status`,
         { status }
       )
@@ -824,6 +872,30 @@ export class StaffTrackApiService {
   deleteNotificationSupervisor(id: string): Observable<void> {
     return this.withFallback((base) =>
       this.http.delete<void>(`${base}/supervisors/${encodeURIComponent(id)}`)
+    );
+  }
+
+  // ---------- Notification & OTP Delivery Channels ----------
+  getAllChannelConfigs(): Observable<NotificationChannelConfig[]> {
+    return this.withFallback((base) =>
+      this.http.get<NotificationChannelConfig[]>(`${base}/channel-configs/all`)
+    );
+  }
+
+  updateChannelConfig(
+    channelCode: string,
+    payload: {
+      active?: boolean;
+      otpEnabled?: boolean;
+      supervisorAlertEnabled?: boolean;
+      description?: string;
+    }
+  ): Observable<NotificationChannelConfig> {
+    return this.withFallback((base) =>
+      this.http.put<NotificationChannelConfig>(
+        `${base}/channel-configs/${encodeURIComponent(channelCode)}`,
+        payload
+      )
     );
   }
 
@@ -915,6 +987,9 @@ export class StaffTrackApiService {
     return {
       ...request,
       staffMemberId: this.isUuid(request.staffMemberId) ? request.staffMemberId : undefined,
+      unitHeadSupervisorId: this.isUuid(request.unitHeadSupervisorId)
+        ? request.unitHeadSupervisorId
+        : undefined,
       attendingOfficers: (request.attendingOfficers || []).map((ao) => ({
         ...ao,
         id: this.isUuid(ao.id) ? ao.id : undefined,

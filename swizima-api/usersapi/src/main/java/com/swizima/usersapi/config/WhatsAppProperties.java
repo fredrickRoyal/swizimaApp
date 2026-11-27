@@ -29,13 +29,13 @@ public record WhatsAppProperties(
      */
     public record Meta(
             @DefaultValue("https://graph.facebook.com") String baseUrl,
-            @DefaultValue("v21.0") String apiVersion,
-            @DefaultValue("") String phoneNumberId,
+            @DefaultValue("v25.0") String apiVersion,
+            @DefaultValue("1503783962810442") String phoneNumberId,
             @DefaultValue("") String businessAccountId,
             @DefaultValue("") String accessToken,
-            @DefaultValue("") String defaultTemplateName,
+            @DefaultValue("3p_direct_integration_test_template") String defaultTemplateName,
             @DefaultValue("en_US") String defaultLanguageCode,
-            @DefaultValue("") String webhookVerifyToken
+            @DefaultValue("swz_wa_whsec_9f4c2e8a71b6403d8e5f1a2c9b7d4e60") String webhookVerifyToken
     ) {
     }
 

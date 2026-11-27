@@ -5,6 +5,7 @@ import com.swizima.stafftrackapi.entity.enums.EngagementType;
 import com.swizima.stafftrackapi.entity.enums.OutOfOfficeStatus;
 import com.swizima.stafftrackapi.entity.enums.RecordStatus;
 import com.swizima.stafftrackapi.entity.enums.SupervisorConfirmationStatus;
+import com.swizima.stafftrackapi.entity.enums.UnitHeadApprovalStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +34,14 @@ public record OutOfOfficeNotificationResponse(
         String contactPhone,
         OutOfOfficeStatus status,
         String managementActionRequired,
+        UUID unitHeadSupervisorId,
+        String unitHeadName,
+        String unitHeadEmail,
+        String unitHeadPhone,
+        UnitHeadApprovalStatus unitHeadApprovalStatus,
+        LocalDateTime unitHeadReviewedAt,
+        String unitHeadReviewedBy,
+        String unitHeadComment,
         SupervisorConfirmationStatus supervisorConfirmationStatus,
         LocalDateTime supervisorSeenAt,
         String supervisorConfirmedBy,
@@ -77,6 +86,18 @@ public record OutOfOfficeNotificationResponse(
                 n.getContactPhone(),
                 n.getStatus(),
                 n.getManagementActionRequired(),
+                n.getUnitHeadSupervisorId(),
+                n.getUnitHeadName(),
+                n.getUnitHeadEmail(),
+                n.getUnitHeadPhone(),
+                n.getUnitHeadApprovalStatus() != null
+                        ? n.getUnitHeadApprovalStatus()
+                        : (n.getUnitHeadName() != null && !n.getUnitHeadName().isBlank()
+                        ? UnitHeadApprovalStatus.PENDING_UNIT_HEAD
+                        : UnitHeadApprovalStatus.NOT_REQUIRED),
+                n.getUnitHeadReviewedAt(),
+                n.getUnitHeadReviewedBy(),
+                n.getUnitHeadComment(),
                 computedConfStatus,
                 n.getSupervisorSeenAt(),
                 n.getSupervisorConfirmedBy(),

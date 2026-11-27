@@ -836,7 +836,7 @@ export type LookupKind = 'DEPARTMENT' | 'DESIGNATION' | 'STATION';
                         class="input"
                         required
                         [(ngModel)]="primaryPhoneLocal"
-                        placeholder="700 408 387"
+                        placeholder="700 000 000"
                       />
                     </div>
                   </div>

@@ -68,7 +68,21 @@ public record OutOfOfficeNotificationRequest(
 
         OutOfOfficeStatus status,
 
-        String managementActionRequired
+        String managementActionRequired,
+
+        UUID unitHeadSupervisorId,
+
+        @Size(max = 180)
+        String unitHeadName,
+
+        @Size(max = 180)
+        String unitHeadEmail,
+
+        @Size(max = 40)
+        String unitHeadPhone,
+
+        @Size(max = 60)
+        String submitterRole
 ) {
 }
 

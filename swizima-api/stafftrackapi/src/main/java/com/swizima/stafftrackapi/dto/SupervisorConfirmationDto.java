@@ -14,6 +14,7 @@ public record SupervisorConfirmationDto(
         String supervisorName,
         String supervisorEmail,
         String supervisorPhone,
+        String supervisorCategory,
         SupervisorConfirmationStatus confirmationStatus,
         LocalDateTime seenAt,
         String confirmedBy,
@@ -28,6 +29,7 @@ public record SupervisorConfirmationDto(
                 entity.getSupervisorName(),
                 entity.getSupervisorEmail(),
                 entity.getSupervisorPhone(),
+                entity.getSupervisorCategory(),
                 entity.getConfirmationStatus() != null
                         ? entity.getConfirmationStatus()
                         : SupervisorConfirmationStatus.NEW,

@@ -4,6 +4,7 @@ import {
   ElementRef,
   OnDestroy,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
@@ -16,6 +17,7 @@ import {
   LoginMode,
   OtpChannel,
 } from '../../core/services/auth.service';
+import { StaffTrackStore } from '../../core/services/stafftrack.store';
 import { ThemeService } from '../../core/services/theme.service';
 import { Icon } from '../../shared/icon/icon';
 
@@ -256,28 +258,91 @@ import { Icon } from '../../shared/icon/icon';
       background: var(--info-bg);
       color: var(--brand-500);
     }
+    .channel-option.disabled {
+      opacity: 0.52;
+      cursor: not-allowed;
+      background: var(--bg-subtle);
+      border-style: dashed;
+      color: var(--text-muted);
+    }
+    .channel-option.disabled input {
+      cursor: not-allowed;
+    }
+    .channel-disabled-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.05rem 0.32rem;
+      border-radius: 999px;
+      background: var(--border);
+      color: var(--text-muted);
+    }
     .channel-option input {
       margin: 0;
     }
 
-    /* Single OTP Input following sms-otp-form guide */
-    .otp-single-input {
+    /* 6-Box Visual OTP Input backed by a single semantic <input autocomplete="one-time-code"> */
+    .otp-boxes-wrapper {
+      position: relative;
+      display: block;
       width: 100%;
-      min-height: 52px;
-      padding: 0.65rem 1rem;
-      font-family: var(--font-mono);
-      font-size: 1.35rem;
-      font-weight: 700;
-      letter-spacing: 0.35em;
-      text-align: center;
+    }
+    .otp-boxes-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.55rem;
+      pointer-events: none;
+    }
+    .otp-digit-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 54px;
       border-radius: var(--radius);
       border: 1.5px solid var(--border-strong);
       background: var(--bg-elevated);
+      font-family: var(--font-mono);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text);
+      transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
     }
-    .otp-single-input:focus {
-      outline: none;
+    .otp-digit-box.placeholder {
+      color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+    }
+    .otp-digit-box.filled {
+      border-color: color-mix(in srgb, var(--brand-500) 55%, var(--border-strong));
+    }
+    .otp-boxes-wrapper:focus-within .otp-digit-box.active {
       border-color: var(--brand-500);
       box-shadow: var(--ring);
+      background: var(--bg-elevated);
+    }
+    .otp-boxes-wrapper:focus-within .otp-digit-box.active.empty::after {
+      content: '';
+      width: 2px;
+      height: 1.35rem;
+      border-radius: 1px;
+      background: var(--brand-500);
+      animation: otp-caret-blink 1s step-end infinite;
+    }
+    @keyframes otp-caret-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .otp-overlay-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 54px;
+      opacity: 0;
+      font-size: max(1rem, 16px);
+      caret-color: transparent;
+      cursor: text;
+      z-index: 2;
     }
 
     .demo-code-banner {
@@ -341,17 +406,16 @@ import { Icon } from '../../shared/icon/icon';
         <div class="hero-brand">
           <img src="opm-emblem.svg" alt="OPM Emblem" width="46" height="46" />
           <div class="hero-brand-text">
-            <strong>SOOTR</strong>
-            <small>Staff Out-of-Office Tracking &amp; Reporting</small>
+            <strong>Staff Out-of-Office Tracker</strong>
           </div>
         </div>
 
         <div class="hero-pitch">
           <span class="hero-eyebrow">
             <app-icon name="sparkles" />
-            SOOTR · Staff Out-of-Office Tracking &amp; Reporting
+            Staff Out-of-Office Tracker
           </span>
-          <h1>Staff Out-of-Office Tracking &amp; Reporting</h1>
+          <h1>Staff Out-of-Office Tracker</h1>
           <p>
             A simple platform for tracking staff movements, official duties, activity reports and
             management actions.
@@ -363,7 +427,7 @@ import { Icon } from '../../shared/icon/icon';
           </ul>
         </div>
 
-        <div class="hero-copy">© 2026 SOOTR · Staff Out-of-Office Tracking &amp; Reporting.</div>
+        <div class="hero-copy">© 2026 Staff Out-of-Office Tracker.</div>
       </section>
 
       <!-- Right Form Panel -->
@@ -372,10 +436,9 @@ import { Icon } from '../../shared/icon/icon';
           <div class="mobile-brand">
             <img src="opm-emblem.svg" alt="OPM Emblem" width="38" height="38" />
             <div class="brand-text">
-              <strong>SOOTR</strong>
-              <small style="display: block; font-size: 0.72rem; color: var(--text-muted); white-space: normal">
-                Staff Out-of-Office Tracking &amp; Reporting
-              </small>
+              <strong style="font-size: 0.9rem; line-height: 1.25">
+                Staff Out-of-Office Tracker
+              </strong>
             </div>
           </div>
 
@@ -393,12 +456,7 @@ import { Icon } from '../../shared/icon/icon';
           @if (!auth.challenge()) {
             <!-- STEP 1: Phone Number or Email Entry -->
             <div class="card-head">
-              <h2 id="login-form-heading">Welcome to SOOTR</h2>
-              <p>
-                A simple platform for tracking staff movements, official duties, activity reports
-                and management actions. Sign in with your email or phone number to receive a 6-digit
-                OTP.
-              </p>
+              <h2 id="login-form-heading">Welcome to Staff Out-of-Office Tracker</h2>
             </div>
 
             <!-- Switch between Email and Phone Number -->
@@ -442,14 +500,14 @@ import { Icon } from '../../shared/icon/icon';
             >
               @if (loginMode() === 'email') {
                 <div class="field">
-                  <label for="login-email">Official Email Address *</label>
-                  <small id="email-hint">Enter your Swizima or registered officer email.</small>
+                  <label for="login-email">Email Address *</label>
+                  <small id="email-hint">Enter your email.</small>
                   <input
                     id="login-email"
                     name="email"
                     type="email"
                     class="input auth-input"
-                    autocomplete="email"
+                    autocomplete="username"
                     autocorrect="off"
                     autocapitalize="none"
                     spellcheck="false"
@@ -457,7 +515,7 @@ import { Icon } from '../../shared/icon/icon';
                     required
                     [attr.aria-invalid]="errorMessage() ? 'true' : null"
                     aria-describedby="email-hint"
-                    placeholder="you@swizima.com"
+                    placeholder="name@organisation.go.ug"
                     [ngModel]="emailInput()"
                     (ngModelChange)="onIdentifierInput($event)"
                     (blur)="validateOnBlur()"
@@ -494,7 +552,7 @@ import { Icon } from '../../shared/icon/icon';
                       required
                       [attr.aria-invalid]="errorMessage() ? 'true' : null"
                       aria-describedby="phone-hint"
-                      placeholder="700 408 387"
+                      placeholder="700 000 000"
                       [ngModel]="phoneInput()"
                       (ngModelChange)="onIdentifierInput($event)"
                       (blur)="validateOnBlur()"
@@ -503,40 +561,33 @@ import { Icon } from '../../shared/icon/icon';
                 </div>
               }
 
-              <!-- Delivery Channel (3 mutually exclusive radio options per forms guide) -->
+              <!-- Delivery Channel (dynamically reflects active channels from Configurations) -->
               <fieldset class="channel-fieldset">
                 <legend>Send my one-time code via</legend>
                 <div class="channel-grid">
-                  <label class="channel-option" [class.selected]="channel() === 'EMAIL'">
-                    <input
-                      type="radio"
-                      name="otpChannel"
-                      value="EMAIL"
-                      [ngModel]="channel()"
-                      (ngModelChange)="channel.set($event)"
-                    />
-                    <span>Email</span>
-                  </label>
-                  <label class="channel-option" [class.selected]="channel() === 'SMS'">
-                    <input
-                      type="radio"
-                      name="otpChannel"
-                      value="SMS"
-                      [ngModel]="channel()"
-                      (ngModelChange)="channel.set($event)"
-                    />
-                    <span>SMS</span>
-                  </label>
-                  <label class="channel-option" [class.selected]="channel() === 'WHATSAPP'">
-                    <input
-                      type="radio"
-                      name="otpChannel"
-                      value="WHATSAPP"
-                      [ngModel]="channel()"
-                      (ngModelChange)="channel.set($event)"
-                    />
-                    <span>WhatsApp</span>
-                  </label>
+                  @for (ch of store.channelConfigs(); track ch.channelCode) {
+                    @let isAllowed = ch.active && ch.otpEnabled;
+                    <label
+                      class="channel-option"
+                      [class.selected]="isAllowed && channel() === ch.channelCode"
+                      [class.disabled]="!isAllowed"
+                      [attr.aria-disabled]="!isAllowed ? 'true' : null"
+                      [attr.title]="!isAllowed ? ch.displayName + ' is currently disabled in Configurations' : null"
+                    >
+                      <input
+                        type="radio"
+                        name="otpChannel"
+                        [value]="ch.channelCode"
+                        [disabled]="!isAllowed"
+                        [ngModel]="channel()"
+                        (ngModelChange)="isAllowed && channel.set($event)"
+                      />
+                      <span>{{ ch.displayName }}</span>
+                      @if (!isAllowed) {
+                        <span class="channel-disabled-tag">Off</span>
+                      }
+                    </label>
+                  }
                 </div>
               </fieldset>
 
@@ -583,27 +634,50 @@ import { Icon } from '../../shared/icon/icon';
                   Enter the 6-digit numeric code sent to
                   <strong>{{ auth.challenge()?.maskedIdentifier }}</strong>.
                 </small>
-                <input
-                  #otpInputEl
-                  type="text"
-                  id="otp-input"
-                  name="otp"
-                  class="otp-single-input"
-                  inputmode="numeric"
-                  autocomplete="one-time-code"
-                  autocorrect="off"
-                  autocapitalize="none"
-                  spellcheck="false"
-                  enterkeyhint="done"
-                  pattern="\\d{6}"
-                  maxlength="6"
-                  aria-describedby="otp-format-hint"
-                  [attr.aria-invalid]="errorMessage() ? 'true' : null"
-                  placeholder="000000"
-                  required
-                  [ngModel]="otpCode()"
-                  (ngModelChange)="onOtpInput($event)"
-                />
+                <div
+                  class="otp-boxes-wrapper"
+                  [style.--value-length]="otpCode().length"
+                >
+                  <div class="otp-boxes-grid" aria-hidden="true">
+                    @for (slot of otpSlots; track slot) {
+                      <div
+                        class="otp-digit-box"
+                        [class.filled]="otpDigitAt(slot) !== ''"
+                        [class.empty]="otpDigitAt(slot) === ''"
+                        [class.placeholder]="otpDigitAt(slot) === '' && activeOtpSlot() !== slot"
+                        [class.active]="activeOtpSlot() === slot"
+                      >
+                        @if (otpDigitAt(slot); as digit) {
+                          {{ digit }}
+                        } @else if (activeOtpSlot() !== slot) {
+                          0
+                        }
+                      </div>
+                    }
+                  </div>
+                  <input
+                    #otpInputEl
+                    type="text"
+                    id="otp-input"
+                    name="otp"
+                    class="otp-overlay-input"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    autocorrect="off"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    enterkeyhint="done"
+                    pattern="\\d{6}"
+                    maxlength="6"
+                    aria-describedby="otp-format-hint"
+                    [attr.aria-invalid]="errorMessage() ? 'true' : null"
+                    required
+                    [ngModel]="otpCode()"
+                    (ngModelChange)="onOtpInput($event)"
+                    (focus)="otpFocused.set(true)"
+                    (blur)="otpFocused.set(false)"
+                  />
+                </div>
               </div>
 
               <button
@@ -613,7 +687,7 @@ import { Icon } from '../../shared/icon/icon';
                 [disabled]="auth.loading()"
               >
                 <app-icon name="check" />
-                <span>{{ auth.loading() ? 'Verifying...' : 'Verify & Open SOOTR' }}</span>
+                <span>{{ auth.loading() ? 'Verifying...' : 'Verify & Continue' }}</span>
               </button>
 
               <div style="display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap">
@@ -648,20 +722,48 @@ import { Icon } from '../../shared/icon/icon';
 })
 export class Login implements OnDestroy {
   protected readonly auth = inject(AuthService);
+  protected readonly store = inject(StaffTrackStore);
   protected readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
 
   protected readonly countries = COUNTRY_DIAL_CODES;
   protected readonly loginMode = signal<LoginMode>('email');
-  protected readonly emailInput = signal('kfredrick35@gmail.com');
+  protected readonly emailInput = signal('');
   protected readonly countryDial = signal('+256');
-  protected readonly phoneInput = signal('700408387');
+  protected readonly phoneInput = signal('');
   protected readonly channel = signal<OtpChannel>('EMAIL');
   protected readonly otpCode = signal('');
+  protected readonly otpFocused = signal(false);
   protected readonly errorMessage = signal('');
+  protected readonly otpSlots = [0, 1, 2, 3, 4, 5] as const;
+
+  constructor() {
+    this.store.loadChannelConfigs();
+    effect(() => {
+      const configs = this.store.channelConfigs();
+      const current = this.channel();
+      const currentCfg = configs.find((c) => c.channelCode === current);
+      if (currentCfg && (!currentCfg.active || !currentCfg.otpEnabled)) {
+        const fallback = configs.find((c) => c.active && c.otpEnabled);
+        if (fallback) {
+          this.channel.set(fallback.channelCode);
+        }
+      }
+    });
+  }
 
   private readonly otpFormRef = viewChild<ElementRef<HTMLFormElement>>('otpFormEl');
+  private readonly otpInputRef = viewChild<ElementRef<HTMLInputElement>>('otpInputEl');
   private otpAbortController: AbortController | null = null;
+
+  protected readonly activeOtpSlot = computed(() => {
+    if (!this.otpFocused()) return -1;
+    return Math.min(this.otpCode().length, 5);
+  });
+
+  protected otpDigitAt(index: number): string {
+    return this.otpCode()[index] ?? '';
+  }
 
   protected readonly fullIdentifier = computed(() => {
     if (this.loginMode() === 'email') {
@@ -680,7 +782,17 @@ export class Login implements OnDestroy {
   protected setLoginMode(mode: LoginMode): void {
     this.loginMode.set(mode);
     this.errorMessage.set('');
-    this.channel.set(mode === 'email' ? 'EMAIL' : 'SMS');
+    if (mode === 'email' && this.store.isOtpChannelActive('EMAIL')) {
+      this.channel.set('EMAIL');
+    } else if (mode === 'phone') {
+      if (this.store.isOtpChannelActive('WHATSAPP')) {
+        this.channel.set('WHATSAPP');
+      } else if (this.store.isOtpChannelActive('SMS')) {
+        this.channel.set('SMS');
+      } else {
+        this.channel.set('EMAIL');
+      }
+    }
   }
 
   protected onIdentifierInput(val: string): void {
@@ -698,7 +810,7 @@ export class Login implements OnDestroy {
     const id = this.fullIdentifier();
     if (!id) return;
     if (this.loginMode() === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) {
-      this.errorMessage.set('Please enter a valid email address (for example, name@swizima.com).');
+      this.errorMessage.set('Please enter a valid email address (for example, name@organisation.go.ug).');
     } else if (this.loginMode() === 'phone' && !/^\+\d{9,15}$/.test(id)) {
       this.errorMessage.set('Please enter a valid phone number after the country code.');
     }
@@ -724,7 +836,7 @@ export class Login implements OnDestroy {
       }
     } else {
       if (!/^\+\d{9,15}$/.test(id)) {
-        this.errorMessage.set('Please enter a valid mobile number (e.g., 700 408 387).');
+        this.errorMessage.set('Please enter a valid mobile number (e.g., 700 000 000).');
         return;
       }
     }
@@ -736,6 +848,7 @@ export class Login implements OnDestroy {
         this.errorMessage.set(res.error || 'Unable to send OTP verification code.');
         return;
       }
+      setTimeout(() => this.otpInputRef()?.nativeElement.focus(), 50);
       void this.startSmsOtpListener();
     });
   }

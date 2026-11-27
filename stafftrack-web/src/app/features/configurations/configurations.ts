@@ -4,7 +4,9 @@ import {
   BillingModel,
   BillingPlanStatus,
   ClientBillingPlan,
+  NotificationChannelConfig,
   NotificationSupervisor,
+  SupervisorCategory,
   SupervisorNotificationStatus,
 } from '../../core/models/stafftrack.models';
 import { ConfirmService } from '../../core/services/confirm.service';
@@ -18,7 +20,7 @@ interface ClientOption {
   clientCode: string;
 }
 
-type ConfigTab = 'SUPERVISORS' | 'BILLING';
+type ConfigTab = 'SUPERVISORS' | 'CHANNELS' | 'BILLING';
 
 @Component({
   selector: 'app-configurations',
@@ -219,6 +221,77 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
       flex-wrap: wrap;
       gap: 0.35rem;
     }
+    .channel-check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .channel-check-label.is-disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .channel-check-label input[type='checkbox'] {
+      width: 1.05rem;
+      height: 1.05rem;
+      accent-color: var(--brand-500);
+      margin: 0;
+      cursor: inherit;
+    }
+    .cat-fieldset {
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 0.75rem 0.9rem;
+      margin: 0;
+      background: var(--bg-subtle);
+    }
+    .cat-legend {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text);
+      padding: 0 0.35rem;
+    }
+    .cat-radio-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.35rem;
+    }
+    .cat-radio-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+    }
+    .cat-radio-item.is-selected {
+      border-color: var(--brand-500);
+      background: var(--info-bg);
+    }
+    .cat-radio-item input[type='radio'] {
+      margin-top: 0.2rem;
+      width: 1.05rem;
+      height: 1.05rem;
+      accent-color: var(--brand-500);
+      flex: none;
+      cursor: pointer;
+    }
+    .cat-radio-item label {
+      display: grid;
+      gap: 0.15rem;
+      cursor: pointer;
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+    .cat-radio-item label span {
+      font-size: 0.76rem;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
   `,
   template: `
     <div class="page">
@@ -226,8 +299,8 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
         <div class="page-title">
           <h1>Configurations</h1>
           <p>
-            Manage the Supervisors List to receive out-of-office &amp; report-back notifications,
-            and configure client billing plans.
+            Manage the Supervisors List, active Notification &amp; OTP Delivery Channels, and client
+            billing plans.
           </p>
         </div>
       </header>
@@ -283,6 +356,19 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
             type="button"
             role="tab"
             class="tab-btn"
+            [class.active]="activeTab() === 'CHANNELS'"
+            [attr.aria-selected]="activeTab() === 'CHANNELS'"
+            (click)="activeTab.set('CHANNELS')"
+          >
+            <app-icon name="settings" />
+            <span>Delivery Channels</span>
+            <span class="tab-count">{{ store.activeChannelCount() }}/{{ store.channelConfigs().length }}</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            class="tab-btn"
             [class.active]="activeTab() === 'BILLING'"
             [attr.aria-selected]="activeTab() === 'BILLING'"
             (click)="activeTab.set('BILLING')"
@@ -299,19 +385,20 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
             <div class="info-banner">
               <app-icon name="mail" />
               <span>
-                Configure supervisors who receive notifications when officers log out-of-office
-                movements or submit report-backs.
-                <strong>Either an email address or a phone number is required</strong> — all other
-                fields are optional.
+                Categorize supervisors as <strong>Unit Head</strong> (selected by staff on creating
+                Out-of-Office; views &amp; accepts before sending to Overall Head) or
+                <strong>Overall Head</strong> (notified once Unit Head accepts — no accept/reject
+                needed). On returning, <strong>both Unit Head and Overall Head</strong> are notified.
               </span>
             </div>
           </div>
 
           <div class="toolbar">
-            <label class="search-box" style="max-width: 340px">
+            <label class="search-box" style="max-width: 320px">
               <span class="search-icon"><app-icon name="search" /></span>
               <input
                 type="search"
+                name="supSearchQuery"
                 class="input"
                 placeholder="Search supervisor name, email, or phone..."
                 [ngModel]="supSearchQuery()"
@@ -320,6 +407,19 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
             </label>
 
             <select
+              name="supCategoryFilter"
+              class="select filter-select"
+              aria-label="Filter supervisors by category"
+              [ngModel]="supCategoryFilter()"
+              (ngModelChange)="supCategoryFilter.set($event); supPage.set(0)"
+            >
+              <option value="ALL">All categories</option>
+              <option value="UNIT_HEAD">Unit Head (Reviews &amp; Accepts)</option>
+              <option value="OVERALL_HEAD">Overall Head (Notified Only)</option>
+            </select>
+
+            <select
+              name="supStatusFilter"
               class="select filter-select"
               aria-label="Filter supervisors by status"
               [ngModel]="supStatusFilter()"
@@ -357,6 +457,7 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                 <tr>
                   <th>Entity / Organisation</th>
                   <th>Supervisor Name</th>
+                  <th>Category</th>
                   <th>Email Address</th>
                   <th>Phone Number</th>
                   <th>Notification Channels</th>
@@ -382,6 +483,19 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                     <td data-label="Supervisor Name">
                       <span class="cell-primary">{{ sup.name || '—' }}</span>
                     </td>
+                    <td data-label="Category">
+                      @if ((sup.category || 'OVERALL_HEAD') === 'UNIT_HEAD') {
+                        <div class="cell-stack">
+                          <span class="badge badge-purple" style="width: fit-content">Unit Head</span>
+                          <span class="cell-secondary">Views &amp; Accepts</span>
+                        </div>
+                      } @else {
+                        <div class="cell-stack">
+                          <span class="badge badge-info" style="width: fit-content">Overall Head</span>
+                          <span class="cell-secondary">Notified Only</span>
+                        </div>
+                      }
+                    </td>
                     <td data-label="Email Address">
                       @if (sup.email) {
                         <span class="cell-mono" style="font-size: 0.84rem">{{ sup.email }}</span>
@@ -398,11 +512,14 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                     </td>
                     <td data-label="Notification Channels">
                       <div class="channel-pills">
-                        @if (sup.email) {
+                        @if (sup.email && store.isSupervisorChannelActive('EMAIL')) {
                           <span class="badge badge-info">Email</span>
                         }
-                        @if (sup.phone) {
-                          <span class="badge badge-success">Phone / SMS</span>
+                        @if (sup.phone && store.isSupervisorChannelActive('WHATSAPP')) {
+                          <span class="badge badge-success">WhatsApp</span>
+                        }
+                        @if (sup.phone && store.isSupervisorChannelActive('SMS')) {
+                          <span class="badge badge-warning">SMS</span>
                         }
                       </div>
                     </td>
@@ -457,8 +574,8 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="7" style="text-align: center; padding: 2.2rem; color: var(--text-muted)">
-                      No entity supervisors added yet. Click "+ Add Supervisor" to add an email or phone number.
+                    <td colspan="8" style="text-align: center; padding: 2.2rem; color: var(--text-muted)">
+                      No entity supervisors match your filter. Click "+ Add Supervisor" to configure a Unit Head or Overall Head.
                     </td>
                   </tr>
                 }
@@ -475,7 +592,113 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
           />
         }
 
-        <!-- TAB 2: CLIENT BILLING PLANS -->
+        <!-- TAB 2: DELIVERY CHANNELS (EMAIL / SMS / WHATSAPP) -->
+        @if (activeTab() === 'CHANNELS') {
+          <div style="padding: 1rem 1.25rem 0">
+            <div class="info-banner">
+              <app-icon name="shield" />
+              <span>
+                Control which communication channels (<strong>Email</strong>, <strong>SMS</strong>,
+                and <strong>WhatsApp</strong>) are active for 6-digit OTP sign-in and supervisor
+                movement alerts. Disabled channels are automatically locked on the Sign-In screen.
+              </span>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <span class="cell-secondary">
+              <strong>{{ store.activeChannelCount() }}</strong> of
+              <strong>{{ store.channelConfigs().length }}</strong> channels active
+            </span>
+            <span class="toolbar-spacer"></span>
+            <button
+              type="button"
+              class="btn"
+              [disabled]="store.apiLoading()"
+              (click)="store.loadChannelConfigs()"
+            >
+              <app-icon name="refresh" />
+              <span>Refresh Channels</span>
+            </button>
+          </div>
+
+          <div tabindex="0" role="region" aria-labelledby="channels-caption" class="table-wrapper">
+            <table class="data-table">
+              <caption id="channels-caption">
+                Active and disabled notification and OTP delivery channels
+              </caption>
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Description</th>
+                  <th>OTP Sign-In</th>
+                  <th>Supervisor Alerts</th>
+                  <th>Status</th>
+                  <th class="ta-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (ch of store.channelConfigs(); track ch.channelCode) {
+                  <tr>
+                    <td data-label="Channel">
+                      <div class="cell-stack">
+                        <span class="cell-primary">{{ ch.displayName }}</span>
+                        <span class="cell-secondary cell-mono">{{ ch.channelCode }}</span>
+                      </div>
+                    </td>
+                    <td data-label="Description" style="max-width: 360px">
+                      <span style="font-size: 0.84rem; color: var(--text-muted)">
+                        {{ ch.description }}
+                      </span>
+                    </td>
+                    <td data-label="OTP Sign-In">
+                      <label class="channel-check-label" [class.is-disabled]="!ch.active">
+                        <input
+                          type="checkbox"
+                          [name]="'otp-' + ch.channelCode"
+                          [disabled]="!ch.active"
+                          [checked]="ch.active && ch.otpEnabled"
+                          (change)="toggleChannelOtp(ch, $any($event.target).checked)"
+                        />
+                        <span>{{ ch.active && ch.otpEnabled ? 'Enabled' : 'Disabled' }}</span>
+                      </label>
+                    </td>
+                    <td data-label="Supervisor Alerts">
+                      <label class="channel-check-label" [class.is-disabled]="!ch.active">
+                        <input
+                          type="checkbox"
+                          [name]="'sup-' + ch.channelCode"
+                          [disabled]="!ch.active"
+                          [checked]="ch.active && ch.supervisorAlertEnabled"
+                          (change)="toggleChannelSupervisorAlert(ch, $any($event.target).checked)"
+                        />
+                        <span>
+                          {{ ch.active && ch.supervisorAlertEnabled ? 'Enabled' : 'Disabled' }}
+                        </span>
+                      </label>
+                    </td>
+                    <td data-label="Status">
+                      <span [class]="ch.active ? 'badge badge-success' : 'badge badge-warning'">
+                        {{ ch.active ? 'Active' : 'Disabled' }}
+                      </span>
+                    </td>
+                    <td data-label="Action" class="ta-right">
+                      <button
+                        type="button"
+                        [class]="ch.active ? 'btn btn-sm' : 'btn btn-sm btn-primary'"
+                        (click)="toggleChannelActive(ch)"
+                      >
+                        <span>{{ ch.active ? 'Disable' : 'Enable' }}</span>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <!-- TAB 3: CLIENT BILLING PLANS -->
         @if (activeTab() === 'BILLING') {
           <div style="padding: 1rem 1.25rem 0">
             <div class="info-banner">
@@ -684,6 +907,55 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
 
                 <div class="form-grid">
                   <div class="field field-full">
+                    <fieldset class="cat-fieldset">
+                      <legend class="cat-legend">
+                        Supervisor Category <span aria-hidden="true">*</span>
+                      </legend>
+                      <div class="cat-radio-grid">
+                        <div
+                          class="cat-radio-item"
+                          [class.is-selected]="supForm.category === 'UNIT_HEAD'"
+                        >
+                          <input
+                            type="radio"
+                            id="sup-cat-unit"
+                            name="supCategory"
+                            value="UNIT_HEAD"
+                            [(ngModel)]="supForm.category"
+                          />
+                          <label for="sup-cat-unit">
+                            <strong>Unit Head</strong>
+                            <span>
+                              Selected by staff on creating Out-of-Office; views &amp; accepts
+                              before sending to Overall Head; notified on return.
+                            </span>
+                          </label>
+                        </div>
+
+                        <div
+                          class="cat-radio-item"
+                          [class.is-selected]="supForm.category === 'OVERALL_HEAD'"
+                        >
+                          <input
+                            type="radio"
+                            id="sup-cat-overall"
+                            name="supCategory"
+                            value="OVERALL_HEAD"
+                            [(ngModel)]="supForm.category"
+                          />
+                          <label for="sup-cat-overall">
+                            <strong>Overall Head</strong>
+                            <span>
+                              Notified automatically once Unit Head accepts (no accept/reject
+                              needed) and notified on return.
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    </fieldset>
+                  </div>
+
+                  <div class="field field-full">
                     <label for="sup-entity">Entity / Organisation / Department (Optional)</label>
                     <select
                       id="sup-entity"
@@ -743,6 +1015,10 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                       type="email"
                       name="supEmail"
                       class="input"
+                      autocomplete="email"
+                      autocorrect="off"
+                      autocapitalize="none"
+                      spellcheck="false"
                       [(ngModel)]="supForm.email"
                       (ngModelChange)="supFormError.set('')"
                       placeholder="e.g. supervisor@opm.go.ug"
@@ -758,9 +1034,10 @@ type ConfigTab = 'SUPERVISORS' | 'BILLING';
                       type="tel"
                       name="supPhone"
                       class="input"
+                      autocomplete="tel"
                       [(ngModel)]="supForm.phone"
                       (ngModelChange)="supFormError.set('')"
-                      placeholder="e.g. +256 700 408 387"
+                      placeholder="e.g. +256 700 000 000"
                     />
                   </div>
 
@@ -1000,6 +1277,7 @@ export class Configurations {
 
   // ---------- Notification Supervisors State ----------
   protected readonly supSearchQuery = signal('');
+  protected readonly supCategoryFilter = signal<'ALL' | SupervisorCategory>('ALL');
   protected readonly supStatusFilter = signal<'ALL' | SupervisorNotificationStatus>('ALL');
   protected readonly supDialogOpen = signal(false);
   protected readonly editingSupId = signal<string | undefined>(undefined);
@@ -1013,13 +1291,18 @@ export class Configurations {
     name: '',
     email: '',
     phone: '',
+    category: 'UNIT_HEAD' as SupervisorCategory,
+    department: '',
     status: 'ACTIVE' as SupervisorNotificationStatus,
   };
 
   protected readonly filteredSupervisors = computed(() => {
     const q = this.supSearchQuery().trim().toLowerCase();
+    const cat = this.supCategoryFilter();
     const st = this.supStatusFilter();
     return this.store.notificationSupervisors().filter((s) => {
+      const supCat: SupervisorCategory = s.category === 'UNIT_HEAD' ? 'UNIT_HEAD' : 'OVERALL_HEAD';
+      if (cat !== 'ALL' && supCat !== cat) return false;
       if (st !== 'ALL' && s.status !== st) return false;
       if (!q) return true;
       return (
@@ -1050,6 +1333,8 @@ export class Configurations {
       name: '',
       email: '',
       phone: '',
+      category: 'UNIT_HEAD',
+      department: '',
       status: 'ACTIVE',
     };
     this.supDialogOpen.set(true);
@@ -1070,6 +1355,8 @@ export class Configurations {
       name: sup.name || '',
       email: sup.email || '',
       phone: sup.phone || '',
+      category: sup.category === 'UNIT_HEAD' ? 'UNIT_HEAD' : 'OVERALL_HEAD',
+      department: sup.department || '',
       status: sup.status || 'ACTIVE',
     };
     this.supDialogOpen.set(true);
@@ -1088,6 +1375,7 @@ export class Configurations {
     this.supForm.name = `${member.surname} ${member.lastName}`.trim();
     this.supForm.email = member.email || '';
     this.supForm.phone = member.phone || '';
+    this.supForm.department = member.department || '';
     const matchedDeptClient = this.availableClients().find(
       (c) => c.clientName.toLowerCase() === member.department.toLowerCase()
     );
@@ -1121,6 +1409,8 @@ export class Configurations {
         name: cleanName || undefined,
         email: cleanEmail || undefined,
         phone: cleanPhone || undefined,
+        category: this.supForm.category,
+        department: this.supForm.department.trim() || undefined,
         status: this.supForm.status,
       },
       this.editingSupId()
@@ -1135,6 +1425,24 @@ export class Configurations {
 
   protected removeSupervisor(sup: NotificationSupervisor): void {
     this.store.deleteNotificationSupervisor(sup.id);
+  }
+
+  // ---------- Notification & OTP Channel Config Actions ----------
+  protected toggleChannelActive(ch: NotificationChannelConfig): void {
+    const nextActive = !ch.active;
+    this.store.updateChannelConfig(ch.channelCode, {
+      active: nextActive,
+      otpEnabled: nextActive,
+      supervisorAlertEnabled: nextActive && ch.channelCode !== 'SMS' ? true : nextActive,
+    });
+  }
+
+  protected toggleChannelOtp(ch: NotificationChannelConfig, enabled: boolean): void {
+    this.store.updateChannelConfig(ch.channelCode, { otpEnabled: enabled });
+  }
+
+  protected toggleChannelSupervisorAlert(ch: NotificationChannelConfig, enabled: boolean): void {
+    this.store.updateChannelConfig(ch.channelCode, { supervisorAlertEnabled: enabled });
   }
 
   // ---------- Client Billing Plans State ----------

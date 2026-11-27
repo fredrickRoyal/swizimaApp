@@ -5,6 +5,7 @@ import com.swizima.stafftrackapi.entity.enums.RecordStatus;
 import com.swizima.stafftrackapi.exception.BusinessRuleException;
 import com.swizima.stafftrackapi.exception.ResourceNotFoundException;
 import com.swizima.stafftrackapi.repository.SupervisorRepository;
+import com.swizima.stafftrackapi.service.SupervisorNotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -35,6 +37,18 @@ import java.util.UUID;
 public class SupervisorController {
 
     private final SupervisorRepository supervisorRepository;
+    private final SupervisorNotificationService supervisorNotificationService;
+
+    public static String normalizeCategory(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "OVERALL_HEAD";
+        }
+        String norm = raw.trim().toUpperCase().replace(' ', '_').replace('-', '_');
+        if ("UNIT_HEAD".equals(norm) || "SUPERVISOR".equals(norm) || "UNIT_SUPERVISOR".equals(norm)) {
+            return "UNIT_HEAD";
+        }
+        return "OVERALL_HEAD";
+    }
 
     public record SupervisorDto(
             UUID id,
@@ -44,6 +58,8 @@ public class SupervisorController {
             String name,
             String email,
             String phone,
+            String category,
+            String department,
             String status,
             String createdAt
     ) {
@@ -56,6 +72,8 @@ public class SupervisorController {
                     s.getName(),
                     s.getEmail(),
                     s.getPhone(),
+                    normalizeCategory(s.getCategory()),
+                    s.getDepartment(),
                     s.getStatus(),
                     s.getCreatedAt() != null ? s.getCreatedAt().toLocalDate().toString() : LocalDate.now().toString()
             );
@@ -69,6 +87,8 @@ public class SupervisorController {
             String name,
             String email,
             String phone,
+            String category,
+            String department,
             String status
     ) {
     }
@@ -98,6 +118,8 @@ public class SupervisorController {
             throw new BusinessRuleException("At least an email address or a phone number is required.");
         }
 
+        String cleanDepartment = request.department() != null ? request.department().trim() : "";
+
         Supervisor entity = Supervisor.builder()
                 .clientRef(request.clientRef())
                 .entityName(cleanEntityName)
@@ -105,6 +127,8 @@ public class SupervisorController {
                 .name(cleanName)
                 .email(cleanEmail)
                 .phone(cleanPhone)
+                .category(normalizeCategory(request.category()))
+                .department(cleanDepartment)
                 .status(request.status() != null && !request.status().isBlank() ? request.status().trim() : "ACTIVE")
                 .recordStatus(RecordStatus.ACTIVE)
                 .build();
@@ -140,6 +164,14 @@ public class SupervisorController {
         entity.setName(cleanName);
         entity.setEmail(cleanEmail);
         entity.setPhone(cleanPhone);
+        if (request.category() != null && !request.category().isBlank()) {
+            entity.setCategory(normalizeCategory(request.category()));
+        } else if (entity.getCategory() == null || entity.getCategory().isBlank()) {
+            entity.setCategory("OVERALL_HEAD");
+        }
+        if (request.department() != null) {
+            entity.setDepartment(request.department().trim());
+        }
         if (request.status() != null && !request.status().isBlank()) {
             entity.setStatus(request.status().trim());
         }
@@ -147,7 +179,7 @@ public class SupervisorController {
         return ResponseEntity.ok(SupervisorDto.from(supervisorRepository.save(entity)));
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {RequestMethod.PATCH, RequestMethod.PUT})
     @Transactional
     @Operation(summary = "Toggle supervisor status (ACTIVE / INACTIVE)")
     public ResponseEntity<SupervisorDto> updateStatus(@PathVariable UUID id,
@@ -167,6 +199,14 @@ public class SupervisorController {
         entity.setRecordStatus(RecordStatus.DELETED);
         supervisorRepository.save(entity);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/notify-whatsapp")
+    @Operation(summary = "Send a WhatsApp notification to all active supervisors' configured phone numbers")
+    public ResponseEntity<Map<String, Object>> notifySupervisorsWhatsApp(
+            @RequestBody(required = false) Map<String, String> body) {
+        String customMessage = body != null ? body.get("message") : null;
+        return ResponseEntity.ok(supervisorNotificationService.notifyActiveSupervisorsViaWhatsApp(customMessage));
     }
 }
 

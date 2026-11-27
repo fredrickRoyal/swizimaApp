@@ -15,7 +15,17 @@ group "default" {
     "clienttransactionsapi",
     "stafftrackapi",
     "filesapi",
-    "apigateway"
+    "whatsappapi",
+    "apigateway",
+    "stafftrack-web",
+    "swizima-web"
+  ]
+}
+
+group "web" {
+  targets = [
+    "swizima-web",
+    "stafftrack-web"
   ]
 }
 
@@ -73,5 +83,24 @@ target "apigateway" {
   dockerfile = "Dockerfile"
   target     = "apigateway"
   tags       = ["${DOCKERHUB_USER}/swizima-apigateway:${TAG}"]
+}
+
+target "whatsappapi" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  target     = "whatsappapi"
+  tags       = ["${DOCKERHUB_USER}/swizima-whatsappapi:${TAG}"]
+}
+
+target "swizima-web" {
+  context    = "swizima-web"
+  dockerfile = "Dockerfile"
+  tags       = ["${DOCKERHUB_USER}/swizima-web:${TAG}"]
+}
+
+target "stafftrack-web" {
+  context    = "stafftrack-web"
+  dockerfile = "Dockerfile"
+  tags       = ["${DOCKERHUB_USER}/stafftrack-web:${TAG}"]
 }
 

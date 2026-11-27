@@ -11,6 +11,7 @@ import com.swizima.stafftrackapi.repository.ClientUserAssignmentRepository;
 import com.swizima.stafftrackapi.repository.OrganisationRepository;
 import com.swizima.stafftrackapi.repository.StaffMemberRepository;
 import com.swizima.stafftrackapi.repository.UserAccountRepository;
+import com.swizima.stafftrackapi.service.NotificationChannelConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.mail.internet.MimeMessage;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,9 +58,17 @@ public class AuthController {
     private final StaffMemberRepository staffMemberRepository;
     private final ClientUserAssignmentRepository clientUserRepository;
     private final OrganisationRepository organisationRepository;
+    private final NotificationChannelConfigService channelConfigService;
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient = buildRestClient();
     private final SecureRandom secureRandom = new SecureRandom();
+
+    private static RestClient buildRestClient() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(15000);
+        return RestClient.builder().requestFactory(factory).build();
+    }
 
     @Value("${spring.mail.username:swizimaapp@gmail.com}")
     private String smtpUsername;
@@ -71,6 +81,36 @@ public class AuthController {
 
     @Value("${app.users-api.base-url:http://localhost:8085}")
     private String usersApiBaseUrl;
+
+    @Value("${app.whatsapp.service.enabled:true}")
+    private boolean whatsAppServiceEnabled;
+
+    @Value("${app.whatsapp.service.base-url:http://localhost:8088}")
+    private String whatsAppServiceBaseUrl;
+
+    @Value("${app.whatsapp.service.api-key:swz-wa-relay-2026-secret}")
+    private String whatsAppServiceApiKey;
+
+    @Value("${app.whatsapp.meta.enabled:false}")
+    private boolean metaWhatsAppEnabled;
+
+    @Value("${app.whatsapp.meta.base-url:https://graph.facebook.com}")
+    private String metaBaseUrl;
+
+    @Value("${app.whatsapp.meta.api-version:v25.0}")
+    private String metaApiVersion;
+
+    @Value("${app.whatsapp.meta.phone-number-id:1503783962810442}")
+    private String metaPhoneNumberId;
+
+    @Value("${app.whatsapp.meta.access-token:}")
+    private String metaAccessToken;
+
+    @Value("${app.whatsapp.meta.template-name:3p_direct_integration_test_template}")
+    private String metaTemplateName;
+
+    @Value("${app.whatsapp.meta.language-code:en_US}")
+    private String metaLanguageCode;
 
     private final Map<String, PendingOtpRecord> otpChallenges = new ConcurrentHashMap<>();
 
@@ -185,9 +225,19 @@ public class AuthController {
         String mode = request.loginMode() != null
                 ? request.loginMode().trim()
                 : (rawId.contains("@") ? "email" : "phone");
-        String requestedChannel = request.channel() != null
-                ? request.channel().trim().toUpperCase()
-                : (mode.equalsIgnoreCase("email") ? "EMAIL" : "WHATSAPP");
+        String requestedChannel;
+        if (request.channel() != null && !request.channel().isBlank()) {
+            requestedChannel = request.channel().trim().toUpperCase();
+            if (!channelConfigService.isOtpChannelActive(requestedChannel)) {
+                throw new BusinessRuleException(requestedChannel + " verification is currently disabled. Please choose an active channel.");
+            }
+        } else if (mode.equalsIgnoreCase("email") && channelConfigService.isOtpChannelActive("EMAIL")) {
+            requestedChannel = "EMAIL";
+        } else if (channelConfigService.isOtpChannelActive("WHATSAPP")) {
+            requestedChannel = "WHATSAPP";
+        } else {
+            requestedChannel = "EMAIL";
+        }
 
         ResolvedIdentity identity = resolveIdentity(rawId);
 
@@ -374,31 +424,33 @@ public class AuthController {
 
     private void deliverOtpCode(ResolvedIdentity identity, String code, String channel) {
         boolean sentAny = false;
+        boolean emailActive = channelConfigService.isOtpChannelActive("EMAIL");
+        boolean whatsAppActive = channelConfigService.isOtpChannelActive("WHATSAPP");
 
         if ("EMAIL".equalsIgnoreCase(channel)) {
-            if (identity.email() != null && !identity.email().isBlank()) {
+            if (emailActive && identity.email() != null && !identity.email().isBlank()) {
                 sendOtpEmail(identity.email().trim(), identity.fullName(), code);
                 sentAny = true;
             }
-            if (identity.phone() != null && !identity.phone().isBlank()) {
-                // Also dispatch via WhatsApp in the background if user has a phone number
+            if (whatsAppActive && identity.phone() != null && !identity.phone().isBlank()) {
+                // Also dispatch via WhatsApp in the background if WhatsApp channel is active
                 sendOtpWhatsApp(identity.phone().trim(), identity.fullName(), code, false);
             }
         } else {
-            // WHATSAPP or SMS requested
-            if (identity.phone() != null && !identity.phone().isBlank()) {
+            // WHATSAPP (or SMS when enabled in future)
+            if ("WHATSAPP".equalsIgnoreCase(channel) && whatsAppActive && identity.phone() != null && !identity.phone().isBlank()) {
                 sendOtpWhatsApp(identity.phone().trim(), identity.fullName(), code, false);
                 sentAny = true;
             }
-            if (identity.email() != null && !identity.email().isBlank()) {
-                // Always send a backup copy to the officer's registered email address so they receive the code reliably
+            if (emailActive && identity.email() != null && !identity.email().isBlank()) {
+                // Send backup copy to officer's registered email when Email channel is active
                 sendOtpEmail(identity.email().trim(), identity.fullName(), code);
                 sentAny = true;
             }
         }
 
         if (!sentAny) {
-            throw new BusinessRuleException("Could not deliver verification code. Please check your registered email or phone number.");
+            throw new BusinessRuleException("Could not deliver verification code via active channels. Please check your registered email or phone number.");
         }
     }
 
@@ -415,7 +467,7 @@ public class AuthController {
                     : mailFrom;
             helper.setFrom(effectiveFrom, mailFromName);
             helper.setTo(toEmail);
-            helper.setSubject("Your SOOTR verification code: " + code);
+            helper.setSubject("Your Staff Out-of-Office Tracker verification code: " + code);
             helper.setText(buildOtpPlainText(fullName, code), buildOtpHtml(fullName, code));
             mailSender.send(message);
             log.info("Sent 6-digit login OTP email to {} ({})", fullName, maskIdentifier(toEmail, "email"));
@@ -425,42 +477,179 @@ public class AuthController {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void sendOtpWhatsApp(String toPhone, String fullName, String code, boolean throwOnError) {
+        String recipientDigits = normalizeWhatsAppDigits(toPhone);
+        if (recipientDigits.isEmpty()) {
+            if (throwOnError) {
+                throw new BusinessRuleException("Invalid phone number for WhatsApp verification code.");
+            }
+            return;
+        }
+
+        String resolvedTemplate = metaTemplateName != null && !metaTemplateName.isBlank()
+                ? metaTemplateName.trim()
+                : "hello_world";
+        String resolvedLang = metaLanguageCode != null && !metaLanguageCode.isBlank()
+                ? metaLanguageCode.trim()
+                : "en_US";
+
+        // 1. Primary: Dispatch via standalone DigitalOcean WhatsApp Relay Service (/api/v1/whatsapp/send-otp)
+        String lastRelayError = null;
+        if (whatsAppServiceEnabled && whatsAppServiceBaseUrl != null && !whatsAppServiceBaseUrl.isBlank()) {
+            String cleanRelayBase = whatsAppServiceBaseUrl.trim().endsWith("/")
+                    ? whatsAppServiceBaseUrl.trim().substring(0, whatsAppServiceBaseUrl.trim().length() - 1)
+                    : whatsAppServiceBaseUrl.trim();
+            String relayOtpUrl = cleanRelayBase + "/api/v1/whatsapp/send-otp";
+
+            Map<String, Object> otpPayload = new LinkedHashMap<>();
+            otpPayload.put("to", recipientDigits);
+            otpPayload.put("code", code);
+            otpPayload.put("expiryMinutes", OTP_EXPIRY_MINUTES);
+            otpPayload.put("appName", "Staff Out-of-Office Tracker");
+            otpPayload.put("templateName", resolvedTemplate);
+            otpPayload.put("languageCode", resolvedLang);
+
+            try {
+                RestClient.RequestBodySpec reqSpec = restClient.post()
+                        .uri(relayOtpUrl)
+                        .contentType(MediaType.APPLICATION_JSON);
+                if (whatsAppServiceApiKey != null && !whatsAppServiceApiKey.isBlank()) {
+                    reqSpec.header("X-API-Key", whatsAppServiceApiKey.trim());
+                }
+                Map<String, Object> relayResp = reqSpec.body(otpPayload).retrieve().body(Map.class);
+                if (relayResp != null && Boolean.TRUE.equals(relayResp.get("delivered"))) {
+                    log.info("Dispatched 6-digit login OTP via DigitalOcean WhatsApp Relay to {} ({})",
+                            fullName, maskIdentifier(recipientDigits, "phone"));
+                    return;
+                }
+            } catch (Exception ex) {
+                lastRelayError = ex.getMessage();
+                log.warn("DigitalOcean WhatsApp OTP relay ({}) unavailable: {} -> falling back to usersapi",
+                        relayOtpUrl, ex.getMessage());
+            }
+        }
+
+        // 2. Secondary: Dispatch via usersapi (/api/v1/users/whatsapp/send)
         String base = usersApiBaseUrl != null ? usersApiBaseUrl.trim() : "http://localhost:8085";
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
         String url = base + "/api/v1/users/whatsapp/send";
 
-        String messageText = "Your SOOTR (OPM Staff Out-of-Office Tracker) verification code is *" + code
+        String messageText = "Your Staff Out-of-Office Tracker verification code is *" + code
                 + "*. It expires in " + OTP_EXPIRY_MINUTES + " minutes. Do not share this code with anyone.";
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("to", toPhone);
+        payload.put("to", recipientDigits);
+        payload.put("templateName", resolvedTemplate);
+        payload.put("languageCode", resolvedLang);
         payload.put("message", messageText);
         payload.put("previewUrl", false);
 
         try {
-            restClient.post()
+            Map<String, Object> resp = restClient.post()
                     .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
-                    .toBodilessEntity();
-            log.info("Dispatched 6-digit login OTP via WhatsApp to {} ({})", fullName, maskIdentifier(toPhone, "phone"));
+                    .body(Map.class);
+            if (resp != null && Boolean.TRUE.equals(resp.get("delivered"))) {
+                log.info("Dispatched 6-digit login OTP via WhatsApp (usersapi) to {} ({})",
+                        fullName, maskIdentifier(recipientDigits, "phone"));
+                return;
+            }
         } catch (Exception ex) {
-            log.warn("Failed to dispatch login OTP via WhatsApp to {}: {}", toPhone, ex.getMessage());
+            log.debug("usersapi WhatsApp OTP dispatch unavailable ({}); falling back to direct Meta Cloud API",
+                    ex.getMessage());
+        }
+
+        if (!metaWhatsAppEnabled || metaAccessToken == null || metaAccessToken.isBlank()
+                || metaPhoneNumberId == null || metaPhoneNumberId.isBlank()) {
+            if (throwOnError) {
+                String detail = lastRelayError != null
+                        ? "Could not reach WhatsApp Relay Service (" + lastRelayError + "). Check WHATSAPP_SERVICE_URL."
+                        : "WhatsApp Relay Service is not reachable. Check WHATSAPP_SERVICE_URL.";
+                throw new BusinessRuleException(detail);
+            }
+            return;
+        }
+
+        String cleanMetaBase = metaBaseUrl != null && metaBaseUrl.trim().endsWith("/")
+                ? metaBaseUrl.trim().substring(0, metaBaseUrl.trim().length() - 1)
+                : (metaBaseUrl != null ? metaBaseUrl.trim() : "https://graph.facebook.com");
+        String metaUrl = String.format("%s/%s/%s/messages",
+                cleanMetaBase,
+                metaApiVersion.trim(),
+                metaPhoneNumberId.trim());
+
+        Map<String, Object> templatePayload = new LinkedHashMap<>();
+        templatePayload.put("messaging_product", "whatsapp");
+        templatePayload.put("to", recipientDigits);
+        templatePayload.put("type", "template");
+        templatePayload.put("template", Map.of(
+                "name", resolvedTemplate,
+                "language", Map.of("code", resolvedLang)
+        ));
+
+        try {
+            restClient.post()
+                    .uri(metaUrl)
+                    .header("Authorization", "Bearer " + metaAccessToken.trim())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(templatePayload)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            Map<String, Object> textPayload = new LinkedHashMap<>();
+            textPayload.put("messaging_product", "whatsapp");
+            textPayload.put("to", recipientDigits);
+            textPayload.put("type", "text");
+            textPayload.put("text", Map.of("preview_url", false, "body", messageText));
+            try {
+                restClient.post()
+                        .uri(metaUrl)
+                        .header("Authorization", "Bearer " + metaAccessToken.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(textPayload)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (Exception ignored) {
+                // Template already delivered
+            }
+            log.info("Dispatched 6-digit login OTP via Meta WhatsApp Cloud API to {} ({})",
+                    fullName, maskIdentifier(recipientDigits, "phone"));
+        } catch (Exception ex) {
+            log.warn("Failed to dispatch login OTP via Meta WhatsApp to {}: {}", recipientDigits, ex.getMessage());
             if (throwOnError) {
                 throw new BusinessRuleException("Could not send verification code via WhatsApp: " + ex.getMessage());
             }
         }
     }
 
+    private String normalizeWhatsAppDigits(String rawPhone) {
+        if (rawPhone == null || rawPhone.isBlank()) {
+            return "";
+        }
+        String digits = rawPhone.replaceAll("\\D", "");
+        if (digits.isEmpty()) {
+            return "";
+        }
+        if (digits.startsWith("00")) {
+            digits = digits.substring(2);
+        } else if (digits.startsWith("0") && digits.length() == 10) {
+            digits = "256" + digits.substring(1);
+        } else if (digits.length() == 9 && digits.startsWith("7")) {
+            digits = "256" + digits;
+        }
+        return digits;
+    }
+
     private String buildOtpPlainText(String fullName, String code) {
         return """
                 Hello %s,
 
-                Your SOOTR (Staff Out-of-Office Tracking & Reporting) verification code is: %s
+                Your Staff Out-of-Office Tracker verification code is: %s
 
                 This code expires in %d minutes. Do not share it with anyone.
                 """.formatted(fullName != null ? fullName : "Officer", code, OTP_EXPIRY_MINUTES);
@@ -483,7 +672,7 @@ public class AuthController {
                               Department of Refugees
                             </div>
                             <div style="font-size:18px;font-weight:bold;margin-top:4px;">
-                              SOOTR Sign-In Verification Code
+                              Sign-In Verification Code
                             </div>
                           </td>
                         </tr>
@@ -493,7 +682,7 @@ public class AuthController {
                               Hello <strong>%s</strong>,
                             </p>
                             <p style="margin:0 0 20px;font-size:14px;color:#475569;">
-                              Use the 6-digit verification code below to complete your sign-in to SOOTR:
+                              Use the 6-digit verification code below to complete your sign-in to Staff Out-of-Office Tracker:
                             </p>
                             <div style="text-align:center;padding:16px 0;">
                               <span style="display:inline-block;font-family:monospace;font-size:32px;letter-spacing:8px;font-weight:bold;

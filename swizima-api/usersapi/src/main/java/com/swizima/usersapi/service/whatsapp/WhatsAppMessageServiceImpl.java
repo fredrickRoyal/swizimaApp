@@ -58,12 +58,34 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
         }
 
         if (hasTemplate) {
-            return sendTemplateMessage(
+            if (isWhatsAppEnabled() && whatsAppProperties.provider() == WhatsAppProperties.Provider.CUSTOM) {
+                String normalizedPhone = usernameNormalizer.normalizePhoneNumber(request.to());
+                if (normalizedPhone == null) {
+                    throw new BadRequestException("Recipient phone number is required");
+                }
+                return sendViaCustomGateway(
+                        normalizedPhone,
+                        hasText ? request.message().trim() : null,
+                        request.templateName().trim(),
+                        request.languageCode(),
+                        request.templateParameters()
+                );
+            }
+            WhatsAppMessageResponse templateResp = sendTemplateMessage(
                     request.to(),
                     request.templateName().trim(),
                     request.languageCode(),
                     request.templateParameters()
             );
+            if (hasText && isWhatsAppEnabled() && whatsAppProperties.provider() == WhatsAppProperties.Provider.META) {
+                try {
+                    sendTextMessage(request.to(), request.message().trim(), Boolean.TRUE.equals(request.previewUrl()));
+                } catch (Exception ex) {
+                    log.debug("Optional follow-up WhatsApp text after template '{}' skipped: {}",
+                            request.templateName(), ex.getMessage());
+                }
+            }
+            return templateResp;
         }
         return sendTextMessage(request.to(), request.message().trim(), Boolean.TRUE.equals(request.previewUrl()));
     }
@@ -156,9 +178,45 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
     @Override
     public WhatsAppMessageResponse sendOtpMessage(String to, String code, int expiryMinutes) {
         String defaultTemplate = whatsAppProperties.meta().defaultTemplateName();
+        String textBody = "Your Staff Out-of-Office Tracker verification code is *" + code + "*. It expires in "
+                + expiryMinutes + " minutes. Do not share this code with anyone.";
+
+        if (whatsAppProperties.provider() == WhatsAppProperties.Provider.CUSTOM && isWhatsAppEnabled()) {
+            String normalizedPhone = usernameNormalizer.normalizePhoneNumber(to);
+            if (normalizedPhone == null) {
+                throw new BadRequestException("Recipient phone number is required");
+            }
+            List<String> params = (defaultTemplate != null && !isZeroParameterTemplate(defaultTemplate))
+                    ? List.of(code)
+                    : null;
+            return sendViaCustomGateway(
+                    normalizedPhone,
+                    textBody,
+                    defaultTemplate,
+                    whatsAppProperties.meta().defaultLanguageCode(),
+                    params
+            );
+        }
+
         if (whatsAppProperties.provider() == WhatsAppProperties.Provider.META
                 && defaultTemplate != null
                 && !defaultTemplate.isBlank()) {
+            if (isZeroParameterTemplate(defaultTemplate)) {
+                WhatsAppMessageResponse templateResp = sendTemplateMessage(
+                        to,
+                        defaultTemplate.trim(),
+                        whatsAppProperties.meta().defaultLanguageCode(),
+                        null
+                );
+                if (isWhatsAppEnabled()) {
+                    try {
+                        return sendTextMessage(to, textBody, false);
+                    } catch (Exception ex) {
+                        log.debug("OTP follow-up text after hello_world template skipped: {}", ex.getMessage());
+                    }
+                }
+                return templateResp;
+            }
             return sendTemplateMessage(
                     to,
                     defaultTemplate,
@@ -166,8 +224,6 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
                     List.of(code)
             );
         }
-        String textBody = "Your Swizima verification code is *" + code + "*. It expires in "
-                + expiryMinutes + " minutes. Do not share this code with anyone.";
         return sendTextMessage(to, textBody, false);
     }
 
@@ -231,7 +287,19 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
                 "body", message
         ));
 
-        return executeMetaRequest(e164Phone, meta, payload);
+        try {
+            return executeMetaRequest(e164Phone, meta, payload);
+        } catch (OtpDeliveryException ex) {
+            // If free-form text is outside the 24-hour customer service window (or sandbox requires template initiation),
+            // automatically send the configured default template (e.g. hello_world) first and retry text delivery.
+            String defaultTemplate = meta.defaultTemplateName();
+            if (isNotBlank(defaultTemplate)) {
+                log.info("Meta text delivery returned error for {}; sending template '{}' ({})",
+                        OtpMasking.mask(e164Phone), defaultTemplate, meta.defaultLanguageCode());
+                return sendViaMetaTemplate(e164Phone, defaultTemplate.trim(), meta.defaultLanguageCode(), null);
+            }
+            throw ex;
+        }
     }
 
     private WhatsAppMessageResponse sendViaMetaTemplate(String e164Phone,
@@ -406,18 +474,29 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
             }
 
             Map<String, Object> responseBody = spec.body(payload).retrieve().body(Map.class);
+            boolean delivered = responseBody == null
+                    || !responseBody.containsKey("delivered")
+                    || Boolean.TRUE.equals(responseBody.get("delivered"));
+            boolean simulated = responseBody != null && Boolean.TRUE.equals(responseBody.get("simulated"));
             String msgId = responseBody != null && responseBody.get("messageId") != null
                     ? String.valueOf(responseBody.get("messageId"))
-                    : "custom-" + UUID.randomUUID();
-            log.info("WhatsApp message sent via CUSTOM gateway to {} (id={})", OtpMasking.mask(e164Phone), msgId);
+                    : "relay-" + UUID.randomUUID();
+            String status = responseBody != null && responseBody.get("status") != null
+                    ? String.valueOf(responseBody.get("status"))
+                    : "SENT";
+            String detail = responseBody != null && responseBody.get("detail") != null
+                    ? String.valueOf(responseBody.get("detail"))
+                    : "Delivered via DigitalOcean WhatsApp Relay Service";
+            log.info("WhatsApp message relayed via DigitalOcean service to {} (delivered={}, id={})",
+                    OtpMasking.mask(e164Phone), delivered, msgId);
             return new WhatsAppMessageResponse(
-                    true,
-                    false,
+                    delivered,
+                    simulated,
                     "CUSTOM",
                     e164Phone,
                     msgId,
-                    "SENT",
-                    "Delivered to custom WhatsApp gateway",
+                    status,
+                    detail,
                     LocalDateTime.now()
             );
         } catch (Exception ex) {
@@ -445,6 +524,13 @@ public class WhatsAppMessageServiceImpl implements WhatsAppMessageService {
             }
         }
         return "meta-" + UUID.randomUUID();
+    }
+
+    private static boolean isZeroParameterTemplate(String name) {
+        if (name == null) return false;
+        String clean = name.trim();
+        return "hello_world".equalsIgnoreCase(clean)
+                || "3p_direct_integration_test_template".equalsIgnoreCase(clean);
     }
 
     private static boolean isNotBlank(String value) {
