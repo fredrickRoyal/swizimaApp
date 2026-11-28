@@ -24,5 +24,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "swizima"
+rootProject.name = "swizima-mobile"
 include(":app")
