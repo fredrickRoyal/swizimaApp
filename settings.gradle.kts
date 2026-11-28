@@ -26,8 +26,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "swizima-app"
 
-include(":swizima-mobile")
-include(":stafftracker-mobile")
-
-project(":swizima-mobile").projectDir = file("swizima-mobile/app")
-project(":stafftracker-mobile").projectDir = file("stafftracker-mobile/app")
+include(":swizima-mobile:app")
+include(":stafftracker-mobile:app")
